@@ -232,6 +232,12 @@
             <form id="urlForm">
                 <input type="text" placeholder="url" id="urlInput" name="urlInput" required><button class="url-submit" type="submit">view ></button>
             </form>
+            <div id="tierToggle" style="display:none; padding:4px 8px; font-size:0.85em; background:#f8f8f8; border-top:1px solid #ddd;">
+                <strong>Geometry tiers:</strong>
+                <label title="Display mesh — 3D rendering"><input type="checkbox" id="tierMesh" checked> Mesh (A)</label>
+                <label title="Precise BRep — STEP data in attributes"><input type="checkbox" id="tierBrep"> BRep (B)</label>
+                <label title="Procedural hints — extrusion parameters in attributes"><input type="checkbox" id="tierProc"> Proc (C)</label>
+            </div>
         </div>
         <div class='tree-container'>
             <h2>Model tree</h2>
@@ -333,6 +339,27 @@
             }
         });
 
+        // Track last tiered load for tier toggle reloading
+        let lastTieredLoad = null;
+
+        function getSelectedTiers() {
+            const tiers = [];
+            if (document.getElementById('tierMesh').checked) tiers.push('mesh');
+            if (document.getElementById('tierBrep').checked) tiers.push('brep');
+            if (document.getElementById('tierProc').checked) tiers.push('proc');
+            return tiers;
+        }
+
+        // Tier toggle: reload with different tiers (replaces current model)
+        document.querySelectorAll('#tierToggle input[type=checkbox]').forEach(cb => {
+            cb.addEventListener('change', async () => {
+                if (!lastTieredLoad) return;
+                const { name, data, baseUrl } = lastTieredLoad;
+                const tiers = getSelectedTiers();
+                await addModel(name, JSON.parse(JSON.stringify(data)), baseUrl, tiers, true);
+            });
+        });
+
         document.querySelector('#urlForm').addEventListener('submit', function(event) {
             event.preventDefault();
             const url = event.target.urlInput.value;
@@ -341,7 +368,10 @@
                 .then(r => r.json())
                 .then((j) => {
                     const name = url.split('/').reverse()[0];
-                    addModel(name, j, baseUrl);
+                    if (j.sections && j.attributeTables) {
+                        lastTieredLoad = { name, data: JSON.parse(JSON.stringify(j)), baseUrl };
+                    }
+                    addModel(name, j, baseUrl, getSelectedTiers());
                 })
                 .catch(e => {
                     document.querySelector('.error-modal .message').innerHTML = e.message;

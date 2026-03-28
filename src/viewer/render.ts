@@ -286,7 +286,7 @@ function createMeshFromJson(path: ComposedObject[]) {
     // console.log(meshMaterial)
   } else {
     const m = createMaterialFromParent(path);
-    meshMaterial = new THREE.MeshLambertMaterial({ ...m });
+    meshMaterial = new THREE.MeshLambertMaterial({ ...m, side: THREE.DoubleSide });
   }
 
   return new THREE.Mesh(geometry, meshMaterial);
@@ -636,10 +636,16 @@ function createLayerDom() {
     });
 }
 
-export default async function addModel(name: string, m: IfcxFile | IndexFileData, baseUrl?: string) {
+export default async function addModel(name: string, m: IfcxFile | IndexFileData, baseUrl?: string, requestedTiers?: string[], replace?: boolean) {
     let file: IfcxFile;
 
     if (isTieredFormat(m)) {
+        // Show tier toggle UI
+        const toggle = document.getElementById('tierToggle');
+        if (toggle) toggle.style.display = 'block';
+
+        const tiers = requestedTiers ?? ["mesh"];
+
         // Tiered format: fetch companion NDJSON files and convert to alpha format
         const ndjsonFiles = new Map<string, string>();
         const base = baseUrl ?? '';
@@ -667,13 +673,17 @@ export default async function addModel(name: string, m: IfcxFile | IndexFileData
             }
         }
 
-        const result = loadIndexFile(cleanIndex as IndexFileData, ndjsonFiles, ["mesh"]);
+        const result = loadIndexFile(cleanIndex as IndexFileData, ndjsonFiles, tiers as any);
         file = result.alphaFile;
     } else {
         file = m;
     }
 
-    datas.push([name, file]);
+    if (replace) {
+        datas = [[name, file]];
+    } else {
+        datas.push([name, file]);
+    }
     createLayerDom();
     await composeAndRender();
 }
