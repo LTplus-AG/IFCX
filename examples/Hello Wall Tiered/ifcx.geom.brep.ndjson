@@ -1,0 +1,1 @@
+{"format":"STEP_AP242","data":"ISO-10303-21;HEADER;FILE_DESCRIPTION(('Wall extrusion'),'2;1');FILE_NAME('wall.stp','2026-03-28',(''),(''),'','','');FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));ENDSEC;DATA;#1=SHAPE_REPRESENTATION('Wall',(#2),#10);#2=ADVANCED_BREP_SHAPE_REPRESENTATION('Wall',(#3),#10);ENDSEC;END-ISO-10303-21;","encoding":"text","tolerance":1e-6,"units":"m"}

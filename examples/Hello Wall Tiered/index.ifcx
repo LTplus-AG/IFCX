@@ -1,0 +1,126 @@
+{
+  "header": {
+    "ifcxVersion": "ifcx_post_alpha"
+  },
+  "imports": [],
+  "attributeTables": [
+    {
+      "filename": "ifcx.geom.mesh.ndjson",
+      "type": "NDJSON",
+      "schema": { "tier": "A", "description": "Display mesh geometry" }
+    },
+    {
+      "filename": "ifcx.geom.brep.ndjson",
+      "type": "NDJSON",
+      "schema": { "tier": "B", "description": "Precise BRep geometry" }
+    },
+    {
+      "filename": "ifcx.geom.proc.ndjson",
+      "type": "NDJSON",
+      "schema": { "tier": "C", "description": "Procedural geometry hints" }
+    },
+    {
+      "filename": "ifcx.semantics.ndjson",
+      "type": "NDJSON",
+      "schema": { "description": "Semantic properties" }
+    }
+  ],
+  "sections": [
+    {
+      "header": {
+        "id": "hello-wall-tiered",
+        "dataVersion": "1.0.0",
+        "author": "technical@buildingsmart.org",
+        "timestamp": "2026-03-28",
+        "application": "ifcx-tiered-example"
+      },
+      "nodes": [
+        {
+          "path": "ab143723-f7b1-5368-b106-55896e88d768",
+          "children": [
+            { "opinion": "VALUE", "name": "My_Site", "value": "e0834921-e095-40f0-8874-3c6bd1ec699e" }
+          ],
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "bsi::ifc::class",
+              "value": { "typeID": "ifcx.semantics", "componentIndex": 0 }
+            }
+          ]
+        },
+        {
+          "path": "e0834921-e095-40f0-8874-3c6bd1ec699e",
+          "children": [
+            { "opinion": "VALUE", "name": "My_Building", "value": "e84dc79e-fe9d-4781-9f4b-54dd435cca91" }
+          ],
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "bsi::ifc::class",
+              "value": { "typeID": "ifcx.semantics", "componentIndex": 1 }
+            }
+          ]
+        },
+        {
+          "path": "e84dc79e-fe9d-4781-9f4b-54dd435cca91",
+          "children": [
+            { "opinion": "VALUE", "name": "My_Storey", "value": "44af358b-3160-4063-8a89-a868335ff3b5" }
+          ],
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "bsi::ifc::class",
+              "value": { "typeID": "ifcx.semantics", "componentIndex": 2 }
+            }
+          ]
+        },
+        {
+          "path": "44af358b-3160-4063-8a89-a868335ff3b5",
+          "children": [
+            { "opinion": "VALUE", "name": "Wall", "value": "93791d5d-5beb-437b-b8ec-2f1f0ba4bf3b" }
+          ],
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "bsi::ifc::class",
+              "value": { "typeID": "ifcx.semantics", "componentIndex": 3 }
+            }
+          ]
+        },
+        {
+          "path": "93791d5d-5beb-437b-b8ec-2f1f0ba4bf3b",
+          "children": [
+            { "opinion": "VALUE", "name": "Body", "value": "634f90c3-831e-5f29-a9b2-fa69b207821e" }
+          ],
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "bsi::ifc::class",
+              "value": { "typeID": "ifcx.semantics", "componentIndex": 4 }
+            }
+          ]
+        },
+        {
+          "path": "634f90c3-831e-5f29-a9b2-fa69b207821e",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::mesh",
+              "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 0 }
+            },
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": { "typeID": "ifcx.geom.brep", "componentIndex": 0 }
+            },
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::proc",
+              "value": { "typeID": "ifcx.geom.proc", "componentIndex": 0 }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

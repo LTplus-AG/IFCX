@@ -1,0 +1,5 @@
+{"bsi::ifc::class":{"code":"IfcSite","uri":"https://identifier.buildingsmart.org/uri/buildingsmart/ifc/4.3/class/IfcSite"}}
+{"bsi::ifc::class":{"code":"IfcBuilding","uri":"https://identifier.buildingsmart.org/uri/buildingsmart/ifc/4.3/class/IfcBuilding"}}
+{"bsi::ifc::class":{"code":"IfcBuildingStorey","uri":"https://identifier.buildingsmart.org/uri/buildingsmart/ifc/4.3/class/IfcBuildingStorey"}}
+{"bsi::ifc::class":{"code":"IfcBuildingStorey","uri":"https://identifier.buildingsmart.org/uri/buildingsmart/ifc/4.3/class/IfcBuildingStorey"},"bsi::ifc::prop::Name":"Ground Floor"}
+{"bsi::ifc::class":{"code":"IfcWall","uri":"https://identifier.buildingsmart.org/uri/buildingsmart/ifc/4.3/class/IfcWall"},"bsi::ifc::prop::Name":"Wall-01","bsi::ifc::prop::FireRating":"REI90"}
