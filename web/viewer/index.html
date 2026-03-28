@@ -263,38 +263,85 @@
     <script type="module">
         import addModel from './render.mjs';
 
-        document.querySelector('#fileForm').addEventListener('submit', function(event) {
+        document.querySelector('#fileForm').addEventListener('submit', async function(event) {
             event.preventDefault();
 
             const fileInput = document.getElementById('fileInput');
-            for (const file of fileInput.files) {
+            const files = Array.from(fileInput.files);
+
+            // Read all files into a map
+            const fileContents = new Map();
+            await Promise.all(files.map(file => new Promise((resolve) => {
                 const reader = new FileReader();
-                reader.onload = function(e) {
-                    let json = null;
+                reader.onload = (e) => { fileContents.set(file.name, e.target.result); resolve(); };
+                reader.readAsText(file);
+            })));
+
+            // Find index/ifcx files and regular files
+            for (const [name, content] of fileContents) {
+                let json = null;
+                try {
+                    json = JSON.parse(content);
+                } catch(e) {
+                    // NDJSON files won't parse as JSON — skip them
+                    continue;
+                }
+                if (json && json.sections && json.attributeTables) {
+                    // Tiered format: build NDJSON map from companion files and pass as baseUrl-less
+                    // The render.ts addModel will fetch NDJSON via relative URLs, but for local files
+                    // we create object URLs so they can be fetched
+                    const ndjsonBlobs = {};
+                    for (const table of json.attributeTables) {
+                        const ndjsonContent = fileContents.get(table.filename);
+                        if (ndjsonContent) {
+                            const blob = new Blob([ndjsonContent], { type: 'text/plain' });
+                            ndjsonBlobs[table.filename] = URL.createObjectURL(blob);
+                        }
+                    }
+                    // Pass original JSON — addModel will fetch NDJSON via relative URLs
+                    // Create a blob URL base so fetch works for local files
+                    const blobBase = {};
+                    for (const table of json.attributeTables) {
+                        if (ndjsonBlobs[table.filename]) {
+                            blobBase[table.filename] = ndjsonBlobs[table.filename];
+                        }
+                    }
+                    // Override fetch for blob-based loading: patch filenames temporarily
+                    const patched = JSON.parse(JSON.stringify(json));
+                    for (const table of patched.attributeTables) {
+                        if (blobBase[table.filename]) {
+                            table._originalFilename = table.filename;
+                            table.filename = blobBase[table.filename];
+                        }
+                    }
                     try {
-                        json = JSON.parse(e.target.result);
+                        await addModel(name, patched);
                     } catch(e) {
                         document.querySelector('.error-modal .message').innerHTML = e.message;
                         document.querySelector('.error-modal').style.display = 'block';
                     }
-                    if (json) {
-                        addModel(file.name, json).catch(e => {
-                            document.querySelector('.error-modal .message').innerHTML = e.message;
-                            document.querySelector('.error-modal').style.display = 'block';
-                        });
+                    // Clean up blob URLs
+                    Object.values(ndjsonBlobs).forEach(url => URL.revokeObjectURL(url));
+                } else if (json) {
+                    try {
+                        await addModel(name, json);
+                    } catch(e) {
+                        document.querySelector('.error-modal .message').innerHTML = e.message;
+                        document.querySelector('.error-modal').style.display = 'block';
                     }
-                };
-                reader.readAsText(file);
+                }
             }
         });
 
         document.querySelector('#urlForm').addEventListener('submit', function(event) {
             event.preventDefault();
-            fetch(event.target.urlInput.value)
+            const url = event.target.urlInput.value;
+            const baseUrl = url.substring(0, url.lastIndexOf('/'));
+            fetch(url)
                 .then(r => r.json())
                 .then((j) => {
-                    const name = event.target.urlInput.value.split('/').reverse()[0];
-                    addModel(name, j);
+                    const name = url.split('/').reverse()[0];
+                    addModel(name, j, baseUrl);
                 })
                 .catch(e => {
                     document.querySelector('.error-modal .message').innerHTML = e.message;

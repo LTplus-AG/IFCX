@@ -4,10 +4,13 @@
 import { ComposedObject } from './composed-object';
 import { IfcxFile } from '../ifcx-core/schema/schema-helper';
 import { compose3 } from './compose-flattened';
+import { isTieredFormat } from './tiered-loader';
+import { IndexFileData, loadIndexFile } from '../ifcx-core/geometry/index-file-loader';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { PCDLoader } from 'three/addons/loaders/PCDLoader.js';
+import { buildSVGFromProceduralGeometry, Profile } from './profile';
 
 let controls, renderer, scene, camera;
 type datastype = [string, IfcxFile][];
@@ -438,6 +441,7 @@ const icons = {
     'pcd::base64': 'grain',
     'points::array::positions': 'grain',
     'points::base64::positions': 'grain',
+    'bsi::ifc::procedural_geometry::has_profile': 'format_italic',
 };
 
 function handleClick(prim, pathMapping, root) {
@@ -446,8 +450,8 @@ function handleClick(prim, pathMapping, root) {
   container.innerHTML = "";
   const table = document.createElement("table");
   table.setAttribute("border", "0");
-  const entries = [["name", prim.name], ...Object.entries(prim.attributes).filter(([k, _]) => !k.startsWith('__internal_'))];
-  const format = (value) => {
+  const entries = [["name", prim.name], ...Object.entries(prim.attributes || {}).filter(([k, _]) => !k.startsWith('__internal_'))];
+  const format = (value, attrKey?: string) => {
     if (Array.isArray(value)) {
       let N = document.createElement('span');
       N.appendChild(document.createTextNode('('));
@@ -483,6 +487,27 @@ function handleClick(prim, pathMapping, root) {
           }
         }
         return a;
+      } else if ((ks.length == 1 && ks[0].indexOf("procedural") !== -1) || (attrKey && attrKey.indexOf("procedural") !== -1 && attrKey.indexOf("profile") !== -1)) {
+        // Wrap flattened profile data back into expected format if needed
+        let profileData = value;
+        if (attrKey && attrKey.indexOf("profile_with_voids") !== -1 && !Object.keys(value).some(k => k.indexOf("procedural") !== -1)) {
+          profileData = { "bsi::ifc::geometry::procedural::profile_with_voids": value };
+        } else if (attrKey && attrKey.indexOf("composite_profile") !== -1 && !Object.keys(value).some(k => k.indexOf("procedural") !== -1)) {
+          profileData = { "bsi::ifc::geometry::procedural::composite_profile": value };
+        }
+        const svgString = buildSVGFromProceduralGeometry(profileData as Profile, { pixelSize: 240, stroke: "#222", strokeWidth: 0.001 });
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(svgString, "image/svg+xml");
+        let container = document.createElement('div');
+        let left = document.createElement('div');
+        left.style.float = 'left';
+        left.appendChild(doc.documentElement);
+        let right = document.createElement('div');
+        right.innerHTML = `<span style="white-space:pre;float:right">${JSON.stringify(value, null, 4).replace(/\n\s+([\-\+\d\.e]+|\])(,?)(?=\n)/g, '$1$2')}</span>`
+        right.style.float = 'right';
+        container.appendChild(left);
+        container.appendChild(right);
+        return container;
       } else {
         return document.createTextNode(JSON.stringify(value));
       }
@@ -495,7 +520,7 @@ function handleClick(prim, pathMapping, root) {
     const tdKey = document.createElement("td");
     tdKey.textContent = encodeHtmlEntities(key);
     const tdValue = document.createElement("td");
-    tdValue.appendChild(format(value));
+    tdValue.appendChild(format(value, key));
     tr.appendChild(tdKey);
     tr.appendChild(tdValue);
     table.appendChild(tr);
@@ -611,8 +636,44 @@ function createLayerDom() {
     });
 }
 
-export default async function addModel(name, m: IfcxFile) {
-    datas.push([name, m]);
+export default async function addModel(name: string, m: IfcxFile | IndexFileData, baseUrl?: string) {
+    let file: IfcxFile;
+
+    if (isTieredFormat(m)) {
+        // Tiered format: fetch companion NDJSON files and convert to alpha format
+        const ndjsonFiles = new Map<string, string>();
+        const base = baseUrl ?? '';
+
+        for (const table of m.attributeTables) {
+            const fetchUrl = base ? `${base}/${table.filename}` : table.filename;
+            // Use _originalFilename if set (file upload with blob URLs), otherwise use filename
+            const mapKey = (table as any)._originalFilename ?? table.filename;
+            try {
+                const resp = await fetch(fetchUrl);
+                if (resp.ok) {
+                    ndjsonFiles.set(mapKey, await resp.text());
+                }
+            } catch (e) {
+                console.warn(`Failed to fetch ${fetchUrl}:`, e);
+            }
+        }
+
+        // Restore original filenames for loadIndexFile
+        const cleanIndex = JSON.parse(JSON.stringify(m));
+        for (const table of cleanIndex.attributeTables) {
+            if ((table as any)._originalFilename) {
+                table.filename = (table as any)._originalFilename;
+                delete (table as any)._originalFilename;
+            }
+        }
+
+        const result = loadIndexFile(cleanIndex as IndexFileData, ndjsonFiles, ["mesh"]);
+        file = result.alphaFile;
+    } else {
+        file = m;
+    }
+
+    datas.push([name, file]);
     createLayerDom();
     await composeAndRender();
 }

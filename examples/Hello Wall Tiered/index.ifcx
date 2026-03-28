@@ -41,11 +41,7 @@
             { "opinion": "VALUE", "name": "My_Site", "value": "e0834921-e095-40f0-8874-3c6bd1ec699e" }
           ],
           "attributes": [
-            {
-              "opinion": "VALUE",
-              "name": "bsi::ifc::class",
-              "value": { "typeID": "ifcx.semantics", "componentIndex": 0 }
-            }
+            { "opinion": "VALUE", "name": "bsi::ifc::class", "value": { "typeID": "ifcx.semantics", "componentIndex": 0 } }
           ]
         },
         {
@@ -54,11 +50,7 @@
             { "opinion": "VALUE", "name": "My_Building", "value": "e84dc79e-fe9d-4781-9f4b-54dd435cca91" }
           ],
           "attributes": [
-            {
-              "opinion": "VALUE",
-              "name": "bsi::ifc::class",
-              "value": { "typeID": "ifcx.semantics", "componentIndex": 1 }
-            }
+            { "opinion": "VALUE", "name": "bsi::ifc::class", "value": { "typeID": "ifcx.semantics", "componentIndex": 1 } }
           ]
         },
         {
@@ -67,11 +59,7 @@
             { "opinion": "VALUE", "name": "My_Storey", "value": "44af358b-3160-4063-8a89-a868335ff3b5" }
           ],
           "attributes": [
-            {
-              "opinion": "VALUE",
-              "name": "bsi::ifc::class",
-              "value": { "typeID": "ifcx.semantics", "componentIndex": 2 }
-            }
+            { "opinion": "VALUE", "name": "bsi::ifc::class", "value": { "typeID": "ifcx.semantics", "componentIndex": 2 } }
           ]
         },
         {
@@ -80,44 +68,114 @@
             { "opinion": "VALUE", "name": "Wall", "value": "93791d5d-5beb-437b-b8ec-2f1f0ba4bf3b" }
           ],
           "attributes": [
-            {
-              "opinion": "VALUE",
-              "name": "bsi::ifc::class",
-              "value": { "typeID": "ifcx.semantics", "componentIndex": 3 }
-            }
+            { "opinion": "VALUE", "name": "bsi::ifc::class", "value": { "typeID": "ifcx.semantics", "componentIndex": 3 } }
           ]
         },
         {
           "path": "93791d5d-5beb-437b-b8ec-2f1f0ba4bf3b",
           "children": [
-            { "opinion": "VALUE", "name": "Body", "value": "634f90c3-831e-5f29-a9b2-fa69b207821e" }
+            { "opinion": "VALUE", "name": "Body", "value": "634f90c3-831e-5f29-a9b2-fa69b207821e" },
+            { "opinion": "VALUE", "name": "Window", "value": "2c2d549f-f9fe-4e22-8590-562fda81a690" },
+            { "opinion": "VALUE", "name": "Window_001", "value": "592504dc-469a-44d6-9ae8-c801b591679b" }
           ],
           "attributes": [
-            {
-              "opinion": "VALUE",
-              "name": "bsi::ifc::class",
-              "value": { "typeID": "ifcx.semantics", "componentIndex": 4 }
-            }
+            { "opinion": "VALUE", "name": "bsi::ifc::class", "value": { "typeID": "ifcx.semantics", "componentIndex": 4 } }
           ]
         },
         {
           "path": "634f90c3-831e-5f29-a9b2-fa69b207821e",
           "attributes": [
-            {
-              "opinion": "VALUE",
-              "name": "ifcx::geom::mesh",
-              "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 0 }
-            },
-            {
-              "opinion": "VALUE",
-              "name": "ifcx::geom::brep",
-              "value": { "typeID": "ifcx.geom.brep", "componentIndex": 0 }
-            },
-            {
-              "opinion": "VALUE",
-              "name": "ifcx::geom::proc",
-              "value": { "typeID": "ifcx.geom.proc", "componentIndex": 0 }
-            }
+            { "opinion": "VALUE", "name": "ifcx::geom::mesh", "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 0 } },
+            { "opinion": "VALUE", "name": "ifcx::geom::brep", "value": { "typeID": "ifcx.geom.brep", "componentIndex": 0 } },
+            { "opinion": "VALUE", "name": "ifcx::geom::proc", "value": { "typeID": "ifcx.geom.proc", "componentIndex": 0 } }
+          ]
+        },
+
+        {
+          "path": "25503984-6605-43a1-8597-eae657ff5bea",
+          "children": [
+            { "opinion": "VALUE", "name": "Void", "value": "8fada721-cff8-590b-8d0b-9300b5fe8e18" },
+            { "opinion": "VALUE", "name": "Frame", "value": "08f06095-3f32-55b9-a353-61c9aca5cc4d" },
+            { "opinion": "VALUE", "name": "Glazing", "value": "5ad6f475-c04c-5628-8b9d-75d0bab0c0e5" }
+          ],
+          "attributes": [
+            { "opinion": "VALUE", "name": "bsi::ifc::class", "value": { "typeID": "ifcx.semantics", "componentIndex": 5 } }
+          ]
+        },
+        {
+          "path": "8fada721-cff8-590b-8d0b-9300b5fe8e18",
+          "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::geom::mesh", "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 1 } },
+            { "opinion": "VALUE", "name": "usd::usdgeom::visibility", "value": { "typeID": "ifcx.semantics", "componentIndex": 6 } }
+          ]
+        },
+        {
+          "path": "08f06095-3f32-55b9-a353-61c9aca5cc4d",
+          "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::geom::mesh", "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 2 } },
+            { "opinion": "VALUE", "name": "bsi::ifc::material", "value": { "typeID": "ifcx.semantics", "componentIndex": 7 } },
+            { "opinion": "VALUE", "name": "bsi::ifc::procedural_geometry::has_profile", "value": { "typeID": "ifcx.semantics", "componentIndex": 10 } }
+          ]
+        },
+        {
+          "path": "5ad6f475-c04c-5628-8b9d-75d0bab0c0e5",
+          "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::geom::mesh", "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 3 } },
+            { "opinion": "VALUE", "name": "bsi::ifc::material", "value": { "typeID": "ifcx.semantics", "componentIndex": 8 } }
+          ]
+        },
+
+        {
+          "path": "2c2d549f-f9fe-4e22-8590-562fda81a690",
+          "inherits": [
+            { "opinion": "VALUE", "name": "windowType", "value": "25503984-6605-43a1-8597-eae657ff5bea" }
+          ],
+          "attributes": [
+            { "opinion": "VALUE", "name": "bsi::ifc::class", "value": { "typeID": "ifcx.semantics", "componentIndex": 9 } }
+          ]
+        },
+
+        {
+          "path": "aabb1122-3344-5566-7788-99aabbccdd01",
+          "children": [
+            { "opinion": "VALUE", "name": "Void", "value": "aabb1122-3344-5566-7788-99aabbccdd02" },
+            { "opinion": "VALUE", "name": "Frame", "value": "aabb1122-3344-5566-7788-99aabbccdd03" },
+            { "opinion": "VALUE", "name": "Glazing", "value": "aabb1122-3344-5566-7788-99aabbccdd04" }
+          ],
+          "attributes": [
+            { "opinion": "VALUE", "name": "bsi::ifc::class", "value": { "typeID": "ifcx.semantics", "componentIndex": 12 } }
+          ]
+        },
+        {
+          "path": "aabb1122-3344-5566-7788-99aabbccdd02",
+          "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::geom::mesh", "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 4 } },
+            { "opinion": "VALUE", "name": "usd::usdgeom::visibility", "value": { "typeID": "ifcx.semantics", "componentIndex": 6 } }
+          ]
+        },
+        {
+          "path": "aabb1122-3344-5566-7788-99aabbccdd03",
+          "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::geom::mesh", "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 5 } },
+            { "opinion": "VALUE", "name": "bsi::ifc::material", "value": { "typeID": "ifcx.semantics", "componentIndex": 7 } },
+            { "opinion": "VALUE", "name": "bsi::ifc::procedural_geometry::has_profile", "value": { "typeID": "ifcx.semantics", "componentIndex": 13 } }
+          ]
+        },
+        {
+          "path": "aabb1122-3344-5566-7788-99aabbccdd04",
+          "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::geom::mesh", "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 6 } },
+            { "opinion": "VALUE", "name": "bsi::ifc::material", "value": { "typeID": "ifcx.semantics", "componentIndex": 8 } }
+          ]
+        },
+
+        {
+          "path": "592504dc-469a-44d6-9ae8-c801b591679b",
+          "inherits": [
+            { "opinion": "VALUE", "name": "windowType", "value": "aabb1122-3344-5566-7788-99aabbccdd01" }
+          ],
+          "attributes": [
+            { "opinion": "VALUE", "name": "bsi::ifc::class", "value": { "typeID": "ifcx.semantics", "componentIndex": 11 } }
           ]
         }
       ]

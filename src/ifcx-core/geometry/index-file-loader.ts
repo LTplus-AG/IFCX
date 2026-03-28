@@ -64,6 +64,27 @@ export function loadIndexFile(
     return { alphaFile, tierResolver, tableProvider };
 }
 
+// Standard schema imports needed by the alpha composition pipeline
+const STANDARD_IMPORTS = [
+    { uri: "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/ifc@v5a.ifcx" },
+    { uri: "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/prop@v5a.ifcx" },
+    { uri: "https://ifcx.dev/@openusd.org/usd@v1.ifcx" },
+];
+
+// Infer a permissive schema from a runtime value (used for properties not covered by standard imports)
+function inferSchema(value: unknown): { value: { dataType: string; optional?: boolean } } {
+    if (Array.isArray(value)) {
+        return { value: { dataType: "Array", arrayRestrictions: { value: inferSchema(value[0] ?? "").value } } as any };
+    } else if (typeof value === "object" && value !== null) {
+        return { value: { dataType: "Object" } };
+    } else if (typeof value === "number") {
+        return { value: { dataType: "Real" } };
+    } else if (typeof value === "boolean") {
+        return { value: { dataType: "Boolean" } };
+    }
+    return { value: { dataType: "String" } };
+}
+
 function convertToAlpha(
     indexData: IndexFileData,
     tierResolver: TierResolver,
@@ -125,21 +146,38 @@ function convertToAlpha(
                                     const mesh = resolved as any;
                                     attributes["usd::usdgeom::mesh::points"] = mesh.points;
                                     attributes["usd::usdgeom::mesh::faceVertexIndices"] = mesh.faceVertexIndices;
+                                    if (!schemas["usd::usdgeom::mesh::points"]) {
+                                        schemas["usd::usdgeom::mesh::points"] = inferSchema(mesh.points);
+                                        schemas["usd::usdgeom::mesh::faceVertexIndices"] = inferSchema(mesh.faceVertexIndices);
+                                    }
                                     if (mesh.lod) {
                                         attributes["ifcx::geom::lod"] = mesh.lod;
+                                        if (!schemas["ifcx::geom::lod"]) schemas["ifcx::geom::lod"] = inferSchema(mesh.lod);
                                     }
                                 } else if (typeID === TIER_TABLE_NAMES.brep) {
                                     attributes["ifcx::geom::brep"] = resolved;
+                                    if (!schemas["ifcx::geom::brep"]) schemas["ifcx::geom::brep"] = inferSchema(resolved);
                                 } else if (typeID === TIER_TABLE_NAMES.proc) {
                                     attributes["ifcx::geom::proc"] = resolved;
+                                    if (!schemas["ifcx::geom::proc"]) schemas["ifcx::geom::proc"] = inferSchema(resolved);
                                 }
                             }
                             // If tier not allowed, the attribute is simply absent — selective parsing!
                         } else {
                             // Non-geometry attribute — resolve from its table
+                            // NDJSON rows contain full attribute objects, e.g.
+                            // {"bsi::ifc::class": {...}, "bsi::ifc::prop::Name": "..."}
+                            // Spread all key-value pairs into the node's attributes
                             const resolved = tierResolver.resolveByRef(typeID, componentIndex);
-                            if (resolved !== null) {
-                                attributes[attr.name] = resolved;
+                            if (resolved !== null && typeof resolved === "object") {
+                                const row = resolved as Record<string, unknown>;
+                                Object.assign(attributes, row);
+                                // Infer schemas for any keys not yet covered
+                                for (const [key, val] of Object.entries(row)) {
+                                    if (!schemas[key]) {
+                                        schemas[key] = inferSchema(val);
+                                    }
+                                }
                             }
                         }
                     }
@@ -159,7 +197,10 @@ function convertToAlpha(
             author: indexData.sections[0]?.header.author ?? "",
             timestamp: indexData.sections[0]?.header.timestamp ?? "",
         },
-        imports: indexData.imports.map(i => ({ uri: i.uri })),
+        imports: [
+            ...indexData.imports.map(i => ({ uri: i.uri })),
+            ...STANDARD_IMPORTS,
+        ],
         schemas,
         data,
     };
