@@ -4,6 +4,21 @@
     "anyOf": [
         {
             "$ref": "#/$defs/PlanarSurfaceTag"
+        },
+        {
+            "$ref": "#/$defs/CylindricalSurfaceTag"
+        },
+        {
+            "$ref": "#/$defs/ConicalSurfaceTag"
+        },
+        {
+            "$ref": "#/$defs/SphericalSurfaceTag"
+        },
+        {
+            "$ref": "#/$defs/ToroidalSurfaceTag"
+        },
+        {
+            "$ref": "#/$defs/BSplineSurfaceTag"
         }
     ],
     "$defs": {
@@ -16,6 +31,61 @@
             },
             "required": [
                 "bsi::ifc::geometry::brep::plane"
+            ]
+        },
+        "CylindricalSurfaceTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::brep::cylinder": {
+                    "$ref": "#/$defs/CylindricalSurfaceBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::brep::cylinder"
+            ]
+        },
+        "ConicalSurfaceTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::brep::cone": {
+                    "$ref": "#/$defs/ConicalSurfaceBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::brep::cone"
+            ]
+        },
+        "SphericalSurfaceTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::brep::sphere": {
+                    "$ref": "#/$defs/SphericalSurfaceBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::brep::sphere"
+            ]
+        },
+        "ToroidalSurfaceTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::brep::torus": {
+                    "$ref": "#/$defs/ToroidalSurfaceBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::brep::torus"
+            ]
+        },
+        "BSplineSurfaceTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::brep::bspline_surface": {
+                    "$ref": "#/$defs/BSplineSurfaceBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::brep::bspline_surface"
             ]
         },
         "PlanarSurfaceBody": {
@@ -48,6 +118,223 @@
                 "Axis",
                 "RefDirection"
             ]
+        },
+        "CylindricalSurfaceBody": {
+            "type": "object",
+            "properties": {
+                "Pnt": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "Axis": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "RefDirection": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "Radius": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "Pnt",
+                "Axis",
+                "RefDirection",
+                "Radius"
+            ],
+            "description": "Cylindrical surface. Origin = base center, Axis = cylinder axis,\nRefDirection = 0-angle direction in the perpendicular plane."
+        },
+        "ConicalSurfaceBody": {
+            "type": "object",
+            "properties": {
+                "Pnt": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "Axis": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "RefDirection": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "Radius": {
+                    "type": "number"
+                },
+                "SemiAngle": {
+                    "type": "number",
+                    "description": "Half-angle of the cone in radians"
+                }
+            },
+            "required": [
+                "Pnt",
+                "Axis",
+                "RefDirection",
+                "Radius",
+                "SemiAngle"
+            ],
+            "description": "Conical surface — Radius is at Pnt; expands along +Axis per SemiAngle."
+        },
+        "SphericalSurfaceBody": {
+            "type": "object",
+            "properties": {
+                "Pnt": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "Axis": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "RefDirection": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "Radius": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "Pnt",
+                "Axis",
+                "RefDirection",
+                "Radius"
+            ],
+            "description": "Spherical surface — sphere centered at Pnt with given Radius."
+        },
+        "ToroidalSurfaceBody": {
+            "type": "object",
+            "properties": {
+                "Pnt": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "Axis": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "RefDirection": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "MajorRadius": {
+                    "type": "number",
+                    "description": "Major radius (axis center → tube center)"
+                },
+                "MinorRadius": {
+                    "type": "number",
+                    "description": "Minor radius (tube radius)"
+                }
+            },
+            "required": [
+                "Pnt",
+                "Axis",
+                "RefDirection",
+                "MajorRadius",
+                "MinorRadius"
+            ],
+            "description": "Toroidal surface — torus centered at Pnt around Axis."
+        },
+        "BSplineSurfaceBody": {
+            "type": "object",
+            "properties": {
+                "UDegree": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                },
+                "VDegree": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                },
+                "ControlPoints": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "type": "number"
+                            }
+                        }
+                    },
+                    "description": "Control grid: ControlPoints[i][j] is the [x, y, z] of (u_i, v_j)"
+                },
+                "UKnots": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "VKnots": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "UKnotMultiplicities": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295
+                    }
+                },
+                "VKnotMultiplicities": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295
+                    }
+                },
+                "Weights": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        }
+                    },
+                    "description": "Optional weight grid Weights[i][j], same shape as ControlPoints (one less dim)"
+                }
+            },
+            "required": [
+                "UDegree",
+                "VDegree",
+                "ControlPoints",
+                "UKnots",
+                "VKnots"
+            ],
+            "description": "Non-uniform rational B-spline surface (IFC IfcBSplineSurfaceWithKnots /\nIfcRationalBSplineSurfaceWithKnots). Tensor product of two NURBS curves."
         }
     }
 }

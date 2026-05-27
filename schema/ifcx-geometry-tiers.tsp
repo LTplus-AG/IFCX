@@ -266,7 +266,45 @@ model DisplayMesh {
 }
 
 // =============================================================================
-// Tier B — Native Brep (v1.1 minimal: closed-shell manifold + planar surfaces)
+// Tier B3 — External geometry reference (interop, opaque)
+// =============================================================================
+//
+// Honest container for external geometry: STEP, OCCT brep, IFC SPF, Parasolid x_t,
+// JT, glTF, etc. Carries the URI, a content format tag, and an integrity hash.
+//
+// Not subject to IFCX composition. Not derivable. Loaders that don't recognize the
+// format pass it through. Loaders that do may load the external content for
+// rendering / measurement / round-trip but the contents stay outside IFCX semantics.
+
+enum ExternalGeometryFormat {
+    STEP_AP242: "STEP_AP242",
+    STEP_AP203: "STEP_AP203",
+    STEP_AP214: "STEP_AP214",
+    IFC_SPF: "IFC_SPF",
+    OCCT_BREP: "OCCT_BREP",
+    PARASOLID_XT: "PARASOLID_XT",
+    JT: "JT",
+    GLTF: "GLTF",
+    OBJ: "OBJ",
+    PLY: "PLY",
+}
+
+@jsonSchema
+model ExternalGeometryReference {
+    /** Content format */
+    format: ExternalGeometryFormat;
+    /** URI or filesystem path to the external geometry payload */
+    uri: string;
+    /** Integrity hash of the referenced content; format "<algo>-<hex>", e.g. "sha256-abcdef...". Optional. */
+    integrity?: string;
+    /** Source units, if known. Default: producer's convention. */
+    units?: string;
+    /** Geometric tolerance, if known */
+    tolerance?: float64;
+}
+
+// =============================================================================
+// Tier B — Native Brep (closed-shell manifold + planar / NURBS / analytic surfaces)
 // =============================================================================
 //
 // One Brep is a single row in ifcx.geom.brep.ndjson. Topology and geometry are
@@ -315,10 +353,33 @@ model CircleCurveTag {
     `bsi::ifc::geometry::brep::circle`: CircleCurveBody;
 }
 
+/**
+ * Non-uniform rational B-spline curve (IFC IfcBSplineCurveWithKnots /
+ * IfcRationalBSplineCurveWithKnots). Weights are optional; absent = non-rational.
+ */
+model BSplineCurveBody {
+    Degree: uint32;
+    /** Control points, each [x, y, z] */
+    ControlPoints: float64[][];
+    /** Knot vector */
+    Knots: float64[];
+    /** Multiplicity of each distinct knot (sums to ControlPoints.length + Degree + 1) */
+    KnotMultiplicities?: uint32[];
+    /** Optional per-control-point weights for rational curves */
+    Weights?: float64[];
+    /** True if the curve is closed (control points wrap) */
+    Closed?: boolean;
+}
+
+model BSplineCurveTag {
+    `bsi::ifc::geometry::brep::bspline_curve`: BSplineCurveBody;
+}
+
 @jsonSchema
 union BrepCurve {
     LineCurveTag,
     CircleCurveTag,
+    BSplineCurveTag,
 }
 
 // --- Surface catalog ---
@@ -336,9 +397,91 @@ model PlanarSurfaceTag {
     `bsi::ifc::geometry::brep::plane`: PlanarSurfaceBody;
 }
 
+/**
+ * Cylindrical surface. Origin = base center, Axis = cylinder axis,
+ * RefDirection = 0-angle direction in the perpendicular plane.
+ */
+model CylindricalSurfaceBody {
+    Pnt: float64[];
+    Axis: float64[];
+    RefDirection: float64[];
+    Radius: float64;
+}
+
+model CylindricalSurfaceTag {
+    `bsi::ifc::geometry::brep::cylinder`: CylindricalSurfaceBody;
+}
+
+/** Conical surface — Radius is at Pnt; expands along +Axis per SemiAngle. */
+model ConicalSurfaceBody {
+    Pnt: float64[];
+    Axis: float64[];
+    RefDirection: float64[];
+    Radius: float64;
+    /** Half-angle of the cone in radians */
+    SemiAngle: float64;
+}
+
+model ConicalSurfaceTag {
+    `bsi::ifc::geometry::brep::cone`: ConicalSurfaceBody;
+}
+
+/** Spherical surface — sphere centered at Pnt with given Radius. */
+model SphericalSurfaceBody {
+    Pnt: float64[];
+    Axis: float64[];
+    RefDirection: float64[];
+    Radius: float64;
+}
+
+model SphericalSurfaceTag {
+    `bsi::ifc::geometry::brep::sphere`: SphericalSurfaceBody;
+}
+
+/** Toroidal surface — torus centered at Pnt around Axis. */
+model ToroidalSurfaceBody {
+    Pnt: float64[];
+    Axis: float64[];
+    RefDirection: float64[];
+    /** Major radius (axis center → tube center) */
+    MajorRadius: float64;
+    /** Minor radius (tube radius) */
+    MinorRadius: float64;
+}
+
+model ToroidalSurfaceTag {
+    `bsi::ifc::geometry::brep::torus`: ToroidalSurfaceBody;
+}
+
+/**
+ * Non-uniform rational B-spline surface (IFC IfcBSplineSurfaceWithKnots /
+ * IfcRationalBSplineSurfaceWithKnots). Tensor product of two NURBS curves.
+ */
+model BSplineSurfaceBody {
+    UDegree: uint32;
+    VDegree: uint32;
+    /** Control grid: ControlPoints[i][j] is the [x, y, z] of (u_i, v_j) */
+    ControlPoints: float64[][][];
+    UKnots: float64[];
+    VKnots: float64[];
+    UKnotMultiplicities?: uint32[];
+    VKnotMultiplicities?: uint32[];
+    /** Optional weight grid Weights[i][j], same shape as ControlPoints (one less dim) */
+    Weights?: float64[][];
+}
+
+model BSplineSurfaceTag {
+    `bsi::ifc::geometry::brep::bspline_surface`: BSplineSurfaceBody;
+}
+
 @jsonSchema
 union BrepSurface {
     PlanarSurfaceTag,
+    CylindricalSurfaceTag,
+    ConicalSurfaceTag,
+    SphericalSurfaceTag,
+    ToroidalSurfaceTag,
+    BSplineSurfaceTag,
 }
 
 // --- Topology ---

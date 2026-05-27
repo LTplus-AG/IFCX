@@ -6,6 +6,7 @@ import { Diff, Federate } from "../ifcx-core/workflows";
 import { ExampleFile } from "../test/example-file";
 import { SchemasToOpenAPI } from "../ifcx-core/schema/schema-export";
 import { ifcToTiered } from "./ifc-to-tiered";
+import { ap242ToTiered } from "./ap242-to-tiered";
 
 type IfcxFile = components["schemas"]["IfcxFile"];
 
@@ -67,6 +68,17 @@ async function processArgs(args: string[])
         console.log(`Nodes: ${result.nodeCount}, NDJSON tables: ${result.ndjsonPaths.length}, elapsed: ${result.elapsedMs}ms`);
         for (const p of result.ndjsonPaths) console.log(`  ${p}`);
     }
+    else if (operation === "ap2422tiered" || operation === "step2tiered")
+    {
+        // ap2422tiered <input.stp> <output-dir> — convert STEP AP242 → tiered IFCX
+        if (args.length < 3) throw new Error(`Usage: ap2422tiered <input.stp> <output-dir>`);
+        const input = args[1];
+        const outDir = args[2];
+        const result = ap242ToTiered(input, outDir);
+        console.log(`Converted ${input} (STEP schema ${result.schema}) → ${result.indexPath}`);
+        console.log(`Breps: ${result.brepCount}, NDJSON tables: ${result.ndjsonPaths.length}, elapsed: ${result.elapsedMs}ms`);
+        for (const p of result.ndjsonPaths) console.log(`  ${p}`);
+    }
     else if (!operation || operation === "help")
     {
         console.log(`available commands:`);
@@ -74,7 +86,8 @@ async function processArgs(args: string[])
         console.log(`diff`);
         console.log(`federate`);
         console.log(`make_default_file`);
-        console.log(`ifc2tiered <input.ifc> <output-dir>   convert IFC STEP file → tiered IFCX (via @ifc-lite)`);
+        console.log(`ifc2tiered <input.ifc> <output-dir>     convert IFC STEP file → tiered IFCX (via @ifc-lite + STEP21)`);
+        console.log(`ap2422tiered <input.stp> <output-dir>   convert STEP AP242 → tiered IFCX (Tier B Breps)`);
         console.log(`help`);
     }
     else

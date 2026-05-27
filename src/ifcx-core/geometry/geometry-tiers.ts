@@ -229,7 +229,28 @@ export interface CircleCurve {
     "bsi::ifc::geometry::brep::circle": CircleCurveBody;
 }
 
-export type BrepCurve = LineCurve | CircleCurve;
+/**
+ * Non-uniform rational B-spline curve.
+ * Knot vector follows IFC IfcBSplineCurveWithKnots conventions:
+ *   length(Knots) = number of distinct knots
+ *   KnotMultiplicities[i] gives the multiplicity of Knots[i]
+ *   total multiplicity = ControlPoints.length + Degree + 1
+ * For uniform knot vectors KnotMultiplicities may be omitted (defaults to 1 per knot).
+ */
+export interface BSplineCurveBody {
+    Degree: number;
+    ControlPoints: Vector3[];
+    Knots: number[];
+    KnotMultiplicities?: number[];
+    Weights?: number[];
+    Closed?: boolean;
+}
+
+export interface BSplineCurve {
+    "bsi::ifc::geometry::brep::bspline_curve": BSplineCurveBody;
+}
+
+export type BrepCurve = LineCurve | CircleCurve | BSplineCurve;
 
 // --- Surface catalog ---
 
@@ -243,7 +264,73 @@ export interface PlanarSurface {
     "bsi::ifc::geometry::brep::plane": PlanarSurfaceBody;
 }
 
-export type BrepSurface = PlanarSurface;
+export interface CylindricalSurfaceBody {
+    Pnt: Vector3;
+    Axis: Vector3;
+    RefDirection: Vector3;
+    Radius: number;
+}
+export interface CylindricalSurface {
+    "bsi::ifc::geometry::brep::cylinder": CylindricalSurfaceBody;
+}
+
+export interface ConicalSurfaceBody {
+    Pnt: Vector3;
+    Axis: Vector3;
+    RefDirection: Vector3;
+    Radius: number;
+    SemiAngle: number;
+}
+export interface ConicalSurface {
+    "bsi::ifc::geometry::brep::cone": ConicalSurfaceBody;
+}
+
+export interface SphericalSurfaceBody {
+    Pnt: Vector3;
+    Axis: Vector3;
+    RefDirection: Vector3;
+    Radius: number;
+}
+export interface SphericalSurface {
+    "bsi::ifc::geometry::brep::sphere": SphericalSurfaceBody;
+}
+
+export interface ToroidalSurfaceBody {
+    Pnt: Vector3;
+    Axis: Vector3;
+    RefDirection: Vector3;
+    MajorRadius: number;
+    MinorRadius: number;
+}
+export interface ToroidalSurface {
+    "bsi::ifc::geometry::brep::torus": ToroidalSurfaceBody;
+}
+
+/**
+ * Non-uniform rational B-spline surface (tensor product).
+ * ControlPoints[i][j] is the (u_i, v_j) point. Same i/j ↔ u/v ordering as IFC.
+ */
+export interface BSplineSurfaceBody {
+    UDegree: number;
+    VDegree: number;
+    ControlPoints: Vector3[][];
+    UKnots: number[];
+    VKnots: number[];
+    UKnotMultiplicities?: number[];
+    VKnotMultiplicities?: number[];
+    Weights?: number[][];
+}
+export interface BSplineSurface {
+    "bsi::ifc::geometry::brep::bspline_surface": BSplineSurfaceBody;
+}
+
+export type BrepSurface =
+    | PlanarSurface
+    | CylindricalSurface
+    | ConicalSurface
+    | SphericalSurface
+    | ToroidalSurface
+    | BSplineSurface;
 
 // --- Topology ---
 
@@ -337,15 +424,41 @@ export function parseLatentBrepPath(path: string): LatentBrepPath | null {
 }
 
 // =============================================================================
+// Tier B3 — External geometry reference (opaque, interop-only)
+// =============================================================================
+
+export type ExternalGeometryFormat =
+    | "STEP_AP242"
+    | "STEP_AP203"
+    | "STEP_AP214"
+    | "IFC_SPF"
+    | "OCCT_BREP"
+    | "PARASOLID_XT"
+    | "JT"
+    | "GLTF"
+    | "OBJ"
+    | "PLY";
+
+export interface ExternalGeometryReference {
+    format: ExternalGeometryFormat;
+    uri: string;
+    /** "<algo>-<hex>", e.g. "sha256-abcdef..." */
+    integrity?: string;
+    units?: string;
+    tolerance?: number;
+}
+
+// =============================================================================
 // Tier identifiers and table mapping
 // =============================================================================
 
-export type GeometryTier = "procedural" | "mesh" | "brep";
+export type GeometryTier = "procedural" | "mesh" | "brep" | "external";
 
 export const TIER_TABLE_NAMES: Record<GeometryTier, string> = {
     procedural: "ifcx.geom.proc",
     mesh: "ifcx.geom.mesh",
     brep: "ifcx.geom.brep",
+    external: "ifcx.geom.ext",
 };
 
 // =============================================================================

@@ -23,7 +23,10 @@ import { IfcParser } from "/Users/louistrue/Development/ifc-lite/packages/parser
 import { Ifc5Exporter } from "/Users/louistrue/Development/ifc-lite/packages/export/dist/index.js";
 
 import { convertAlphaToTiered } from "../ifcx-core/geometry/alpha-to-tiered";
+import { ProceduralGeometry as ProceduralGeometryEntry } from "../ifcx-core/geometry/geometry-tiers";
 import { IfcxFile } from "../ifcx-core/schema/schema-helper";
+import { parseStep21 } from "../ifcx-core/step21/parser";
+import { extractIfcProcedural } from "../ifcx-core/step21/ifc-procedural";
 
 export interface IfcToTieredOptions {
     /** Pretty-print the index.ifcx output (default: true) */
@@ -90,17 +93,55 @@ export async function ifcToTiered(
 
     const alphaFile = JSON.parse(exportResult.content) as IfcxFile;
 
-    // 3. Convert alpha → tiered. Since alphaFile has no inline mesh,
-    //    the converter emits index + semantics only.
+    // 3. Extract Tier P procedural geometry directly from the STEP source.
+    //    The columnar parser doesn't surface IfcExtrudedAreaSolid etc. (they're
+    //    "Unknown" in its enum), so we re-parse the STEP text with our own
+    //    minimal STEP21 parser and walk the entity graph.
+    const stepText = buf.toString("utf-8");
+    const stepFile = parseStep21(stepText);
+    const procExtraction = extractIfcProcedural(stepFile);
+
+    // 4. Convert alpha → tiered (semantics + spatial structure).
     const conversion = convertAlphaToTiered(alphaFile);
 
-    // 4. Write output directory.
+    // 5. Inject Tier P entries on nodes whose path matches an extracted GUID.
+    //    The Tier P table uses `ifcx.geom.proc` filename and `ifcx::geom::proc`
+    //    attribute name, matching the convention.
+    const procEntries: ProceduralGeometryEntry[] = [];
+    let injected = 0;
+    if (procExtraction.byGuid.size > 0) {
+        const nodes = conversion.indexFile.sections[0].nodes;
+        for (const node of nodes) {
+            const proc = procExtraction.byGuid.get(node.path);
+            if (!proc) continue;
+            const compIdx = procEntries.length;
+            procEntries.push(proc);
+            (node.attributes ??= []).push({
+                opinion: "VALUE",
+                name: "ifcx::geom::proc",
+                value: { typeID: "ifcx.geom.proc", componentIndex: compIdx },
+            });
+            injected++;
+        }
+        if (procEntries.length > 0) {
+            conversion.indexFile.attributeTables.push({
+                filename: "ifcx.geom.proc.ndjson",
+                type: "NDJSON",
+                schema: { tier: "P", description: "Procedural geometry from IFC source" },
+            });
+            conversion.ndjsonFiles.set(
+                "ifcx.geom.proc.ndjson",
+                procEntries.map(p => JSON.stringify(p)).join("\n"),
+            );
+        }
+    }
+
+    // 6. Write output directory.
     if (!fs.existsSync(outDir)) {
         fs.mkdirSync(outDir, { recursive: true });
     }
     const indexFile = conversion.indexFile;
-    // Stamp the header for clarity.
-    indexFile.sections[0].header.application = "ifcx-cli ifc2tiered (via @ifc-lite)";
+    indexFile.sections[0].header.application = "ifcx-cli ifc2tiered (via @ifc-lite + STEP21 reader)";
     indexFile.sections[0].header.id = path.basename(inputIfcPath, path.extname(inputIfcPath));
 
     const indexJson = opts.prettyPrint === false

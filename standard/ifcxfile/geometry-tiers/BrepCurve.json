@@ -7,6 +7,9 @@
         },
         {
             "$ref": "#/$defs/CircleCurveTag"
+        },
+        {
+            "$ref": "#/$defs/BSplineCurveTag"
         }
     ],
     "$defs": {
@@ -30,6 +33,17 @@
             },
             "required": [
                 "bsi::ifc::geometry::brep::circle"
+            ]
+        },
+        "BSplineCurveTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::brep::bspline_curve": {
+                    "$ref": "#/$defs/BSplineCurveBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::brep::bspline_curve"
             ]
         },
         "LineCurveBody": {
@@ -89,6 +103,59 @@
                 "RefDirection",
                 "Radius"
             ]
+        },
+        "BSplineCurveBody": {
+            "type": "object",
+            "properties": {
+                "Degree": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                },
+                "ControlPoints": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        }
+                    },
+                    "description": "Control points, each [x, y, z]"
+                },
+                "Knots": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Knot vector"
+                },
+                "KnotMultiplicities": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295
+                    },
+                    "description": "Multiplicity of each distinct knot (sums to ControlPoints.length + Degree + 1)"
+                },
+                "Weights": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Optional per-control-point weights for rational curves"
+                },
+                "Closed": {
+                    "type": "boolean",
+                    "description": "True if the curve is closed (control points wrap)"
+                }
+            },
+            "required": [
+                "Degree",
+                "ControlPoints",
+                "Knots"
+            ],
+            "description": "Non-uniform rational B-spline curve (IFC IfcBSplineCurveWithKnots /\nIfcRationalBSplineCurveWithKnots). Weights are optional; absent = non-rational."
         }
     }
 }

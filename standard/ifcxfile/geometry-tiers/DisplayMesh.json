@@ -53,6 +53,13 @@
         "sourceHash": {
             "type": "string",
             "description": "Stable content hash of the source-tier record. Lets consumers detect cache staleness."
+        },
+        "faceGroups": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/MeshFaceGroup"
+            },
+            "description": "Triangle-range → source-face mapping, emitted by Tier B tessellation."
         }
     },
     "required": [
@@ -67,6 +74,32 @@
                 "procedural",
                 "brep"
             ]
+        },
+        "MeshFaceGroup": {
+            "type": "object",
+            "properties": {
+                "start": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                },
+                "count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                },
+                "faceIndex": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                }
+            },
+            "required": [
+                "start",
+                "count",
+                "faceIndex"
+            ],
+            "description": "Maps a contiguous slice of faceVertexIndices back to its source Brep face.\nEmitted by Tier B tessellation; lets renderers apply per-face materials\nauthored via latent-path attributes (e.g. `bodyPath/Face_3`)."
         }
     }
 }

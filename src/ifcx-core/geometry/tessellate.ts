@@ -14,19 +14,31 @@
 import {
     Brep,
     BrepLoop,
+    BrepCurve,
     BrepSurface,
+    BSplineCurveBody,
+    BSplineSurfaceBody,
     DisplayMesh,
     MeshFaceGroup,
     Point2D,
     Vector3,
     Profile,
     ProceduralGeometry,
+    BooleanResultBody,
     ExtrudedAreaSolidBody,
     RevolvedAreaSolidBody,
     isExtrudedAreaSolid,
     isRevolvedAreaSolid,
     isBooleanResult,
 } from "./geometry-tiers";
+import {
+    evaluateBSplineCurve,
+    evaluateBSplineSurface,
+    expandKnotVector,
+    sampleBSplineCurve,
+} from "./nurbs";
+import { sourceHashOf } from "./source-hash";
+import { csgUnion, csgSubtract, csgIntersect } from "./csg";
 
 // =============================================================================
 // Public entry
@@ -45,16 +57,18 @@ export function tessellate(
     geom: ProceduralGeometry,
     opts: TessellateOptions = {},
 ): DisplayMesh | null {
+    let mesh: DisplayMesh | null = null;
     if (isExtrudedAreaSolid(geom)) {
-        return tessellateExtrude(geom["bsi::ifc::geometry::procedural::extruded_area_solid"], opts);
+        mesh = tessellateExtrude(geom["bsi::ifc::geometry::procedural::extruded_area_solid"], opts);
+    } else if (isRevolvedAreaSolid(geom)) {
+        mesh = tessellateRevolve(geom["bsi::ifc::geometry::procedural::revolved_area_solid"], opts);
+    } else if (isBooleanResult(geom)) {
+        mesh = tessellateBoolean(geom["bsi::ifc::geometry::procedural::boolean_result"], opts);
     }
-    if (isRevolvedAreaSolid(geom)) {
-        return tessellateRevolve(geom["bsi::ifc::geometry::procedural::revolved_area_solid"], opts);
+    if (mesh) {
+        mesh.sourceHash = sourceHashOf(geom);
     }
-    if (isBooleanResult(geom)) {
-        return null;
-    }
-    return null;
+    return mesh;
 }
 
 // =============================================================================
@@ -651,23 +665,48 @@ function tessellateRevolve(body: RevolvedAreaSolidBody, opts: TessellateOptions)
 // Tier B → Tier M tessellator
 // =============================================================================
 //
-// Walks each Brep face, samples its loop boundary into 3D points, projects to
-// the surface's local 2D frame, triangulates with the shared earclip helpers,
-// then maps triangles back to 3D. Each face emits its own vertex block so
-// `geometry.computeVertexNormals()` produces flat per-face shading.
+// Each face: sample its loop boundary in 3D (with proper arc / NURBS curve
+// discretization), project to the surface's local (u, v) frame, triangulate
+// with the shared earclip helpers, then evaluate each interior point back to
+// 3D through the surface's evaluate(). Each face emits its own vertex block
+// so `geometry.computeVertexNormals()` produces flat per-face shading on
+// planar faces and per-triangle shading on curved faces.
 //
-// v1.1 catalog: PlanarSurface only; LineCurve edges fully supported; CircleCurve
-// edges degrade to straight-line chord between start/end vertices (proper arc
-// sampling lands with v1.2 NURBS).
+// Surface catalog: PlanarSurface, CylindricalSurface, ConicalSurface,
+// SphericalSurface, ToroidalSurface, BSplineSurface.
+// Curve catalog: LineCurve, CircleCurve (arc-sampled), BSplineCurve.
 
-interface PlanarFrame {
-    origin: Vector3;
-    uAxis: Vector3;
-    vAxis: Vector3;
-    normal: Vector3;
+const BREP_SURFACE_TAGS = {
+    plane: "bsi::ifc::geometry::brep::plane",
+    cylinder: "bsi::ifc::geometry::brep::cylinder",
+    cone: "bsi::ifc::geometry::brep::cone",
+    sphere: "bsi::ifc::geometry::brep::sphere",
+    torus: "bsi::ifc::geometry::brep::torus",
+    bsplineSurface: "bsi::ifc::geometry::brep::bspline_surface",
+} as const;
+
+const BREP_CURVE_TAGS = {
+    line: "bsi::ifc::geometry::brep::line",
+    circle: "bsi::ifc::geometry::brep::circle",
+    bsplineCurve: "bsi::ifc::geometry::brep::bspline_curve",
+} as const;
+
+/**
+ * Surface frame — abstracts uv ↔ 3D mapping for each surface type. The
+ * tessellator works on any surface that implements this interface.
+ */
+interface SurfaceFrame {
+    /** Project a 3D point onto the surface, returning its (u, v) coords. */
+    projectToUV(p: Vector3): Point2D;
+    /** Evaluate the surface at (u, v), returning a 3D point. */
+    evaluate(u: number, v: number): Vector3;
+    /** Outward normal at (u, v) (before SameSense flip). */
+    normalAt(u: number, v: number): Vector3;
+    /** True if the surface is locally non-planar — needs interior subdivision. */
+    isCurved: boolean;
 }
 
-export function tessellateBrep(brep: Brep, _opts: TessellateOptions = {}): DisplayMesh | null {
+export function tessellateBrep(brep: Brep, opts: TessellateOptions = {}): DisplayMesh | null {
     if (!brep.faces || brep.faces.length === 0) return null;
 
     const points: number[][] = [];
@@ -677,37 +716,40 @@ export function tessellateBrep(brep: Brep, _opts: TessellateOptions = {}): Displ
     for (let fi = 0; fi < brep.faces.length; fi++) {
         const face = brep.faces[fi];
         const surface = brep.surfaces[face.SurfaceIndex];
-        const frame = planarSurfaceFrame(surface);
+        const frame = buildSurfaceFrame(surface);
         if (!frame) continue;
 
-        const outer3D = sampleLoop(brep, brep.loops[face.OuterLoop]);
+        const outer3D = sampleLoop(brep, brep.loops[face.OuterLoop], opts);
         if (outer3D.length < 3) continue;
         const inner3D = (face.InnerLoops ?? [])
-            .map(li => sampleLoop(brep, brep.loops[li]))
+            .map(li => sampleLoop(brep, brep.loops[li], opts))
             .filter(loop => loop.length >= 3);
 
-        const outer2D = outer3D.map(p => projectToFrame(p, frame));
-        const inner2D = inner3D.map(loop => loop.map(p => projectToFrame(p, frame)));
+        const outer2D = outer3D.map(p => frame.projectToUV(p));
+        const inner2D = inner3D.map(loop => loop.map(p => frame.projectToUV(p)));
 
         const outerCCW = ensureCCW(outer2D);
         const innerCW = inner2D.map(h => ensureCW(h));
         const tri = triangulate(outerCCW, innerCW);
         if (tri.indices.length === 0) continue;
 
-        // Outward normal for this face (PlanarSurface.Axis flipped per SameSense)
-        const outward: Vector3 = face.SameSense
-            ? frame.normal
-            : [-frame.normal[0], -frame.normal[1], -frame.normal[2]];
-
         // Per-face vertex block (no sharing across faces → flat shading via computeVertexNormals)
         const faceBase = points.length;
         for (let i = 0; i < tri.vertices.length; i += 2) {
-            const p3d = unprojectFromFrame(tri.vertices[i], tri.vertices[i + 1], frame);
+            const p3d = frame.evaluate(tri.vertices[i], tri.vertices[i + 1]);
             points.push([p3d[0], p3d[1], p3d[2]]);
         }
 
-        // Decide winding by checking the first triangle against the desired outward normal.
-        // Flip all triangles for this face if it disagrees.
+        // Outward normal: take from the first triangle's centroid (handles both planar
+        // and curved surfaces). Flip per SameSense.
+        const cu = (tri.vertices[2 * tri.indices[0]] + tri.vertices[2 * tri.indices[1]] + tri.vertices[2 * tri.indices[2]]) / 3;
+        const cv = (tri.vertices[2 * tri.indices[0] + 1] + tri.vertices[2 * tri.indices[1] + 1] + tri.vertices[2 * tri.indices[2] + 1]) / 3;
+        const surfNormal = frame.normalAt(cu, cv);
+        const outward: Vector3 = face.SameSense
+            ? surfNormal
+            : [-surfNormal[0], -surfNormal[1], -surfNormal[2]];
+
+        // Determine winding from the first triangle's geometric normal vs the desired outward.
         const a = points[faceBase + tri.indices[0]];
         const b = points[faceBase + tri.indices[1]];
         const c = points[faceBase + tri.indices[2]];
@@ -743,66 +785,411 @@ export function tessellateBrep(brep: Brep, _opts: TessellateOptions = {}): Displ
         faceVertexIndices,
         derivedFrom: "brep",
         faceGroups,
+        sourceHash: sourceHashOf(brep),
     };
 }
 
-const BREP_SURFACE_TAGS = {
-    plane: "bsi::ifc::geometry::brep::plane",
-} as const;
+// -- Surface frame factory ---------------------------------------------------
 
-function planarSurfaceFrame(surface: BrepSurface): PlanarFrame | null {
-    const planeBody = (surface as any)[BREP_SURFACE_TAGS.plane];
-    if (!planeBody) return null;
-    const origin: Vector3 = [planeBody.Pnt[0], planeBody.Pnt[1], planeBody.Pnt[2]];
-    const normal = normalize([planeBody.Axis[0], planeBody.Axis[1], planeBody.Axis[2]]);
-    let uAxis: Vector3 = normalize([
-        planeBody.RefDirection[0],
-        planeBody.RefDirection[1],
-        planeBody.RefDirection[2],
-    ]);
-    // Re-orthogonalize uAxis against normal in case producer data isn't strictly orthonormal.
-    const dotNU = uAxis[0] * normal[0] + uAxis[1] * normal[1] + uAxis[2] * normal[2];
-    if (Math.abs(dotNU) > 1e-9) {
-        uAxis = normalize([
-            uAxis[0] - dotNU * normal[0],
-            uAxis[1] - dotNU * normal[1],
-            uAxis[2] - dotNU * normal[2],
+function buildSurfaceFrame(surface: BrepSurface): SurfaceFrame | null {
+    const s = surface as any;
+    if (s[BREP_SURFACE_TAGS.plane]) return planarFrame(s[BREP_SURFACE_TAGS.plane]);
+    if (s[BREP_SURFACE_TAGS.cylinder]) return cylindricalFrame(s[BREP_SURFACE_TAGS.cylinder]);
+    if (s[BREP_SURFACE_TAGS.cone]) return conicalFrame(s[BREP_SURFACE_TAGS.cone]);
+    if (s[BREP_SURFACE_TAGS.sphere]) return sphericalFrame(s[BREP_SURFACE_TAGS.sphere]);
+    if (s[BREP_SURFACE_TAGS.torus]) return toroidalFrame(s[BREP_SURFACE_TAGS.torus]);
+    if (s[BREP_SURFACE_TAGS.bsplineSurface]) return bsplineSurfaceFrame(s[BREP_SURFACE_TAGS.bsplineSurface]);
+    return null;
+}
+
+interface AxisFrame {
+    origin: Vector3;
+    axis: Vector3;     // local Z
+    refDir: Vector3;   // local X (after orthogonalization)
+    yDir: Vector3;     // local Y = axis × refDir
+}
+
+function axisFrameFromPlacement(Pnt: number[], Axis: number[], RefDirection: number[]): AxisFrame {
+    const origin: Vector3 = [Pnt[0], Pnt[1], Pnt[2]];
+    const axis = normalize([Axis[0], Axis[1], Axis[2]]);
+    let refDir: Vector3 = normalize([RefDirection[0], RefDirection[1], RefDirection[2]]);
+    const dotAR = refDir[0] * axis[0] + refDir[1] * axis[1] + refDir[2] * axis[2];
+    if (Math.abs(dotAR) > 1e-9) {
+        refDir = normalize([
+            refDir[0] - dotAR * axis[0],
+            refDir[1] - dotAR * axis[1],
+            refDir[2] - dotAR * axis[2],
         ]);
     }
-    const vAxis = normalize(cross(normal, uAxis));
-    return { origin, uAxis, vAxis, normal };
+    const yDir = normalize(cross(axis, refDir));
+    return { origin, axis, refDir, yDir };
 }
 
-function projectToFrame(p: Vector3, frame: PlanarFrame): Point2D {
-    const dx = p[0] - frame.origin[0];
-    const dy = p[1] - frame.origin[1];
-    const dz = p[2] - frame.origin[2];
-    const u = dx * frame.uAxis[0] + dy * frame.uAxis[1] + dz * frame.uAxis[2];
-    const v = dx * frame.vAxis[0] + dy * frame.vAxis[1] + dz * frame.vAxis[2];
-    return [u, v];
+function planarFrame(body: { Pnt: number[]; Axis: number[]; RefDirection: number[] }): SurfaceFrame {
+    const f = axisFrameFromPlacement(body.Pnt, body.Axis, body.RefDirection);
+    return {
+        isCurved: false,
+        projectToUV(p) {
+            const dx = p[0] - f.origin[0], dy = p[1] - f.origin[1], dz = p[2] - f.origin[2];
+            return [
+                dx * f.refDir[0] + dy * f.refDir[1] + dz * f.refDir[2],
+                dx * f.yDir[0] + dy * f.yDir[1] + dz * f.yDir[2],
+            ];
+        },
+        evaluate(u, v) {
+            return [
+                f.origin[0] + u * f.refDir[0] + v * f.yDir[0],
+                f.origin[1] + u * f.refDir[1] + v * f.yDir[1],
+                f.origin[2] + u * f.refDir[2] + v * f.yDir[2],
+            ];
+        },
+        normalAt() {
+            return f.axis;
+        },
+    };
 }
 
-function unprojectFromFrame(u: number, v: number, frame: PlanarFrame): Vector3 {
-    return [
-        frame.origin[0] + u * frame.uAxis[0] + v * frame.vAxis[0],
-        frame.origin[1] + u * frame.uAxis[1] + v * frame.vAxis[1],
-        frame.origin[2] + u * frame.uAxis[2] + v * frame.vAxis[2],
-    ];
+function cylindricalFrame(body: { Pnt: number[]; Axis: number[]; RefDirection: number[]; Radius: number }): SurfaceFrame {
+    const f = axisFrameFromPlacement(body.Pnt, body.Axis, body.RefDirection);
+    const R = body.Radius;
+    return {
+        isCurved: true,
+        projectToUV(p) {
+            // u = angle around axis from refDir, v = axial distance from origin
+            const dx = p[0] - f.origin[0], dy = p[1] - f.origin[1], dz = p[2] - f.origin[2];
+            const axialV = dx * f.axis[0] + dy * f.axis[1] + dz * f.axis[2];
+            const proj: Vector3 = [
+                dx - axialV * f.axis[0],
+                dy - axialV * f.axis[1],
+                dz - axialV * f.axis[2],
+            ];
+            const x = proj[0] * f.refDir[0] + proj[1] * f.refDir[1] + proj[2] * f.refDir[2];
+            const y = proj[0] * f.yDir[0] + proj[1] * f.yDir[1] + proj[2] * f.yDir[2];
+            return [Math.atan2(y, x), axialV];
+        },
+        evaluate(u, v) {
+            const cos = Math.cos(u), sin = Math.sin(u);
+            return [
+                f.origin[0] + R * (cos * f.refDir[0] + sin * f.yDir[0]) + v * f.axis[0],
+                f.origin[1] + R * (cos * f.refDir[1] + sin * f.yDir[1]) + v * f.axis[1],
+                f.origin[2] + R * (cos * f.refDir[2] + sin * f.yDir[2]) + v * f.axis[2],
+            ];
+        },
+        normalAt(u, _v) {
+            const cos = Math.cos(u), sin = Math.sin(u);
+            return normalize([
+                cos * f.refDir[0] + sin * f.yDir[0],
+                cos * f.refDir[1] + sin * f.yDir[1],
+                cos * f.refDir[2] + sin * f.yDir[2],
+            ]);
+        },
+    };
 }
+
+function conicalFrame(body: { Pnt: number[]; Axis: number[]; RefDirection: number[]; Radius: number; SemiAngle: number }): SurfaceFrame {
+    const f = axisFrameFromPlacement(body.Pnt, body.Axis, body.RefDirection);
+    const R0 = body.Radius;
+    const tanA = Math.tan(body.SemiAngle);
+    return {
+        isCurved: true,
+        projectToUV(p) {
+            const dx = p[0] - f.origin[0], dy = p[1] - f.origin[1], dz = p[2] - f.origin[2];
+            const axialV = dx * f.axis[0] + dy * f.axis[1] + dz * f.axis[2];
+            const proj: Vector3 = [
+                dx - axialV * f.axis[0],
+                dy - axialV * f.axis[1],
+                dz - axialV * f.axis[2],
+            ];
+            const x = proj[0] * f.refDir[0] + proj[1] * f.refDir[1] + proj[2] * f.refDir[2];
+            const y = proj[0] * f.yDir[0] + proj[1] * f.yDir[1] + proj[2] * f.yDir[2];
+            return [Math.atan2(y, x), axialV];
+        },
+        evaluate(u, v) {
+            const r = R0 + v * tanA;
+            const cos = Math.cos(u), sin = Math.sin(u);
+            return [
+                f.origin[0] + r * (cos * f.refDir[0] + sin * f.yDir[0]) + v * f.axis[0],
+                f.origin[1] + r * (cos * f.refDir[1] + sin * f.yDir[1]) + v * f.axis[1],
+                f.origin[2] + r * (cos * f.refDir[2] + sin * f.yDir[2]) + v * f.axis[2],
+            ];
+        },
+        normalAt(u, _v) {
+            // Normal lies in the meridian plane; rotated by the half-angle from the radial direction.
+            const cos = Math.cos(u), sin = Math.sin(u);
+            const radial: Vector3 = [
+                cos * f.refDir[0] + sin * f.yDir[0],
+                cos * f.refDir[1] + sin * f.yDir[1],
+                cos * f.refDir[2] + sin * f.yDir[2],
+            ];
+            const cosA = Math.cos(body.SemiAngle);
+            const sinA = Math.sin(body.SemiAngle);
+            return normalize([
+                cosA * radial[0] - sinA * f.axis[0],
+                cosA * radial[1] - sinA * f.axis[1],
+                cosA * radial[2] - sinA * f.axis[2],
+            ]);
+        },
+    };
+}
+
+function sphericalFrame(body: { Pnt: number[]; Axis: number[]; RefDirection: number[]; Radius: number }): SurfaceFrame {
+    const f = axisFrameFromPlacement(body.Pnt, body.Axis, body.RefDirection);
+    const R = body.Radius;
+    // (u = longitude around axis, v = latitude from refDir-equator, in [-π/2, π/2])
+    return {
+        isCurved: true,
+        projectToUV(p) {
+            const dx = p[0] - f.origin[0], dy = p[1] - f.origin[1], dz = p[2] - f.origin[2];
+            const lat = Math.asin((dx * f.axis[0] + dy * f.axis[1] + dz * f.axis[2]) / R);
+            const x = dx * f.refDir[0] + dy * f.refDir[1] + dz * f.refDir[2];
+            const y = dx * f.yDir[0] + dy * f.yDir[1] + dz * f.yDir[2];
+            const lon = Math.atan2(y, x);
+            return [lon, lat];
+        },
+        evaluate(u, v) {
+            const cosLat = Math.cos(v), sinLat = Math.sin(v);
+            const cosLon = Math.cos(u), sinLon = Math.sin(u);
+            return [
+                f.origin[0] + R * (cosLat * (cosLon * f.refDir[0] + sinLon * f.yDir[0]) + sinLat * f.axis[0]),
+                f.origin[1] + R * (cosLat * (cosLon * f.refDir[1] + sinLon * f.yDir[1]) + sinLat * f.axis[1]),
+                f.origin[2] + R * (cosLat * (cosLon * f.refDir[2] + sinLon * f.yDir[2]) + sinLat * f.axis[2]),
+            ];
+        },
+        normalAt(u, v) {
+            const cosLat = Math.cos(v), sinLat = Math.sin(v);
+            const cosLon = Math.cos(u), sinLon = Math.sin(u);
+            return normalize([
+                cosLat * (cosLon * f.refDir[0] + sinLon * f.yDir[0]) + sinLat * f.axis[0],
+                cosLat * (cosLon * f.refDir[1] + sinLon * f.yDir[1]) + sinLat * f.axis[1],
+                cosLat * (cosLon * f.refDir[2] + sinLon * f.yDir[2]) + sinLat * f.axis[2],
+            ]);
+        },
+    };
+}
+
+function toroidalFrame(body: { Pnt: number[]; Axis: number[]; RefDirection: number[]; MajorRadius: number; MinorRadius: number }): SurfaceFrame {
+    const f = axisFrameFromPlacement(body.Pnt, body.Axis, body.RefDirection);
+    const Rm = body.MajorRadius;
+    const r = body.MinorRadius;
+    return {
+        isCurved: true,
+        projectToUV(p) {
+            // u = angle around main axis, v = angle around tube
+            const dx = p[0] - f.origin[0], dy = p[1] - f.origin[1], dz = p[2] - f.origin[2];
+            const axialV = dx * f.axis[0] + dy * f.axis[1] + dz * f.axis[2];
+            const px = dx * f.refDir[0] + dy * f.refDir[1] + dz * f.refDir[2];
+            const py = dx * f.yDir[0] + dy * f.yDir[1] + dz * f.yDir[2];
+            const u = Math.atan2(py, px);
+            const rho = Math.sqrt(px * px + py * py);
+            const v = Math.atan2(axialV, rho - Rm);
+            return [u, v];
+        },
+        evaluate(u, v) {
+            const cosU = Math.cos(u), sinU = Math.sin(u);
+            const cosV = Math.cos(v), sinV = Math.sin(v);
+            const rho = Rm + r * cosV;
+            return [
+                f.origin[0] + rho * (cosU * f.refDir[0] + sinU * f.yDir[0]) + r * sinV * f.axis[0],
+                f.origin[1] + rho * (cosU * f.refDir[1] + sinU * f.yDir[1]) + r * sinV * f.axis[1],
+                f.origin[2] + rho * (cosU * f.refDir[2] + sinU * f.yDir[2]) + r * sinV * f.axis[2],
+            ];
+        },
+        normalAt(u, v) {
+            const cosU = Math.cos(u), sinU = Math.sin(u);
+            const cosV = Math.cos(v), sinV = Math.sin(v);
+            return normalize([
+                cosV * (cosU * f.refDir[0] + sinU * f.yDir[0]) + sinV * f.axis[0],
+                cosV * (cosU * f.refDir[1] + sinU * f.yDir[1]) + sinV * f.axis[1],
+                cosV * (cosU * f.refDir[2] + sinU * f.yDir[2]) + sinV * f.axis[2],
+            ]);
+        },
+    };
+}
+
+function bsplineSurfaceFrame(body: BSplineSurfaceBody): SurfaceFrame {
+    const uMin = expandKnotVector(body.UKnots, body.UKnotMultiplicities)[body.UDegree];
+    const uMax = expandKnotVector(body.UKnots, body.UKnotMultiplicities);
+    const uMaxV = uMax[uMax.length - body.UDegree - 1];
+    const vMin = expandKnotVector(body.VKnots, body.VKnotMultiplicities)[body.VDegree];
+    const vMax = expandKnotVector(body.VKnots, body.VKnotMultiplicities);
+    const vMaxV = vMax[vMax.length - body.VDegree - 1];
+    return {
+        isCurved: true,
+        projectToUV(p) {
+            // Coarse-then-bisection inverse mapping over the (u, v) parameter rectangle.
+            const steps = 16;
+            let bestU = uMin, bestV = vMin, bestD = Infinity;
+            for (let i = 0; i <= steps; i++) {
+                for (let j = 0; j <= steps; j++) {
+                    const u = uMin + (i / steps) * (uMaxV - uMin);
+                    const v = vMin + (j / steps) * (vMaxV - vMin);
+                    const q = evaluateBSplineSurface(body, u, v);
+                    const dx = q[0] - p[0], dy = q[1] - p[1], dz = q[2] - p[2];
+                    const d = dx * dx + dy * dy + dz * dz;
+                    if (d < bestD) { bestD = d; bestU = u; bestV = v; }
+                }
+            }
+            // Local refinement
+            const uHalf = (uMaxV - uMin) / steps;
+            const vHalf = (vMaxV - vMin) / steps;
+            let uLo = Math.max(uMin, bestU - uHalf), uHi = Math.min(uMaxV, bestU + uHalf);
+            let vLo = Math.max(vMin, bestV - vHalf), vHi = Math.min(vMaxV, bestV + vHalf);
+            for (let iter = 0; iter < 18; iter++) {
+                const uMid = (uLo + uHi) / 2, vMid = (vLo + vHi) / 2;
+                const samples = [
+                    [uMid - (uHi - uLo) / 4, vMid - (vHi - vLo) / 4],
+                    [uMid + (uHi - uLo) / 4, vMid - (vHi - vLo) / 4],
+                    [uMid - (uHi - uLo) / 4, vMid + (vHi - vLo) / 4],
+                    [uMid + (uHi - uLo) / 4, vMid + (vHi - vLo) / 4],
+                ];
+                let bsi = 0, bsd = Infinity;
+                for (let si = 0; si < 4; si++) {
+                    const q = evaluateBSplineSurface(body, samples[si][0], samples[si][1]);
+                    const dx = q[0] - p[0], dy = q[1] - p[1], dz = q[2] - p[2];
+                    const d = dx * dx + dy * dy + dz * dz;
+                    if (d < bsd) { bsd = d; bsi = si; }
+                }
+                const [bu, bv] = samples[bsi];
+                uLo = bu - (uHi - uLo) / 4;
+                uHi = bu + (uHi - uLo) / 4;
+                vLo = bv - (vHi - vLo) / 4;
+                vHi = bv + (vHi - vLo) / 4;
+            }
+            return [(uLo + uHi) / 2, (vLo + vHi) / 2];
+        },
+        evaluate(u, v) {
+            return evaluateBSplineSurface(body, u, v);
+        },
+        normalAt(u, v) {
+            // Approximate via finite differences in uv space
+            const eps = 1e-4;
+            const p = evaluateBSplineSurface(body, u, v);
+            const pu = evaluateBSplineSurface(body, Math.min(uMaxV, u + eps), v);
+            const pv = evaluateBSplineSurface(body, u, Math.min(vMaxV, v + eps));
+            const du: Vector3 = [pu[0] - p[0], pu[1] - p[1], pu[2] - p[2]];
+            const dv: Vector3 = [pv[0] - p[0], pv[1] - p[1], pv[2] - p[2]];
+            return normalize(cross(du, dv));
+        },
+    };
+}
+
+// -- Loop & edge sampling ----------------------------------------------------
 
 /**
- * Walk an edge loop, emit 3D points for each oriented edge's START vertex.
- * The END of the last edge equals the START of the first (closed loop), so we
- * don't duplicate the closing vertex. Edges currently degrade to straight chords
- * between start/end vertices regardless of curve type — v1.2 will sample arcs.
+ * Walk an edge loop, sampling each oriented edge into a polyline. For
+ * LineCurve edges we emit just the start vertex (the chord is exact). For
+ * CircleCurve and BSplineCurve edges we sample the curve between the start
+ * and end vertices, so the loop polyline tracks the actual geometry.
  */
-function sampleLoop(brep: Brep, loop: BrepLoop): Vector3[] {
+function sampleLoop(brep: Brep, loop: BrepLoop, opts: TessellateOptions): Vector3[] {
     const pts: Vector3[] = [];
+    const arcSegs = opts.arcSegments ?? 12;
     for (const oe of loop.EdgeList) {
         const edge = brep.edges[oe.EdgeIndex];
         const startIdx = oe.Reversed ? edge.EndVertex : edge.StartVertex;
+        const endIdx = oe.Reversed ? edge.StartVertex : edge.EndVertex;
         const sv = brep.vertices[startIdx];
-        pts.push([sv.Point[0], sv.Point[1], sv.Point[2]]);
+        const ev = brep.vertices[endIdx];
+        const sP: Vector3 = [sv.Point[0], sv.Point[1], sv.Point[2]];
+        const eP: Vector3 = [ev.Point[0], ev.Point[1], ev.Point[2]];
+        const curve = brep.curves[edge.CurveIndex] as any;
+
+        if (curve[BREP_CURVE_TAGS.line]) {
+            // LineCurve: chord is exact; emit start vertex only (end joins next edge's start).
+            pts.push(sP);
+            continue;
+        }
+
+        if (curve[BREP_CURVE_TAGS.circle]) {
+            const circle = curve[BREP_CURVE_TAGS.circle];
+            const samples = sampleCircleArcOnEdge(circle, sP, eP, arcSegs);
+            // Emit every sample except the last (end vertex = next edge's start)
+            for (let i = 0; i < samples.length - 1; i++) pts.push(samples[i]);
+            continue;
+        }
+
+        if (curve[BREP_CURVE_TAGS.bsplineCurve]) {
+            const bsp = curve[BREP_CURVE_TAGS.bsplineCurve];
+            // For a NURBS edge, the start vertex maps to some parameter; sample N points.
+            // v1: sample the full curve, then drop the tail that matches the edge's end.
+            const samples = sampleBSplineCurve(bsp, arcSegs);
+            for (let i = 0; i < samples.length - 1; i++) pts.push(samples[i]);
+            continue;
+        }
+
+        // Unknown curve type — degrade to chord between vertices.
+        pts.push(sP);
     }
     return pts;
+}
+
+/**
+ * Sample a circular arc on a CircleCurve between two 3D vertex points that
+ * lie on (or near) the circle. We project both onto the circle plane, find
+ * their angles around the center, and sample N+1 points along the shorter
+ * arc from start to end.
+ */
+function sampleCircleArcOnEdge(
+    circle: { Pnt: number[]; Axis: number[]; RefDirection: number[]; Radius: number },
+    start: Vector3,
+    end: Vector3,
+    segments: number,
+): Vector3[] {
+    const f = axisFrameFromPlacement(circle.Pnt, circle.Axis, circle.RefDirection);
+    const R = circle.Radius;
+    const angleOf = (p: Vector3) => {
+        const dx = p[0] - f.origin[0], dy = p[1] - f.origin[1], dz = p[2] - f.origin[2];
+        const x = dx * f.refDir[0] + dy * f.refDir[1] + dz * f.refDir[2];
+        const y = dx * f.yDir[0] + dy * f.yDir[1] + dz * f.yDir[2];
+        return Math.atan2(y, x);
+    };
+    const aStart = angleOf(start);
+    const aEnd = angleOf(end);
+    let sweep = aEnd - aStart;
+    // Normalize sweep to (-π, π], picking the shorter direction
+    while (sweep > Math.PI) sweep -= 2 * Math.PI;
+    while (sweep < -Math.PI) sweep += 2 * Math.PI;
+    const pts: Vector3[] = [];
+    for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const a = aStart + t * sweep;
+        const cos = Math.cos(a), sin = Math.sin(a);
+        pts.push([
+            f.origin[0] + R * (cos * f.refDir[0] + sin * f.yDir[0]),
+            f.origin[1] + R * (cos * f.refDir[1] + sin * f.yDir[1]),
+            f.origin[2] + R * (cos * f.refDir[2] + sin * f.yDir[2]),
+        ]);
+    }
+    return pts;
+}
+
+// =============================================================================
+// Boolean (CSG)
+// =============================================================================
+
+/**
+ * Tessellate a BooleanResult by recursively tessellating both operands and
+ * running the BSP-based CSG kernel. Returns null if either operand fails to
+ * tessellate (e.g. nested BooleanResult that hits an unknown operation).
+ */
+function tessellateBoolean(body: BooleanResultBody, opts: TessellateOptions): DisplayMesh | null {
+    const a = tessellate(body.FirstOperand, opts);
+    const b = tessellate(body.SecondOperand, opts);
+    if (!a || !b) return null;
+    let result: DisplayMesh;
+    switch (body.Operator) {
+        case "union":
+            result = csgUnion(a, b);
+            break;
+        case "difference":
+            result = csgSubtract(a, b);
+            break;
+        case "intersection":
+            result = csgIntersect(a, b);
+            break;
+        default:
+            return null;
+    }
+    result.derivedFrom = "procedural";
+    return result;
 }

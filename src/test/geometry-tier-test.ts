@@ -16,6 +16,17 @@ import { loadIndexFile, IndexFileData } from "../ifcx-core/geometry/index-file-l
 import { convertAlphaToTiered } from "../ifcx-core/geometry/alpha-to-tiered";
 import { tessellate, tessellateBrep } from "../ifcx-core/geometry/tessellate";
 import { ifcToTiered } from "../ifcx-cli/ifc-to-tiered";
+import { evaluateBSplineCurve, sampleBSplineCurve, evaluateBSplineSurface } from "../ifcx-core/geometry/nurbs";
+import { canonicalize, sourceHashOf } from "../ifcx-core/geometry/source-hash";
+import { validateBrep } from "../ifcx-core/geometry/brep-validate";
+import { csgUnion, csgSubtract } from "../ifcx-core/geometry/csg";
+import { parseStep21 } from "../ifcx-core/step21/parser";
+import { extractIfcProcedural } from "../ifcx-core/step21/ifc-procedural";
+import { extractAp242Breps } from "../ifcx-core/step21/ap242-brep";
+import { ap242ToTiered } from "../ifcx-cli/ap242-to-tiered";
+
+// Module-scope examples folder path (also used inside the "tiered example file" describe block).
+const examplesFolderPath = "../examples";
 import { IfcxFile } from "../ifcx-core/schema/schema-helper";
 
 // ── Attribute Table ──
@@ -633,10 +644,39 @@ describe("tier P tessellator", () => {
         }
     });
 
-    it("returns null for BooleanResult (deferred)", () => {
+    it("tessellates BooleanResult (difference) via CSG — wall with rectangular cut", () => {
+        // Block 4×2×3 minus block 1×3×1 centered → wall with a punched opening
         const geom: ProceduralGeometry = {
             "bsi::ifc::geometry::procedural::boolean_result": {
                 Operator: "difference",
+                FirstOperand: {
+                    "bsi::ifc::geometry::procedural::extruded_area_solid": {
+                        SweptArea: { "bsi::ifc::geometry::procedural::rectangle": { position: { Location: [2, 1] }, Width: 4, Height: 2 } },
+                        ExtrudedDirection: [0, 0, 1],
+                        Depth: 3,
+                    },
+                },
+                SecondOperand: {
+                    "bsi::ifc::geometry::procedural::extruded_area_solid": {
+                        SweptArea: { "bsi::ifc::geometry::procedural::rectangle": { position: { Location: [2, 1] }, Width: 1, Height: 3 } },
+                        ExtrudedDirection: [0, 0, 1],
+                        Depth: 1.5,
+                    },
+                },
+            },
+        };
+        const mesh = tessellate(geom);
+        expect(mesh).to.not.be.null;
+        expect(mesh!.points.length).to.be.greaterThan(8);            // more verts than the original box (cut added new geometry)
+        expect(mesh!.faceVertexIndices.length).to.be.greaterThan(36); // more triangles than the original 12
+        expect(mesh!.sourceHash).to.exist;
+        expect(mesh!.sourceHash!.startsWith("sha256-")).to.be.true;
+    });
+
+    it("tessellates BooleanResult (union) via CSG", () => {
+        const geom: ProceduralGeometry = {
+            "bsi::ifc::geometry::procedural::boolean_result": {
+                Operator: "union",
                 FirstOperand: {
                     "bsi::ifc::geometry::procedural::extruded_area_solid": {
                         SweptArea: { "bsi::ifc::geometry::procedural::rectangle": { Width: 1, Height: 1 } },
@@ -646,14 +686,44 @@ describe("tier P tessellator", () => {
                 },
                 SecondOperand: {
                     "bsi::ifc::geometry::procedural::extruded_area_solid": {
-                        SweptArea: { "bsi::ifc::geometry::procedural::rectangle": { Width: 0.5, Height: 0.5 } },
+                        SweptArea: { "bsi::ifc::geometry::procedural::rectangle": { position: { Location: [0.5, 0.5] }, Width: 1, Height: 1 } },
                         ExtrudedDirection: [0, 0, 1],
                         Depth: 1,
                     },
                 },
             },
         };
-        expect(tessellate(geom)).to.be.null;
+        const mesh = tessellate(geom);
+        expect(mesh).to.not.be.null;
+        expect(mesh!.points.length).to.be.greaterThan(0);
+    });
+
+    it("emits sourceHash for tessellated Tier P meshes", () => {
+        const geom: ProceduralGeometry = {
+            "bsi::ifc::geometry::procedural::extruded_area_solid": {
+                SweptArea: { "bsi::ifc::geometry::procedural::rectangle": { Width: 1, Height: 1 } },
+                ExtrudedDirection: [0, 0, 1],
+                Depth: 1,
+            },
+        };
+        const mesh = tessellate(geom);
+        expect(mesh!.sourceHash).to.exist;
+        expect(mesh!.sourceHash).to.match(/^sha256-[0-9a-f]{64}$/);
+
+        // Same geom → same hash (deterministic)
+        const mesh2 = tessellate(geom);
+        expect(mesh2!.sourceHash).to.equal(mesh!.sourceHash);
+
+        // Different geom → different hash
+        const geom2 = {
+            "bsi::ifc::geometry::procedural::extruded_area_solid": {
+                SweptArea: { "bsi::ifc::geometry::procedural::rectangle": { Width: 2, Height: 1 } },
+                ExtrudedDirection: [0, 0, 1],
+                Depth: 1,
+            },
+        };
+        const mesh3 = tessellate(geom2 as ProceduralGeometry);
+        expect(mesh3!.sourceHash).to.not.equal(mesh!.sourceHash);
     });
 });
 
@@ -1286,11 +1356,346 @@ describe("latent Brep path parser", () => {
     });
 });
 
+// ── NURBS evaluator ──
+
+describe("NURBS evaluator", () => {
+    it("evaluates a degree-1 BSpline curve as linear interpolation", () => {
+        // Clamped knot vector [0,0,1,2,2] for 3 control points, degree 1
+        const body = {
+            Degree: 1,
+            ControlPoints: [[0, 0, 0], [1, 0, 0], [1, 1, 0]] as [number, number, number][],
+            Knots: [0, 1, 2],
+            KnotMultiplicities: [2, 1, 2] as number[],
+        };
+        const p0 = evaluateBSplineCurve(body, 0);
+        const p05 = evaluateBSplineCurve(body, 0.5);
+        const p1 = evaluateBSplineCurve(body, 1);
+        const p15 = evaluateBSplineCurve(body, 1.5);
+        const p2 = evaluateBSplineCurve(body, 2);
+        expect(p0[0]).to.be.closeTo(0, 1e-9);
+        expect(p05).to.deep.equal([0.5, 0, 0]);
+        expect(p1[0]).to.be.closeTo(1, 1e-9);
+        expect(p15).to.deep.equal([1, 0.5, 0]);
+        expect(p2[1]).to.be.closeTo(1, 1e-9);
+    });
+
+    it("samples a NURBS curve into N+1 points across full parameter range", () => {
+        const body = {
+            Degree: 2,
+            ControlPoints: [[0, 0, 0], [1, 1, 0], [2, 0, 0]] as [number, number, number][],
+            Knots: [0, 1],
+            KnotMultiplicities: [3, 3] as number[],
+        };
+        const points = sampleBSplineCurve(body, 10);
+        expect(points.length).to.equal(11);
+        expect(points[0][0]).to.be.closeTo(0, 1e-9);
+        expect(points[10][0]).to.be.closeTo(2, 1e-9);
+    });
+
+    it("evaluates a NURBS surface (bilinear control grid)", () => {
+        const body = {
+            UDegree: 1, VDegree: 1,
+            ControlPoints: [
+                [[0, 0, 0], [0, 1, 0]],
+                [[1, 0, 0], [1, 1, 0]],
+            ] as [number, number, number][][],
+            UKnots: [0, 1], VKnots: [0, 1],
+            UKnotMultiplicities: [2, 2] as number[],
+            VKnotMultiplicities: [2, 2] as number[],
+        };
+        const p = evaluateBSplineSurface(body, 0.5, 0.5);
+        expect(p[0]).to.be.closeTo(0.5, 1e-9);
+        expect(p[1]).to.be.closeTo(0.5, 1e-9);
+        expect(p[2]).to.be.closeTo(0, 1e-9);
+    });
+});
+
+// ── sourceHash canonicalization ──
+
+describe("source-hash canonicalization", () => {
+    it("produces stable, key-order-independent hashes", () => {
+        const a = { x: 1, y: 2, z: [3, 4] };
+        const b = { z: [3, 4], y: 2, x: 1 };
+        expect(canonicalize(a)).to.equal(canonicalize(b));
+        expect(sourceHashOf(a)).to.equal(sourceHashOf(b));
+    });
+
+    it("returns sha256-<64 hex> format", () => {
+        expect(sourceHashOf({ foo: 1 })).to.match(/^sha256-[0-9a-f]{64}$/);
+    });
+
+    it("differs for different content", () => {
+        expect(sourceHashOf({ a: 1 })).to.not.equal(sourceHashOf({ a: 2 }));
+    });
+});
+
+// ── Brep validation ──
+
+describe("Brep validation", () => {
+    it("classifies a unit cube as closed manifold", () => {
+        const cube = makeUnitCube();
+        const report = validateBrep(cube);
+        expect(report.kind).to.equal("closed_manifold");
+        expect(report.laminarEdgeCount).to.equal(0);
+        expect(report.spineEdgeCount).to.equal(0);
+        expect(report.componentCount).to.equal(1);
+    });
+
+    it("flags a Brep with only one face as open manifold (laminar edges)", () => {
+        const cube = makeUnitCube();
+        // Keep just one face, drop the rest
+        const single: Brep = {
+            ...cube,
+            faces: [cube.faces[0]],
+            shells: [{ FaceList: [0] }],
+            regions: [{ ShellList: [0] }],
+        };
+        const report = validateBrep(single);
+        expect(report.kind).to.equal("open_manifold");
+        expect(report.laminarEdgeCount).to.be.greaterThan(0);
+    });
+});
+
+// ── CSG kernel ──
+
+describe("CSG", () => {
+    function makeBoxMesh(cx: number, cy: number, cz: number, sx: number, sy: number, sz: number) {
+        const x0 = cx - sx / 2, x1 = cx + sx / 2;
+        const y0 = cy - sy / 2, y1 = cy + sy / 2;
+        const z0 = cz - sz / 2, z1 = cz + sz / 2;
+        return {
+            points: [
+                [x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0],
+                [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1],
+            ],
+            faceVertexIndices: [
+                // bottom (z=z0, normal -Z)
+                0, 2, 1, 0, 3, 2,
+                // top (z=z1, normal +Z)
+                4, 5, 6, 4, 6, 7,
+                // front (y=y0, -Y)
+                0, 1, 5, 0, 5, 4,
+                // right (x=x1, +X)
+                1, 2, 6, 1, 6, 5,
+                // back (y=y1, +Y)
+                2, 3, 7, 2, 7, 6,
+                // left (x=x0, -X)
+                3, 0, 4, 3, 4, 7,
+            ],
+        };
+    }
+
+    it("csgUnion of two boxes produces a non-empty mesh", () => {
+        const a = makeBoxMesh(0, 0, 0, 1, 1, 1);
+        const b = makeBoxMesh(0.5, 0.5, 0.5, 1, 1, 1);
+        const u = csgUnion(a, b);
+        expect(u.points.length).to.be.greaterThan(0);
+        expect(u.faceVertexIndices.length).to.be.greaterThan(0);
+    });
+
+    it("csgSubtract leaves fewer or equal volume than the original", () => {
+        const a = makeBoxMesh(0, 0, 0, 4, 4, 4);
+        const b = makeBoxMesh(0, 0, 0, 1, 1, 5);  // punch a hole through
+        const r = csgSubtract(a, b);
+        expect(r.points.length).to.be.greaterThan(0);
+        expect(r.faceVertexIndices.length).to.be.greaterThan(0);
+    });
+});
+
+// ── STEP21 parser & extractors ──
+
+describe("STEP21 parser", () => {
+    it("parses a minimal STEP file", () => {
+        const text = `
+ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION(('test'),'2;1');
+FILE_NAME('test.ifc','2026-05-27',(''),(''),'','','');
+FILE_SCHEMA(('IFC4'));
+ENDSEC;
+DATA;
+#1=IFCCARTESIANPOINT((0.,0.,0.));
+#2=IFCDIRECTION((0.,0.,1.));
+#3=IFCAXIS2PLACEMENT3D(#1,#2,$);
+ENDSEC;
+END-ISO-10303-21;
+`;
+        const f = parseStep21(text);
+        expect(f.schema).to.equal("IFC4");
+        expect(f.entities.size).to.equal(3);
+        const e3 = f.entities.get(3);
+        expect(e3?.type).to.equal("IFCAXIS2PLACEMENT3D");
+        expect(e3?.args.length).to.equal(3);
+        expect(e3!.args[0]).to.deep.include({ kind: "ref", id: 1 });
+    });
+
+    it("extracts IfcExtrudedAreaSolid + IfcArbitraryClosedProfileDef from hello-wall.ifc", () => {
+        const text = fs.readFileSync(`${examplesFolderPath}/Hello Wall/hello-wall.ifc`).toString();
+        const f = parseStep21(text);
+        expect(f.schema).to.equal("IFC4");
+        const result = extractIfcProcedural(f);
+        expect(result.productCount).to.be.greaterThan(0);
+        // The wall GUID
+        const wallProc = result.byGuid.get("2JUHrTM_j3UxZiBnyBfByx");
+        expect(wallProc).to.exist;
+        expect("bsi::ifc::geometry::procedural::extruded_area_solid" in (wallProc as object)).to.be.true;
+    });
+});
+
+// ── AP242 reader (also covers IFC advanced_face / advanced_brep round-trip) ──
+
+describe("AP242 reader", () => {
+    it("extracts a cube Brep from a hand-rolled AP242 fragment", () => {
+        // Minimal AP242: 8 vertices, 12 edges, 6 advanced_face, 1 closed_shell,
+        // 1 manifold_solid_brep representing a unit cube.
+        const txt = buildAp242Cube();
+        const file = parseStep21(txt);
+        expect(file.schema).to.match(/AP242|IFC|STEP/);
+        const breps = extractAp242Breps(file);
+        expect(breps.length).to.equal(1);
+        const b = breps[0];
+        expect(b.vertices.length).to.equal(8);
+        expect(b.faces.length).to.equal(6);
+        expect(b.shells.length).to.equal(1);
+    });
+
+    it("ap242ToTiered CLI writes index + ifcx.geom.brep.ndjson", () => {
+        const txt = buildAp242Cube();
+        const inputPath = `${examplesFolderPath}/_tmp_ap242_cube.stp`;
+        const outDir = `${examplesFolderPath}/_tmp_ap242_out`;
+        fs.writeFileSync(inputPath, txt);
+        try {
+            const result = ap242ToTiered(inputPath, outDir);
+            expect(result.brepCount).to.equal(1);
+            expect(fs.existsSync(result.indexPath)).to.be.true;
+            const brepPath = `${outDir}/ifcx.geom.brep.ndjson`;
+            expect(fs.existsSync(brepPath)).to.be.true;
+        } finally {
+            fs.unlinkSync(inputPath);
+            for (const f of fs.readdirSync(outDir)) fs.unlinkSync(`${outDir}/${f}`);
+            fs.rmdirSync(outDir);
+        }
+    });
+});
+
+/** Build a minimal STEP AP242 file representing a unit cube. */
+function buildAp242Cube(): string {
+    const lines: string[] = [];
+    let nextId = 1;
+    const allocate = () => nextId++;
+
+    // 8 corner cartesian_point entities (cube 0..1)
+    const corners: number[] = [];
+    for (let z = 0; z < 2; z++) {
+        for (let y = 0; y < 2; y++) {
+            for (let x = 0; x < 2; x++) {
+                const id = allocate();
+                lines.push(`#${id}=CARTESIAN_POINT('',(${x}.,${y}.,${z}.));`);
+                corners.push(id);
+            }
+        }
+    }
+    // vertex_point per corner
+    const verts: number[] = [];
+    for (const cp of corners) {
+        const id = allocate();
+        lines.push(`#${id}=VERTEX_POINT('',#${cp});`);
+        verts.push(id);
+    }
+
+    // Cube edges (24-pair definition is overkill; pick 12 edges by their corners).
+    // Indices into `verts` for each edge, expressed by the 8-corner mapping:
+    //   corners[0..7] for (x,y,z): 0,1,2,3=z=0 → (0,0,0),(1,0,0),(0,1,0),(1,1,0)
+    //                                4,5,6,7=z=1
+    const edgeDefs: [number, number][] = [
+        [0, 1], [1, 3], [3, 2], [2, 0],   // bottom
+        [4, 5], [5, 7], [7, 6], [6, 4],   // top
+        [0, 4], [1, 5], [3, 7], [2, 6],   // verticals
+    ];
+    // For each edge: direction + vector + line + edge_curve
+    const edgeCurves: number[] = [];
+    for (const [a, b] of edgeDefs) {
+        const dirId = allocate();
+        const aPt = corners[a], bPt = corners[b];
+        // direction ratios from a to b
+        lines.push(`#${dirId}=DIRECTION('',(${b % 2 - a % 2}.,${Math.floor(b / 2) % 2 - Math.floor(a / 2) % 2}.,${Math.floor(b / 4) - Math.floor(a / 4)}.));`);
+        const vecId = allocate();
+        lines.push(`#${vecId}=VECTOR('',#${dirId},1.);`);
+        const lineId = allocate();
+        lines.push(`#${lineId}=LINE('',#${aPt},#${vecId});`);
+        const ecId = allocate();
+        lines.push(`#${ecId}=EDGE_CURVE('',#${verts[a]},#${verts[b]},#${lineId},.T.);`);
+        edgeCurves.push(ecId);
+    }
+
+    // 6 faces. For each, a placement (axis2_placement_3d) + plane + 4 oriented_edge + edge_loop + face_outer_bound + advanced_face.
+    // Face definitions: which 4 edges form the loop, plus orientation
+    const faceDefs: { edges: number[]; reversed: boolean[]; planePointIdx: number; normalDirRatios: [number, number, number]; refDirRatios: [number, number, number] }[] = [
+        // bottom z=0: edges 0,1,2,3 (CCW from below = CW from above), normal -Z, ref +X
+        { edges: [0, 1, 2, 3], reversed: [false, false, false, false], planePointIdx: 0, normalDirRatios: [0, 0, -1], refDirRatios: [1, 0, 0] },
+        // top z=1
+        { edges: [4, 5, 6, 7], reversed: [false, false, false, false], planePointIdx: 4, normalDirRatios: [0, 0, 1], refDirRatios: [1, 0, 0] },
+        // front y=0
+        { edges: [0, 9, 4, 8], reversed: [false, false, true, true], planePointIdx: 0, normalDirRatios: [0, -1, 0], refDirRatios: [1, 0, 0] },
+        // back y=1
+        { edges: [2, 11, 6, 10], reversed: [true, false, false, true], planePointIdx: 2, normalDirRatios: [0, 1, 0], refDirRatios: [1, 0, 0] },
+        // left x=0
+        { edges: [3, 11, 7, 8], reversed: [false, true, true, false], planePointIdx: 0, normalDirRatios: [-1, 0, 0], refDirRatios: [0, 1, 0] },
+        // right x=1
+        { edges: [1, 10, 5, 9], reversed: [false, false, true, true], planePointIdx: 1, normalDirRatios: [1, 0, 0], refDirRatios: [0, 1, 0] },
+    ];
+
+    const advancedFaces: number[] = [];
+    for (const fd of faceDefs) {
+        const placePtId = corners[fd.planePointIdx];
+        const normalDirId = allocate();
+        lines.push(`#${normalDirId}=DIRECTION('',(${fd.normalDirRatios.map(n => `${n}.`).join(',')}));`);
+        const refDirId = allocate();
+        lines.push(`#${refDirId}=DIRECTION('',(${fd.refDirRatios.map(n => `${n}.`).join(',')}));`);
+        const placeId = allocate();
+        lines.push(`#${placeId}=AXIS2_PLACEMENT_3D('',#${placePtId},#${normalDirId},#${refDirId});`);
+        const planeId = allocate();
+        lines.push(`#${planeId}=PLANE('',#${placeId});`);
+
+        // Oriented edges
+        const oeIds: number[] = [];
+        for (let i = 0; i < fd.edges.length; i++) {
+            const ec = edgeCurves[fd.edges[i]];
+            const oeId = allocate();
+            const orient = fd.reversed[i] ? ".F." : ".T.";
+            lines.push(`#${oeId}=ORIENTED_EDGE('',*,*,#${ec},${orient});`);
+            oeIds.push(oeId);
+        }
+        const loopId = allocate();
+        lines.push(`#${loopId}=EDGE_LOOP('',(${oeIds.map(i => `#${i}`).join(',')}));`);
+        const bnd = allocate();
+        lines.push(`#${bnd}=FACE_OUTER_BOUND('',#${loopId},.T.);`);
+        const fid = allocate();
+        lines.push(`#${fid}=ADVANCED_FACE('',(#${bnd}),#${planeId},.T.);`);
+        advancedFaces.push(fid);
+    }
+
+    const shellId = allocate();
+    lines.push(`#${shellId}=CLOSED_SHELL('',(${advancedFaces.map(i => `#${i}`).join(',')}));`);
+    const brepId = allocate();
+    lines.push(`#${brepId}=MANIFOLD_SOLID_BREP('',#${shellId});`);
+
+    return `ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION(('test'),'2;1');
+FILE_NAME('cube.stp','2026-05-27',(''),(''),'','','');
+FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING'));
+ENDSEC;
+DATA;
+${lines.join("\n")}
+ENDSEC;
+END-ISO-10303-21;
+`;
+}
+
 // ── Example File Validation ──
 
 describe("tiered example file", () => {
-    const examplesFolderPath = "../examples";
-
     it("Hello Wall Tiered index file is valid JSON", () => {
         const indexStr = fs.readFileSync(`${examplesFolderPath}/Hello Wall Tiered/index.ifcx`).toString();
         const index = JSON.parse(indexStr) as IndexFileData;
