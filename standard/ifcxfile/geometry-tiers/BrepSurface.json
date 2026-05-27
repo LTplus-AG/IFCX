@@ -1,0 +1,53 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "BrepSurface.json",
+    "anyOf": [
+        {
+            "$ref": "#/$defs/PlanarSurfaceTag"
+        }
+    ],
+    "$defs": {
+        "PlanarSurfaceTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::brep::plane": {
+                    "$ref": "#/$defs/PlanarSurfaceBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::brep::plane"
+            ]
+        },
+        "PlanarSurfaceBody": {
+            "type": "object",
+            "properties": {
+                "Pnt": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Point on the plane (the surface origin)"
+                },
+                "Axis": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Outward surface normal (unit)"
+                },
+                "RefDirection": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "In-plane reference direction (the local U axis)"
+                }
+            },
+            "required": [
+                "Pnt",
+                "Axis",
+                "RefDirection"
+            ]
+        }
+    }
+}

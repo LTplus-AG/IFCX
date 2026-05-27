@@ -1,0 +1,72 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "DisplayMesh.json",
+    "type": "object",
+    "properties": {
+        "points": {
+            "type": "array",
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "number"
+                }
+            },
+            "description": "Vertex positions as array of [x, y, z] triples"
+        },
+        "faceVertexIndices": {
+            "type": "array",
+            "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+            },
+            "description": "Triangle vertex indices into the points array"
+        },
+        "normals": {
+            "type": "array",
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "number"
+                }
+            },
+            "description": "Optional vertex normals as array of [nx, ny, nz] triples"
+        },
+        "uvs": {
+            "type": "array",
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "number"
+                }
+            },
+            "description": "Optional UV coordinates as array of [u, v] pairs"
+        },
+        "derivedFrom": {
+            "$ref": "#/$defs/MeshSourceTier",
+            "description": "Higher tier this mesh was derived from, if any. Absent means authored."
+        },
+        "tolerance": {
+            "type": "number",
+            "description": "Tessellation tolerance in source units, if derived"
+        },
+        "sourceHash": {
+            "type": "string",
+            "description": "Stable content hash of the source-tier record. Lets consumers detect cache staleness."
+        }
+    },
+    "required": [
+        "points",
+        "faceVertexIndices"
+    ],
+    "description": "Tier M entry. Triangulated mesh for rendering. May be authored or derived.",
+    "$defs": {
+        "MeshSourceTier": {
+            "type": "string",
+            "enum": [
+                "procedural",
+                "brep"
+            ]
+        }
+    }
+}

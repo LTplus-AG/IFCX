@@ -5,19 +5,19 @@
   "imports": [],
   "attributeTables": [
     {
-      "filename": "ifcx.geom.mesh.ndjson",
+      "filename": "ifcx.geom.proc.ndjson",
       "type": "NDJSON",
-      "schema": { "tier": "A", "description": "Display mesh geometry" }
+      "schema": { "tier": "P", "description": "Procedural geometry — primary authoring tier" }
     },
     {
       "filename": "ifcx.geom.brep.ndjson",
       "type": "NDJSON",
-      "schema": { "tier": "B", "description": "Precise BRep geometry" }
+      "schema": { "tier": "B", "description": "Native Brep — closed-shell manifold with planar faces" }
     },
     {
-      "filename": "ifcx.geom.proc.ndjson",
+      "filename": "ifcx.geom.mesh.ndjson",
       "type": "NDJSON",
-      "schema": { "tier": "C", "description": "Procedural geometry hints" }
+      "schema": { "tier": "M", "description": "Display mesh — derived from Tier P / Tier B where possible" }
     },
     {
       "filename": "ifcx.semantics.ndjson",
@@ -31,7 +31,7 @@
         "id": "hello-wall-tiered",
         "dataVersion": "1.0.0",
         "author": "technical@buildingsmart.org",
-        "timestamp": "2026-03-28",
+        "timestamp": "2026-05-27",
         "application": "ifcx-tiered-example"
       },
       "nodes": [
@@ -85,9 +85,9 @@
         {
           "path": "634f90c3-831e-5f29-a9b2-fa69b207821e",
           "attributes": [
-            { "opinion": "VALUE", "name": "ifcx::geom::mesh", "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 0 } },
+            { "opinion": "VALUE", "name": "ifcx::geom::proc", "value": { "typeID": "ifcx.geom.proc", "componentIndex": 0 } },
             { "opinion": "VALUE", "name": "ifcx::geom::brep", "value": { "typeID": "ifcx.geom.brep", "componentIndex": 0 } },
-            { "opinion": "VALUE", "name": "ifcx::geom::proc", "value": { "typeID": "ifcx.geom.proc", "componentIndex": 0 } }
+            { "opinion": "VALUE", "name": "ifcx::geom::mesh", "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 0 } }
           ]
         },
 
@@ -112,6 +112,7 @@
         {
           "path": "08f06095-3f32-55b9-a353-61c9aca5cc4d",
           "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::geom::proc", "value": { "typeID": "ifcx.geom.proc", "componentIndex": 1 } },
             { "opinion": "VALUE", "name": "ifcx::geom::mesh", "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 2 } },
             { "opinion": "VALUE", "name": "bsi::ifc::material", "value": { "typeID": "ifcx.semantics", "componentIndex": 7 } },
             { "opinion": "VALUE", "name": "bsi::ifc::procedural_geometry::has_profile", "value": { "typeID": "ifcx.semantics", "componentIndex": 10 } }
@@ -120,6 +121,7 @@
         {
           "path": "5ad6f475-c04c-5628-8b9d-75d0bab0c0e5",
           "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::geom::proc", "value": { "typeID": "ifcx.geom.proc", "componentIndex": 2 } },
             { "opinion": "VALUE", "name": "ifcx::geom::mesh", "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 3 } },
             { "opinion": "VALUE", "name": "bsi::ifc::material", "value": { "typeID": "ifcx.semantics", "componentIndex": 8 } }
           ]
@@ -156,6 +158,7 @@
         {
           "path": "aabb1122-3344-5566-7788-99aabbccdd03",
           "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::geom::proc", "value": { "typeID": "ifcx.geom.proc", "componentIndex": 3 } },
             { "opinion": "VALUE", "name": "ifcx::geom::mesh", "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 5 } },
             { "opinion": "VALUE", "name": "bsi::ifc::material", "value": { "typeID": "ifcx.semantics", "componentIndex": 7 } },
             { "opinion": "VALUE", "name": "bsi::ifc::procedural_geometry::has_profile", "value": { "typeID": "ifcx.semantics", "componentIndex": 13 } }
@@ -164,6 +167,7 @@
         {
           "path": "aabb1122-3344-5566-7788-99aabbccdd04",
           "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::geom::proc", "value": { "typeID": "ifcx.geom.proc", "componentIndex": 4 } },
             { "opinion": "VALUE", "name": "ifcx::geom::mesh", "value": { "typeID": "ifcx.geom.mesh", "componentIndex": 6 } },
             { "opinion": "VALUE", "name": "bsi::ifc::material", "value": { "typeID": "ifcx.semantics", "componentIndex": 8 } }
           ]

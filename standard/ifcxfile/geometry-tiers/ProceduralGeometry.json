@@ -1,0 +1,171 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "ProceduralGeometry.json",
+    "anyOf": [
+        {
+            "$ref": "#/$defs/ExtrudedAreaSolidTag"
+        },
+        {
+            "$ref": "#/$defs/RevolvedAreaSolidTag"
+        },
+        {
+            "$ref": "#/$defs/BooleanResultTag"
+        }
+    ],
+    "description": "Tier P entry. Each row in `ifcx.geom.proc.ndjson` is a single tagged object\nrepresenting one procedural solid.",
+    "$defs": {
+        "ExtrudedAreaSolidTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::procedural::extruded_area_solid": {
+                    "$ref": "#/$defs/ExtrudedAreaSolidBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::procedural::extruded_area_solid"
+            ]
+        },
+        "RevolvedAreaSolidTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::procedural::revolved_area_solid": {
+                    "$ref": "#/$defs/RevolvedAreaSolidBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::procedural::revolved_area_solid"
+            ]
+        },
+        "BooleanResultTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::procedural::boolean_result": {
+                    "$ref": "#/$defs/BooleanResultBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::procedural::boolean_result"
+            ]
+        },
+        "ExtrudedAreaSolidBody": {
+            "type": "object",
+            "properties": {
+                "SweptArea": {
+                    "$ref": "Profile.json"
+                },
+                "Position": {
+                    "$ref": "#/$defs/Axis2Placement3D"
+                },
+                "ExtrudedDirection": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "[dx, dy, dz] in profile-local frame; defaults to [0, 0, 1] if omitted by reader"
+                },
+                "Depth": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "SweptArea",
+                "ExtrudedDirection",
+                "Depth"
+            ],
+            "description": "Extrude a profile along a direction by a depth. Analog of IFC IfcExtrudedAreaSolid."
+        },
+        "RevolvedAreaSolidBody": {
+            "type": "object",
+            "properties": {
+                "SweptArea": {
+                    "$ref": "Profile.json"
+                },
+                "Position": {
+                    "$ref": "#/$defs/Axis2Placement3D"
+                },
+                "AxisOrigin": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Axis origin in profile-local frame"
+                },
+                "AxisDirection": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Axis direction"
+                },
+                "Angle": {
+                    "type": "number",
+                    "description": "Revolution angle in radians"
+                }
+            },
+            "required": [
+                "SweptArea",
+                "AxisOrigin",
+                "AxisDirection",
+                "Angle"
+            ],
+            "description": "Revolve a profile around an axis by an angle. Analog of IFC IfcRevolvedAreaSolid."
+        },
+        "BooleanResultBody": {
+            "type": "object",
+            "properties": {
+                "Operator": {
+                    "$ref": "#/$defs/BooleanOperator"
+                },
+                "FirstOperand": {
+                    "$ref": "ProceduralGeometry.json"
+                },
+                "SecondOperand": {
+                    "$ref": "ProceduralGeometry.json"
+                }
+            },
+            "required": [
+                "Operator",
+                "FirstOperand",
+                "SecondOperand"
+            ],
+            "description": "Boolean over two procedural-geometry operands. Operands may nest. Analog of IFC IfcBooleanResult."
+        },
+        "Axis2Placement3D": {
+            "type": "object",
+            "properties": {
+                "Location": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "Axis": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Local Z axis"
+                },
+                "RefDirection": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Local X axis"
+                }
+            },
+            "required": [
+                "Location"
+            ],
+            "description": "3D placement matching IFC IfcAxis2Placement3D."
+        },
+        "BooleanOperator": {
+            "type": "string",
+            "enum": [
+                "union",
+                "difference",
+                "intersection"
+            ]
+        }
+    }
+}

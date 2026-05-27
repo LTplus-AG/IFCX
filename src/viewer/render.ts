@@ -116,18 +116,29 @@ function FindChildWithAttr(node: ComposedObject | undefined, attrName: string)
 function setHighlight(obj: any, highlight: boolean) {
     if (!obj) return;
     obj.traverse((o) => {
-        const mat = o.material;
-        if (mat && mat.color) {
-            if (highlight) {
-                if (!o.userData._origColor) {
-                    o.userData._origColor = mat.color.clone();
-                }
-                o.material = mat.clone();
-                o.material.color.set(0xff0000);
-            } else if (o.userData._origColor) {
-                mat.color.copy(o.userData._origColor);
-                delete o.userData._origColor;
+        if (!o.material) return;
+        const isArray = Array.isArray(o.material);
+        const mats: any[] = isArray ? o.material : [o.material];
+
+        if (highlight) {
+            if (!o.userData._origColors) {
+                // Snapshot original colors and replace with cloned materials so we don't
+                // mutate shared materials elsewhere in the scene.
+                o.userData._origColors = mats.map(m => (m && m.color) ? m.color.clone() : null);
+                const cloned = mats.map(m => m ? m.clone() : m);
+                o.material = isArray ? cloned : cloned[0];
             }
+            const current = Array.isArray(o.material) ? o.material : [o.material];
+            for (const m of current) {
+                if (m && m.color) m.color.set(0xff0000);
+            }
+        } else if (o.userData._origColors) {
+            const orig = o.userData._origColors;
+            const current = Array.isArray(o.material) ? o.material : [o.material];
+            current.forEach((m: any, i: number) => {
+                if (m && m.color && orig[i]) m.color.copy(orig[i]);
+            });
+            delete o.userData._origColors;
         }
     });
 }
@@ -268,25 +279,68 @@ function createCurveFromJson(path: ComposedObject[]) {
   return new THREE.Line(geometry, lineMaterial);
 }
 
+/**
+ * Build a material descriptor from per-face attributes authored via the
+ * latent-path mechanism. The IFCX composer flattens nested attribute objects
+ * into double-colon paths, so the face attributes appear as flat keys like
+ * `ifcx::brep::face::3::bsi::ifc::presentation::diffuseColor` rather than as
+ * a nested object at `ifcx::brep::face::3`. We scan for that flattened prefix.
+ *
+ * Falls back to the body's default material if the face has no overriding
+ * presentation attributes.
+ */
+function faceMaterialFromAttrs(
+    allAttrs: Record<string, any>,
+    faceIndex: number,
+    fallback: { color: THREE.Color; transparent: boolean; opacity: number },
+) {
+    const prefix = `ifcx::brep::face::${faceIndex}::`;
+    const color = allAttrs[`${prefix}bsi::ifc::presentation::diffuseColor`];
+    if (color && Array.isArray(color)) {
+        const opacity = allAttrs[`${prefix}bsi::ifc::presentation::opacity`];
+        return {
+            color: new THREE.Color(color[0], color[1], color[2]),
+            transparent: opacity != null,
+            opacity: opacity ?? 1,
+        };
+    }
+    return fallback;
+}
+
 function createMeshFromJson(path: ComposedObject[]) {
   let points = new Float32Array(path[0].attributes["usd::usdgeom::mesh::points"].flat());
   let indices = new Uint16Array(path[0].attributes["usd::usdgeom::mesh::faceVertexIndices"]);
-  
+
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(points, 3));
   geometry.setIndex(new THREE.BufferAttribute(indices, 1));
   geometry.computeVertexNormals();
-  
-  
+
+  // Per-face material path: when the mesh was derived from a Brep, the tessellator
+  // emitted faceGroups + the loader absorbed any latent-path per-face attributes.
+  // Build a multi-material mesh so faces with `ifcx::brep::face::<n>` overrides
+  // render with their own material.
+  const faceGroups = path[0].attributes["ifcx::brep::face_groups"];
+  if (Array.isArray(faceGroups) && faceGroups.length > 0) {
+    const baseMatDesc = createMaterialFromParent(path);
+    const materials: THREE.Material[] = [];
+    for (let gi = 0; gi < faceGroups.length; gi++) {
+      const group = faceGroups[gi];
+      const matDesc = faceMaterialFromAttrs(path[0].attributes, group.faceIndex, baseMatDesc);
+      materials.push(new THREE.MeshPhongMaterial({ ...matDesc, side: THREE.DoubleSide, flatShading: true }));
+      geometry.addGroup(group.start, group.count, gi);
+    }
+    return new THREE.Mesh(geometry, materials);
+  }
+
+  // Single-material fallback path
   var meshMaterial;
-  
   let gltfPbrMaterial = tryCreateMeshGltfMaterial(path);
   if (gltfPbrMaterial) {
     meshMaterial = gltfPbrMaterial
-    // console.log(meshMaterial)
   } else {
     const m = createMaterialFromParent(path);
-    meshMaterial = new THREE.MeshLambertMaterial({ ...m, side: THREE.DoubleSide });
+    meshMaterial = new THREE.MeshPhongMaterial({ ...m, side: THREE.DoubleSide, flatShading: true });
   }
 
   return new THREE.Mesh(geometry, meshMaterial);
@@ -456,7 +510,9 @@ function handleClick(prim, pathMapping, root) {
       let N = document.createElement('span');
       N.appendChild(document.createTextNode('('));
       let first = true;
-      for (let n of value.map(format)) {
+      // Don't pass `.map`'s index argument as attrKey — it'd be a number, breaking the
+      // attrKey.indexOf() checks further down. Explicit lambda discards extra args.
+      for (let n of value.map(v => format(v))) {
         if (!first) {
           N.appendChild(document.createTextNode(','));
         }

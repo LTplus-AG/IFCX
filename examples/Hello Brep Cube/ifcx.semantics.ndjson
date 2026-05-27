@@ -1,0 +1,7 @@
+{"bsi::ifc::class":{"code":"IfcBuildingElementProxy","uri":"https://identifier.buildingsmart.org/uri/buildingsmart/ifc/4.3/class/IfcBuildingElementProxy"},"bsi::ifc::prop::Name":"Reference Cube"}
+{"bsi::ifc::material":{"code":"FLOOR"},"bsi::ifc::presentation::diffuseColor":[0.35,0.35,0.38]}
+{"bsi::ifc::material":{"code":"ROOFING"},"bsi::ifc::presentation::diffuseColor":[0.45,0.22,0.12]}
+{"bsi::ifc::material":{"code":"GLAZING"},"bsi::ifc::presentation::diffuseColor":[0.38,0.55,0.82]}
+{"bsi::ifc::material":{"code":"BRICK"},"bsi::ifc::presentation::diffuseColor":[0.62,0.32,0.22]}
+{"bsi::ifc::material":{"code":"TIMBER"},"bsi::ifc::presentation::diffuseColor":[0.82,0.66,0.36]}
+{"bsi::ifc::material":{"code":"METAL"},"bsi::ifc::presentation::diffuseColor":[0.42,0.68,0.5]}

@@ -234,9 +234,9 @@
             </form>
             <div id="tierToggle" style="display:none; padding:4px 8px; font-size:0.85em; background:#f8f8f8; border-top:1px solid #ddd;">
                 <strong>Geometry tiers:</strong>
-                <label title="Display mesh — 3D rendering"><input type="checkbox" id="tierMesh" checked> Mesh (A)</label>
-                <label title="Precise BRep — STEP data in attributes"><input type="checkbox" id="tierBrep"> BRep (B)</label>
-                <label title="Procedural hints — extrusion parameters in attributes"><input type="checkbox" id="tierProc"> Proc (C)</label>
+                <label title="Procedural — authoring tier (extrude, revolve, boolean over profiles)"><input type="checkbox" id="tierProcedural"> Procedural (P)</label>
+                <label title="Native Brep — closed-shell topology with planar / NURBS surfaces"><input type="checkbox" id="tierBrep"> Brep (B)</label>
+                <label title="Display mesh — tessellated view; derived from higher tiers where present"><input type="checkbox" id="tierMesh" checked> Mesh (M)</label>
             </div>
         </div>
         <div class='tree-container'>
@@ -345,8 +345,8 @@
         function getSelectedTiers() {
             const tiers = [];
             if (document.getElementById('tierMesh').checked) tiers.push('mesh');
+            if (document.getElementById('tierProcedural').checked) tiers.push('procedural');
             if (document.getElementById('tierBrep').checked) tiers.push('brep');
-            if (document.getElementById('tierProc').checked) tiers.push('proc');
             return tiers;
         }
 

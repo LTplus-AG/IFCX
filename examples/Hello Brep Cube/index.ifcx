@@ -1,0 +1,82 @@
+{
+  "header": {
+    "ifcxVersion": "ifcx_post_alpha"
+  },
+  "imports": [],
+  "attributeTables": [
+    {
+      "filename": "ifcx.geom.brep.ndjson",
+      "type": "NDJSON",
+      "schema": { "tier": "B", "description": "Native Brep — closed-shell manifold with planar faces" }
+    },
+    {
+      "filename": "ifcx.semantics.ndjson",
+      "type": "NDJSON",
+      "schema": { "description": "Semantic properties" }
+    }
+  ],
+  "sections": [
+    {
+      "header": {
+        "id": "hello-brep-cube",
+        "dataVersion": "1.0.0",
+        "author": "technical@buildingsmart.org",
+        "timestamp": "2026-05-27",
+        "application": "ifcx-tier-b-example"
+      },
+      "nodes": [
+        {
+          "path": "01a2b3c4-d5e6-7890-1234-56789abcdef0",
+          "children": [
+            { "opinion": "VALUE", "name": "Body", "value": "11111111-2222-3333-4444-555555555555" }
+          ],
+          "attributes": [
+            { "opinion": "VALUE", "name": "bsi::ifc::class", "value": { "typeID": "ifcx.semantics", "componentIndex": 0 } }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555",
+          "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::geom::brep", "value": { "typeID": "ifcx.geom.brep", "componentIndex": 0 } }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Face_0",
+          "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::semantics", "value": { "typeID": "ifcx.semantics", "componentIndex": 1 } }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Face_1",
+          "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::semantics", "value": { "typeID": "ifcx.semantics", "componentIndex": 2 } }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Face_2",
+          "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::semantics", "value": { "typeID": "ifcx.semantics", "componentIndex": 3 } }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Face_3",
+          "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::semantics", "value": { "typeID": "ifcx.semantics", "componentIndex": 4 } }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Face_4",
+          "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::semantics", "value": { "typeID": "ifcx.semantics", "componentIndex": 5 } }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Face_5",
+          "attributes": [
+            { "opinion": "VALUE", "name": "ifcx::semantics", "value": { "typeID": "ifcx.semantics", "componentIndex": 6 } }
+          ]
+        }
+      ]
+    }
+  ]
+}

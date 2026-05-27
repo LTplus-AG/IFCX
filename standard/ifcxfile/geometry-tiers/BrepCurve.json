@@ -1,0 +1,94 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "BrepCurve.json",
+    "anyOf": [
+        {
+            "$ref": "#/$defs/LineCurveTag"
+        },
+        {
+            "$ref": "#/$defs/CircleCurveTag"
+        }
+    ],
+    "$defs": {
+        "LineCurveTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::brep::line": {
+                    "$ref": "#/$defs/LineCurveBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::brep::line"
+            ]
+        },
+        "CircleCurveTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::brep::circle": {
+                    "$ref": "#/$defs/CircleCurveBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::brep::circle"
+            ]
+        },
+        "LineCurveBody": {
+            "type": "object",
+            "properties": {
+                "Pnt": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Point on the line, world coords"
+                },
+                "Dir": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Unit direction vector"
+                }
+            },
+            "required": [
+                "Pnt",
+                "Dir"
+            ]
+        },
+        "CircleCurveBody": {
+            "type": "object",
+            "properties": {
+                "Pnt": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Center"
+                },
+                "Axis": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Normal of the plane the circle lies in"
+                },
+                "RefDirection": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "In-plane direction marking the 0-angle position"
+                },
+                "Radius": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "Pnt",
+                "Axis",
+                "RefDirection",
+                "Radius"
+            ]
+        }
+    }
+}

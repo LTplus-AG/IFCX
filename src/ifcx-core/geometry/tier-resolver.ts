@@ -1,8 +1,8 @@
 // Tier-aware resolver that loads only requested geometry tiers from attribute tables.
-// This enforces the core constraint: a viewer never touches BRep data.
+// Enforces the core constraint: a viewer that requests only Tier M never touches Tier P.
 
 import { AttributeTable } from "./attribute-table";
-import { DisplayMesh, BRepGeometry, ProceduralHint, GeometryTier, TIER_TABLE_NAMES } from "./geometry-tiers";
+import { Brep, DisplayMesh, ProceduralGeometry, GeometryTier, TIER_TABLE_NAMES } from "./geometry-tiers";
 
 export interface AttributeTableProvider {
     getTable(filename: string): AttributeTable | null;
@@ -38,20 +38,19 @@ export class TierResolver {
         return table.read<DisplayMesh>(componentIndex);
     }
 
-    resolveBRep(componentIndex: number): BRepGeometry | null {
-        const table = this.getTableForTier("brep");
+    resolveProcedural(componentIndex: number): ProceduralGeometry | null {
+        const table = this.getTableForTier("procedural");
         if (!table) return null;
-        return table.read<BRepGeometry>(componentIndex);
+        return table.read<ProceduralGeometry>(componentIndex);
     }
 
-    resolveProceduralHint(componentIndex: number): ProceduralHint | null {
-        const table = this.getTableForTier("proc");
+    resolveBrep(componentIndex: number): Brep | null {
+        const table = this.getTableForTier("brep");
         if (!table) return null;
-        return table.read<ProceduralHint>(componentIndex);
+        return table.read<Brep>(componentIndex);
     }
 
     resolveByRef(typeID: string, componentIndex: number): unknown | null {
-        // Find which tier this typeID belongs to
         for (const [tier, tableName] of Object.entries(TIER_TABLE_NAMES)) {
             if (typeID === tableName) {
                 if (!this.allowedTiers.has(tier as GeometryTier)) {
@@ -63,7 +62,7 @@ export class TierResolver {
                 return table.read(componentIndex);
             }
         }
-        // Not a geometry tier — try loading as generic table
+        // Not a geometry tier — try loading as a generic table
         this._accessLog.add(typeID);
         const table = this.provider.getTable(typeID);
         if (!table) return null;

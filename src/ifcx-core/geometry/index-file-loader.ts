@@ -4,8 +4,9 @@
 
 import { IfcxFile, IfcxNode } from "../schema/schema-helper";
 import { AttributeTable } from "./attribute-table";
-import { GeometryTier, TIER_TABLE_NAMES } from "./geometry-tiers";
+import { Brep, GeometryTier, ProceduralGeometry, TIER_TABLE_NAMES, parseLatentBrepPath } from "./geometry-tiers";
 import { AttributeTableProvider, InMemoryTableProvider, TierResolver } from "./tier-resolver";
+import { tessellate, tessellateBrep } from "./tessellate";
 
 export interface IndexFileData {
     header: {
@@ -45,7 +46,7 @@ export interface TieredLoadResult {
 export function loadIndexFile(
     indexData: IndexFileData,
     ndjsonFiles: Map<string, string>,
-    requestedTiers: GeometryTier[] = ["mesh"]
+    requestedTiers: GeometryTier[] = ["mesh"],
 ): TieredLoadResult {
     // Build table provider from NDJSON files
     const tableProvider = new InMemoryTableProvider();
@@ -90,7 +91,7 @@ function convertToAlpha(
     tierResolver: TierResolver,
     tableProvider: AttributeTableProvider
 ): IfcxFile {
-    const data: IfcxNode[] = [];
+    let data: IfcxNode[] = [];
     const schemas: Record<string, any> = {};
 
     // Geometry tier table names for detection
@@ -150,16 +151,12 @@ function convertToAlpha(
                                         schemas["usd::usdgeom::mesh::points"] = inferSchema(mesh.points);
                                         schemas["usd::usdgeom::mesh::faceVertexIndices"] = inferSchema(mesh.faceVertexIndices);
                                     }
-                                    if (mesh.lod) {
-                                        attributes["ifcx::geom::lod"] = mesh.lod;
-                                        if (!schemas["ifcx::geom::lod"]) schemas["ifcx::geom::lod"] = inferSchema(mesh.lod);
-                                    }
+                                } else if (typeID === TIER_TABLE_NAMES.procedural) {
+                                    attributes["ifcx::geom::proc"] = resolved;
+                                    if (!schemas["ifcx::geom::proc"]) schemas["ifcx::geom::proc"] = inferSchema(resolved);
                                 } else if (typeID === TIER_TABLE_NAMES.brep) {
                                     attributes["ifcx::geom::brep"] = resolved;
                                     if (!schemas["ifcx::geom::brep"]) schemas["ifcx::geom::brep"] = inferSchema(resolved);
-                                } else if (typeID === TIER_TABLE_NAMES.proc) {
-                                    attributes["ifcx::geom::proc"] = resolved;
-                                    if (!schemas["ifcx::geom::proc"]) schemas["ifcx::geom::proc"] = inferSchema(resolved);
                                 }
                             }
                             // If tier not allowed, the attribute is simply absent — selective parsing!
@@ -182,6 +179,33 @@ function convertToAlpha(
                         }
                     }
                 }
+
+                // Derivation: if a higher tier is present and Tier M is missing, derive a
+                // display mesh from the highest available tier. Source-of-truth priority
+                // matches docs/geometry-tiers-design.md: Tier P > Tier B > Tier M.
+                if (attributes["usd::usdgeom::mesh::points"] === undefined) {
+                    let derived = null as ReturnType<typeof tessellate>;
+                    if (attributes["ifcx::geom::proc"] !== undefined) {
+                        derived = tessellate(attributes["ifcx::geom::proc"] as ProceduralGeometry);
+                    } else if (attributes["ifcx::geom::brep"] !== undefined) {
+                        derived = tessellateBrep(attributes["ifcx::geom::brep"] as Brep);
+                    }
+                    if (derived) {
+                        attributes["usd::usdgeom::mesh::points"] = derived.points;
+                        attributes["usd::usdgeom::mesh::faceVertexIndices"] = derived.faceVertexIndices;
+                        if (!schemas["usd::usdgeom::mesh::points"]) {
+                            schemas["usd::usdgeom::mesh::points"] = inferSchema(derived.points);
+                            schemas["usd::usdgeom::mesh::faceVertexIndices"] = inferSchema(derived.faceVertexIndices);
+                        }
+                        if (derived.faceGroups && derived.faceGroups.length > 0) {
+                            attributes["ifcx::brep::face_groups"] = derived.faceGroups;
+                            if (!schemas["ifcx::brep::face_groups"]) {
+                                schemas["ifcx::brep::face_groups"] = { value: { dataType: "Object" } };
+                            }
+                        }
+                    }
+                }
+
                 alphaNode.attributes = attributes;
             }
 
@@ -189,9 +213,22 @@ function convertToAlpha(
         }
     }
 
+    // Resolve latent Brep sub-paths: a node authored at `bodyPath/Face_<n>` (or Edge_/Vertex_)
+    // gets its attributes lifted into the parent Brep node under the key
+    // `ifcx::brep::<kind>::<index>` and removed from the data array. This implements the
+    // federation-friendly per-face authoring described in docs/geometry-tiers-design.md
+    // (Tier B latent-path face addressing).
+    const resolvedLatentPaths = resolveLatentBrepPaths(data, schemas);
+    data = data.filter(n => !resolvedLatentPaths.has(n.path));
+
+    // Use the first section's header.id as the alpha file ID. The previous code used
+    // ifcxVersion which is a format identifier, not a unique file ID — every reload
+    // collided in the InMemoryLayerProvider with "duplicate ID".
+    const sectionId = indexData.sections[0]?.header.id;
+    const fileId = sectionId && sectionId.length > 0 ? sectionId : `ifcx-tiered-${Date.now()}`;
     return {
         header: {
-            id: indexData.header.ifcxVersion,
+            id: fileId,
             ifcxVersion: indexData.header.ifcxVersion,
             dataVersion: "1.0.0",
             author: indexData.sections[0]?.header.author ?? "",
@@ -204,4 +241,47 @@ function convertToAlpha(
         schemas,
         data,
     };
+}
+
+/**
+ * Identify nodes whose path matches the latent Brep sub-path pattern
+ * (bodyPath/Face_<n>, /Edge_<n>, /Vertex_<n>) and merge their attributes into
+ * the parent Brep node. Returns the set of paths that were absorbed so the
+ * caller can remove them from `data`.
+ *
+ * Per-element attributes appear on the parent under
+ *   ifcx::brep::face::<n> = { ...attrs }
+ *   ifcx::brep::edge::<n> = { ...attrs }
+ *   ifcx::brep::vertex::<n> = { ...attrs }
+ *
+ * A node is considered latent only if a parent node actually exists in this
+ * file (so unrelated paths that happen to match the regex pattern aren't
+ * silently absorbed — they pass through as ordinary IfcxNodes).
+ */
+function resolveLatentBrepPaths(data: IfcxNode[], schemas: Record<string, any>): Set<string> {
+    const byPath = new Map<string, IfcxNode>();
+    for (const n of data) byPath.set(n.path, n);
+
+    const resolved = new Set<string>();
+    for (const n of data) {
+        const latent = parseLatentBrepPath(n.path);
+        if (!latent) continue;
+        const parent = byPath.get(latent.bodyPath);
+        if (!parent) continue; // dangling latent path — leave as a regular node
+        if (!n.attributes || Object.keys(n.attributes).length === 0) {
+            // Latent node with no attributes carries no information; mark resolved (drop it)
+            resolved.add(n.path);
+            continue;
+        }
+
+        const key = `ifcx::brep::${latent.kind}::${latent.index}`;
+        if (!parent.attributes) parent.attributes = {};
+        const existing = (parent.attributes[key] as Record<string, unknown>) ?? {};
+        parent.attributes[key] = { ...existing, ...n.attributes };
+        if (!schemas[key]) {
+            schemas[key] = { value: { dataType: "Object" } };
+        }
+        resolved.add(n.path);
+    }
+    return resolved;
 }
