@@ -15,6 +15,7 @@ import {
 import { loadIndexFile, IndexFileData } from "../ifcx-core/geometry/index-file-loader";
 import { convertAlphaToTiered } from "../ifcx-core/geometry/alpha-to-tiered";
 import { tessellate, tessellateBrep } from "../ifcx-core/geometry/tessellate";
+import { ifcToTiered } from "../ifcx-cli/ifc-to-tiered";
 import { IfcxFile } from "../ifcx-core/schema/schema-helper";
 
 // ── Attribute Table ──
@@ -1317,6 +1318,48 @@ describe("tiered example file", () => {
         const proc = JSON.parse(firstLine);
         const key = Object.keys(proc)[0];
         expect(key.startsWith("bsi::ifc::geometry::procedural::")).to.be.true;
+    });
+
+    it("phase 6 — ifcToTiered converts hello-wall.ifc, preserving IFC GUIDs as paths", async () => {
+        const tmpDir = `${examplesFolderPath}/_tmp_ifc2tiered_test`;
+        try {
+            // Clean up any prior run
+            if (fs.existsSync(tmpDir)) {
+                for (const f of fs.readdirSync(tmpDir)) fs.unlinkSync(`${tmpDir}/${f}`);
+                fs.rmdirSync(tmpDir);
+            }
+
+            const result = await ifcToTiered(
+                `${examplesFolderPath}/Hello Wall/hello-wall.ifc`,
+                tmpDir,
+            );
+            expect(result.sourceSchema).to.equal("IFC4");
+            expect(result.nodeCount).to.be.greaterThan(0);
+            expect(fs.existsSync(result.indexPath)).to.be.true;
+
+            const indexData = JSON.parse(fs.readFileSync(result.indexPath).toString()) as IndexFileData;
+            // Spatial structure round-tripped
+            expect(indexData.sections[0].nodes.length).to.equal(result.nodeCount);
+            // Project node uses the original IFC GUID (22-char base64) as its path
+            const projectNode = indexData.sections[0].nodes.find(n =>
+                n.attributes?.some(a =>
+                    a.value && typeof a.value === "object" &&
+                    "componentIndex" in (a.value as any),
+                ),
+            );
+            expect(projectNode).to.exist;
+            // A node path starting with one of the known IFC GUIDs from hello-wall.ifc
+            const projectGuid = "0KhR8hr7H8eewFRKm6V1bJ";
+            expect(
+                indexData.sections[0].nodes.some(n => n.path === projectGuid),
+                "expected an IFC GUID-paths node in the output",
+            ).to.be.true;
+        } finally {
+            if (fs.existsSync(tmpDir)) {
+                for (const f of fs.readdirSync(tmpDir)) fs.unlinkSync(`${tmpDir}/${f}`);
+                fs.rmdirSync(tmpDir);
+            }
+        }
     });
 
     it("Hello Brep Cube end-to-end: Tier B tessellates + Face_1 attrs land on Body", () => {

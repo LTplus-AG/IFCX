@@ -1,0 +1,192 @@
+{
+  "header": {
+    "ifcxVersion": "ifcx_post_alpha"
+  },
+  "imports": [
+    {
+      "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/ifc@v5a.ifcx"
+    },
+    {
+      "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/prop@v5a.ifcx"
+    }
+  ],
+  "attributeTables": [
+    {
+      "filename": "ifcx.semantics.ndjson",
+      "type": "NDJSON",
+      "schema": {
+        "description": "Semantic properties"
+      }
+    }
+  ],
+  "sections": [
+    {
+      "header": {
+        "id": "hello-wall",
+        "dataVersion": "1.0.0",
+        "author": "ifcx-cli ifc2tiered",
+        "timestamp": "2026-05-27T20:41:58.406Z",
+        "application": "ifcx-cli ifc2tiered (via @ifc-lite)"
+      },
+      "nodes": [
+        {
+          "path": "00000000-0000-4000-8000-000000000000",
+          "children": [
+            {
+              "opinion": "VALUE",
+              "name": "My_Project",
+              "value": "0KhR8hr7H8eewFRKm6V1bJ"
+            }
+          ]
+        },
+        {
+          "path": "0KhR8hr7H8eewFRKm6V1bJ",
+          "children": [
+            {
+              "opinion": "VALUE",
+              "name": "My_Site",
+              "value": "3WWqaXu9L0y8XqF6lHx6cU"
+            }
+          ],
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::semantics",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 0
+              }
+            }
+          ]
+        },
+        {
+          "path": "3WWqaXu9L0y8XqF6lHx6cU",
+          "children": [
+            {
+              "opinion": "VALUE",
+              "name": "My_Building",
+              "value": "3eJSUU$fr7WPzBLDr3NCgH"
+            }
+          ],
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::semantics",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 1
+              }
+            }
+          ]
+        },
+        {
+          "path": "3eJSUU$fr7WPzBLDr3NCgH",
+          "children": [
+            {
+              "opinion": "VALUE",
+              "name": "My_Storey",
+              "value": "14hpMBCM10Oug9g6WpN$Er"
+            }
+          ],
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::semantics",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 2
+              }
+            }
+          ]
+        },
+        {
+          "path": "14hpMBCM10Oug9g6WpN$Er",
+          "children": [
+            {
+              "opinion": "VALUE",
+              "name": "My_Space",
+              "value": "3Z0rjnlPzCt8RzjMulHWMs"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Window_1262",
+              "value": "0iBLIV_VvE8eMGLY$QWQQG"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Wall",
+              "value": "2JUHrTM_j3UxZiBnyBfByx"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Window_1407",
+              "value": "1P9GJSHff4rfheo06raMUR"
+            }
+          ],
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::semantics",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 3
+              }
+            }
+          ]
+        },
+        {
+          "path": "3Z0rjnlPzCt8RzjMulHWMs",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::semantics",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 4
+              }
+            }
+          ]
+        },
+        {
+          "path": "2JUHrTM_j3UxZiBnyBfByx",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::semantics",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 5
+              }
+            }
+          ]
+        },
+        {
+          "path": "0iBLIV_VvE8eMGLY$QWQQG",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::semantics",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 6
+              }
+            }
+          ]
+        },
+        {
+          "path": "1P9GJSHff4rfheo06raMUR",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::semantics",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 7
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

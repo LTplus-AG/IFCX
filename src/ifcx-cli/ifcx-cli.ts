@@ -5,6 +5,7 @@ import { components } from "../../schema/out/ts/ifcx";
 import { Diff, Federate } from "../ifcx-core/workflows";
 import { ExampleFile } from "../test/example-file";
 import { SchemasToOpenAPI } from "../ifcx-core/schema/schema-export";
+import { ifcToTiered } from "./ifc-to-tiered";
 
 type IfcxFile = components["schemas"]["IfcxFile"];
 
@@ -14,7 +15,7 @@ console.log("running ifcx [alpha]...", JSON.stringify(args));
 console.log();
 
 
-function processArgs(args: string[])
+async function processArgs(args: string[])
 {
     let operation = args[0];
 
@@ -55,6 +56,17 @@ function processArgs(args: string[])
         let path = args[1];
         fs.writeFileSync(`${path}.ifcx.json`, JSON.stringify(ExampleFile(), null, 4))
     }
+    else if (operation === "ifc2tiered")
+    {
+        // ifc2tiered <input.ifc> <output-dir>
+        if (args.length < 3) throw new Error(`Usage: ifc2tiered <input.ifc> <output-dir>`);
+        const input = args[1];
+        const outDir = args[2];
+        const result = await ifcToTiered(input, outDir);
+        console.log(`Converted ${input} (schema ${result.sourceSchema}) → ${result.indexPath}`);
+        console.log(`Nodes: ${result.nodeCount}, NDJSON tables: ${result.ndjsonPaths.length}, elapsed: ${result.elapsedMs}ms`);
+        for (const p of result.ndjsonPaths) console.log(`  ${p}`);
+    }
     else if (!operation || operation === "help")
     {
         console.log(`available commands:`);
@@ -62,6 +74,7 @@ function processArgs(args: string[])
         console.log(`diff`);
         console.log(`federate`);
         console.log(`make_default_file`);
+        console.log(`ifc2tiered <input.ifc> <output-dir>   convert IFC STEP file → tiered IFCX (via @ifc-lite)`);
         console.log(`help`);
     }
     else
@@ -70,4 +83,7 @@ function processArgs(args: string[])
     }
 }
 
-processArgs(args);
+processArgs(args).catch(err => {
+    console.error(err instanceof Error ? err.stack ?? err.message : String(err));
+    process.exit(1);
+});
