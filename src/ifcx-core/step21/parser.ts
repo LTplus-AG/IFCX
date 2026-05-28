@@ -99,7 +99,10 @@ function parseArgs(lex: Lexer): StepValue[] {
         }
         if (args.length > 0) {
             if (c !== ",") {
-                throw new Error(`STEP parse: expected ',' or ')' at pos ${(lex as any).pos}, got '${c}'`);
+                // Include a snippet of context to aid debugging
+                const p = (lex as any).pos as number;
+                const ctx = (lex as any).src.slice(Math.max(0, p - 20), p + 20);
+                throw new Error(`STEP parse: expected ',' or ')' at pos ${p}, got '${c}' (near "${ctx}")`);
             }
             lex.consume(); // ','
             lex.skipWhitespace();
@@ -123,15 +126,20 @@ function parseValue(lex: Lexer): StepValue {
 
     if (c === "'") {
         lex.consume();
-        // String — unescape '' → '
+        // STEP21 strings: delimited by ', escape '' → '. Backslashes are LITERAL
+        // (the \X\, \X2\…\X0\, \S\… encodings are decoded out-of-band, not by the
+        // parser). Loop until we find a single ' that isn't followed by another '.
         let s = "";
-        while (lex.peek() !== "" && !(lex.peek() === "'" && lex.src[(lex as any).pos + 1] !== "'")) {
-            if (lex.peek() === "'") {
-                lex.consume(); lex.consume();
-                s += "'";
-            } else if (lex.peek() === "\\") {
-                lex.consume();
-                s += lex.consume();
+        while (true) {
+            const ch = lex.peek();
+            if (ch === "") break;
+            if (ch === "'") {
+                if (lex.src[(lex as any).pos + 1] === "'") {
+                    lex.consume(); lex.consume();
+                    s += "'";
+                } else {
+                    break;
+                }
             } else {
                 s += lex.consume();
             }
