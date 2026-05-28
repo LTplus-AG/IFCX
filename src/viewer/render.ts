@@ -692,6 +692,34 @@ function createLayerDom() {
     });
 }
 
+/**
+ * Browser entry-point for raw IFC STEP files. Runs the pure-TS STEP21 importer
+ * and feeds the result through the existing tiered-loader path. Avoids any
+ * WASM / Node-only dependencies — works entirely in the browser.
+ */
+export async function loadIfcText(name: string, ifcText: string, requestedTiers?: string[], replace?: boolean) {
+    const { importIfcToTieredText } = await import("../ifcx-core/step21/ifc-import");
+    const { loadIndexFile } = await import("../ifcx-core/geometry/index-file-loader");
+
+    const result = importIfcToTieredText(ifcText, name);
+
+    const toggle = document.getElementById('tierToggle');
+    if (toggle) toggle.style.display = 'block';
+
+    // Default to procedural + mesh derivation on (geometry source-of-truth from IFC).
+    const tiers = requestedTiers ?? ["mesh", "procedural"];
+    const loaded = loadIndexFile(result.indexFile, result.ndjsonFiles, tiers as any);
+    const file = loaded.alphaFile;
+
+    if (replace) {
+        datas = [[name, file]];
+    } else {
+        datas.push([name, file]);
+    }
+    createLayerDom();
+    await composeAndRender();
+}
+
 export default async function addModel(name: string, m: IfcxFile | IndexFileData, baseUrl?: string, requestedTiers?: string[], replace?: boolean) {
     let file: IfcxFile;
 

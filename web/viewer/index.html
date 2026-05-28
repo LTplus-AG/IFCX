@@ -267,7 +267,7 @@
     }
     </script>
     <script type="module">
-        import addModel from './render.mjs';
+        import addModel, { loadIfcText } from './render.mjs';
 
         document.querySelector('#fileForm').addEventListener('submit', async function(event) {
             event.preventDefault();
@@ -285,6 +285,17 @@
 
             // Find index/ifcx files and regular files
             for (const [name, content] of fileContents) {
+                // IFC STEP file: pass through the browser importer
+                if (typeof content === 'string' && content.trimStart().startsWith('ISO-10303-21')) {
+                    try {
+                        await loadIfcText(name, content);
+                    } catch(e) {
+                        document.querySelector('.error-modal .message').innerHTML = `IFC import failed: ${e.message}`;
+                        document.querySelector('.error-modal').style.display = 'block';
+                    }
+                    continue;
+                }
+
                 let json = null;
                 try {
                     json = JSON.parse(content);

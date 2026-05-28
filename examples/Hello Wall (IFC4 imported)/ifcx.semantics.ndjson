@@ -1,0 +1,8 @@
+{"bsi::ifc::class":{"code":"IfcProject","uri":"https://identifier.buildingsmart.org/uri/buildingsmart/ifc/5/class/IfcProject"},"bsi::ifc::prop::Name":"My Project"}
+{"bsi::ifc::class":{"code":"IfcSite","uri":"https://identifier.buildingsmart.org/uri/buildingsmart/ifc/5/class/IfcSite"},"bsi::ifc::prop::Name":"My Site"}
+{"bsi::ifc::class":{"code":"IfcBuilding","uri":"https://identifier.buildingsmart.org/uri/buildingsmart/ifc/5/class/IfcBuilding"},"bsi::ifc::prop::Name":"My Building"}
+{"bsi::ifc::class":{"code":"IfcBuildingStorey","uri":"https://identifier.buildingsmart.org/uri/buildingsmart/ifc/5/class/IfcBuildingStorey"},"bsi::ifc::prop::Name":"My Storey"}
+{"bsi::ifc::class":{"code":"IfcSpace","uri":"https://identifier.buildingsmart.org/uri/buildingsmart/ifc/5/class/IfcSpace"},"bsi::ifc::prop::Name":"My Space"}
+{"bsi::ifc::class":{"code":"IfcWall","uri":"https://identifier.buildingsmart.org/uri/buildingsmart/ifc/5/class/IfcWall"},"bsi::ifc::prop::Name":"Wall"}
+{"bsi::ifc::class":{"code":"IfcWindow","uri":"https://identifier.buildingsmart.org/uri/buildingsmart/ifc/5/class/IfcWindow"},"bsi::ifc::prop::Name":"Window"}
+{"bsi::ifc::class":{"code":"IfcWindow","uri":"https://identifier.buildingsmart.org/uri/buildingsmart/ifc/5/class/IfcWindow"},"bsi::ifc::prop::Name":"Window"}

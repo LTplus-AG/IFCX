@@ -1,0 +1,1 @@
+{"bsi::ifc::geometry::procedural::extruded_area_solid":{"SweptArea":{"bsi::ifc::geometry::procedural::polyline":{"Points":[[0,0],[0,0.1],[10,0.1],[10,0]]}},"ExtrudedDirection":[0,0,1],"Depth":3}}
