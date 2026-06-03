@@ -18,10 +18,6 @@ on the fly.
 > Level 2**, **Tier M = Level 1**. This doc uses the roadmap level names; the
 > wire table filenames (`ifcx.geom.{proc,brep,mesh,ext}`) are unchanged.
 
-See [geometry-tiers-rework-plan.md](geometry-tiers-rework-plan.md) for the
-rationale behind the children model and [boolean-output-identity.md](boolean-output-identity.md)
-for derived-topology identity.
-
 ## Where this diverges from USD
 
 USD treats Brep as the authoring source and mesh as derived (OpenUSD's
@@ -199,8 +195,8 @@ A face produced by a boolean has no pre-existing identity. The position
 `bsi::ifc::geometry::brep::derived_from` referencing the contributing input
 faces, get deterministic provenance-derived names (stable within a kernel at a
 fixed tolerance), and are explicitly **not** guaranteed stable across kernels.
-See [boolean-output-identity.md](boolean-output-identity.md). This does not yet
-fire in practice — booleans currently evaluate to mesh, not Brep topology.
+This does not yet fire in practice — booleans currently evaluate to mesh, not
+Brep topology.
 
 ## Level 2b — External geometry reference
 

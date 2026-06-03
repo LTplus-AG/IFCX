@@ -42,5 +42,4 @@ element's `EdgeFillet` child.
 The `bsi::ifc::geometry::feature::*` vocabulary here is **illustrative**, not a
 normative schema — it exists to prove the data model supports path operands.
 
-See `docs/geometry-tiers-design.md` (Level 3 — Procedural) and
-`docs/geometry-tiers-rework-plan.md` (WS4).
+See `docs/geometry-tiers-design.md` (Level 3 — Procedural).

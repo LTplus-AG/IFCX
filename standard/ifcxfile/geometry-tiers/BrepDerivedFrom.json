@@ -18,7 +18,7 @@
         "operation",
         "sources"
     ],
-    "description": "Provenance for derived (e.g. boolean-output) topology. Authored as the\ncache-only attribute `bsi::ifc::geometry::brep::derived_from` on a derived\nface node: the operation plus references to the contributing input faces, so\nannotations on durable input faces can be re-propagated after a re-evaluation.\nDerived-face identity is best-effort and kernel-dependent — see\ndocs/boolean-output-identity.md.",
+    "description": "Provenance for derived (e.g. boolean-output) topology. Authored as the\ncache-only attribute `bsi::ifc::geometry::brep::derived_from` on a derived\nface node: the operation plus references to the contributing input faces, so\nannotations on durable input faces can be re-propagated after a re-evaluation.\nDerived-face identity is best-effort and kernel-dependent (stable within a\nkernel at a fixed tolerance; not guaranteed across kernels).",
     "$defs": {
         "BooleanOperator": {
             "type": "string",

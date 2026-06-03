@@ -4,7 +4,7 @@
 //
 // Primitives are named `<Kind>_<flatIndex>`; the flat index is a deterministic,
 // content-ordered identity. For imported geometry without per-element GUIDs this
-// is the documented best-effort identity (see docs/boolean-output-identity.md).
+// is the documented best-effort identity.
 
 import { Brep, BrepNodeBody } from "./geometry-tiers";
 import { makeRef, nameOf } from "./brep-reference";

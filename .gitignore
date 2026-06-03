@@ -5,3 +5,11 @@
 *.js
 *.exe
 temp
+
+# Local-only planning / decision docs for this project — kept local, never committed.
+# Existing plan docs:
+docs/geometry-tiers-rework-plan.md
+docs/boolean-output-identity.md
+# Convention for future plan docs (name them *.plan.md, or drop them under .plans/):
+docs/*.plan.md
+.plans/

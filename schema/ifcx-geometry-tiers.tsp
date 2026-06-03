@@ -329,7 +329,7 @@ model ExternalGeometryReference {
 // The flat-indexed in-memory `Brep` of earlier drafts is NOT a wire format; it
 // is a private compile target produced by the Brep assembler (which resolves the
 // references) and consumed by the tessellator/validator. See the Brep union
-// below for the authored row shape, and docs/geometry-tiers-rework-plan.md.
+// below for the authored row shape.
 //
 // IFC-equivalent lineage:
 //   BrepBodyNode  ≈ IfcManifoldSolidBrep / IfcAdvancedBrep
@@ -588,8 +588,8 @@ model BrepBodyNode {
  * cache-only attribute `bsi::ifc::geometry::brep::derived_from` on a derived
  * face node: the operation plus references to the contributing input faces, so
  * annotations on durable input faces can be re-propagated after a re-evaluation.
- * Derived-face identity is best-effort and kernel-dependent — see
- * docs/boolean-output-identity.md.
+ * Derived-face identity is best-effort and kernel-dependent (stable within a
+ * kernel at a fixed tolerance; not guaranteed across kernels).
  */
 @jsonSchema
 model BrepDerivedFrom {

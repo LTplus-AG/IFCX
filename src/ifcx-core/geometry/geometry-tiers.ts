@@ -401,8 +401,8 @@ export interface BrepBodyNode {
 
 /**
  * Provenance for derived (e.g. boolean-output) topology. Cache-only attribute
- * `bsi::ifc::geometry::brep::derived_from` on a derived face node — see
- * docs/boolean-output-identity.md.
+ * `bsi::ifc::geometry::brep::derived_from` on a derived face node. Identity is
+ * best-effort: stable within a kernel at a fixed tolerance, not across kernels.
  */
 export interface BrepDerivedFrom {
     operation: BooleanOperator;
