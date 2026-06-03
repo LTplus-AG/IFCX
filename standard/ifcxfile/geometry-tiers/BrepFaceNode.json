@@ -1,0 +1,39 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "BrepFaceNode.json",
+    "type": "object",
+    "properties": {
+        "Surface": {
+            "$ref": "BrepSurface.json",
+            "description": "Geometric carrier of the face, inline (the face *is* this surface)."
+        },
+        "OuterLoop": {
+            "$ref": "#/$defs/BrepRef",
+            "description": "Reference to the outer-boundary loop node (CCW seen from surface normal)"
+        },
+        "InnerLoops": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/BrepRef"
+            },
+            "description": "References to inner-boundary loop nodes (holes through the face)"
+        },
+        "SameSense": {
+            "type": "boolean",
+            "description": "If false, the surface normal is reversed to give the face's outward normal"
+        }
+    },
+    "required": [
+        "Surface",
+        "OuterLoop",
+        "SameSense"
+    ],
+    "description": "Face node body — a surface bounded by an outer loop and optional inner loops.",
+    "$defs": {
+        "BrepRef": {
+            "type": "string",
+            "pattern": "^<[^>]+>$",
+            "description": "Relative- or absolute-path reference to another Brep topology node, wrapped in\nangle brackets (USD relationship-target syntax). `../` ascends one segment\nrelative to the referencing node's composed path; a leading `/` is absolute.\nExamples: \"<../Edge_3>\", \"<../Vertex_0>\"."
+        }
+    }
+}

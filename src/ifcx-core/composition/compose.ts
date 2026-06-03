@@ -160,10 +160,22 @@ function AddDataFromPreComposition(input: PreCompositionNode, node: PostComposit
     Object.entries(input.children).forEach(([childName, child]) => {
         if (child !== null)
         {
-            // child is always a -> <class>/b/c
-            let classNode = ComposeNodeFromPath(GetHead(child), nodes);
-            // request /b/c
-            let subnode = GetChildNodeWithPath(classNode, GetTail(child));
+            let subnode: PostCompositionNode | null;
+            if (nodes.has(child))
+            {
+                // The child value is itself a directly-authored node path (e.g. an
+                // inline topology child like `body/Edge_3`). Compose it directly.
+                // This avoids self-recursion: resolving it as <root>/<subpath> would
+                // recompose the parent (GetHead === parent path) and loop forever.
+                subnode = ComposeNodeFromPath(child, nodes);
+            }
+            else
+            {
+                // Prototype/instance reference: <class>/b/c — compose the class
+                // root and graft its /b/c subnode.
+                let classNode = ComposeNodeFromPath(GetHead(child), nodes);
+                subnode = GetChildNodeWithPath(classNode, GetTail(child));
+            }
             if (!subnode) throw new Error(`Unknown node ${child}`);
             // add <node>/a/b/c
             node.children.set(childName, subnode);

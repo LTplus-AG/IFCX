@@ -1,218 +1,28 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "Brep.json",
-    "type": "object",
-    "properties": {
-        "vertices": {
-            "type": "array",
-            "items": {
-                "$ref": "#/$defs/BrepVertex"
-            }
+    "anyOf": [
+        {
+            "$ref": "BrepBodyNode.json"
         },
-        "curves": {
-            "type": "array",
-            "items": {
-                "$ref": "BrepCurve.json"
-            }
+        {
+            "$ref": "BrepVertexNode.json"
         },
-        "surfaces": {
-            "type": "array",
-            "items": {
-                "$ref": "BrepSurface.json"
-            }
+        {
+            "$ref": "BrepEdgeNode.json"
         },
-        "edges": {
-            "type": "array",
-            "items": {
-                "$ref": "#/$defs/BrepEdge"
-            }
+        {
+            "$ref": "BrepLoopNode.json"
         },
-        "loops": {
-            "type": "array",
-            "items": {
-                "$ref": "#/$defs/BrepLoop"
-            }
+        {
+            "$ref": "BrepFaceNode.json"
         },
-        "faces": {
-            "type": "array",
-            "items": {
-                "$ref": "#/$defs/BrepFace"
-            }
+        {
+            "$ref": "BrepShellNode.json"
         },
-        "shells": {
-            "type": "array",
-            "items": {
-                "$ref": "#/$defs/BrepShell"
-            }
-        },
-        "regions": {
-            "type": "array",
-            "items": {
-                "$ref": "#/$defs/BrepRegion"
-            }
-        },
-        "Tolerance": {
-            "type": "number",
-            "description": "Geometric tolerance for vertex / edge comparisons, in body units"
+        {
+            "$ref": "BrepRegionNode.json"
         }
-    },
-    "required": [
-        "vertices",
-        "curves",
-        "surfaces",
-        "edges",
-        "loops",
-        "faces",
-        "shells",
-        "regions"
     ],
-    "description": "Tier B entry. Encoded as the row body in `ifcx.geom.brep.ndjson`.\n\nLatent paths: a Brep at IfcxNode path `P` exposes the following addressable\nsub-paths without requiring authored child nodes:\n\nP/Face_<i>     — the i-th entry in `faces`\nP/Edge_<i>     — the i-th entry in `edges`\nP/Vertex_<i>   — the i-th entry in `vertices`\n\nFederated layers may target these latent paths to attach per-element\nproperties (e.g. per-face material, per-edge tolerance) that participate in\nIFCX composition the same way any other attribute does.",
-    "$defs": {
-        "BrepVertex": {
-            "type": "object",
-            "properties": {
-                "Point": {
-                    "type": "array",
-                    "items": {
-                        "type": "number"
-                    },
-                    "description": "[x, y, z] in body-local coordinates"
-                }
-            },
-            "required": [
-                "Point"
-            ]
-        },
-        "BrepEdge": {
-            "type": "object",
-            "properties": {
-                "CurveIndex": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 4294967295,
-                    "description": "Index into Brep.curves"
-                },
-                "StartVertex": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 4294967295,
-                    "description": "Index into Brep.vertices"
-                },
-                "EndVertex": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 4294967295,
-                    "description": "Index into Brep.vertices"
-                }
-            },
-            "required": [
-                "CurveIndex",
-                "StartVertex",
-                "EndVertex"
-            ]
-        },
-        "BrepLoop": {
-            "type": "object",
-            "properties": {
-                "EdgeList": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/$defs/BrepOrientedEdge"
-                    },
-                    "description": "Ordered list of oriented edges forming a closed cycle"
-                }
-            },
-            "required": [
-                "EdgeList"
-            ]
-        },
-        "BrepFace": {
-            "type": "object",
-            "properties": {
-                "SurfaceIndex": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 4294967295,
-                    "description": "Index into Brep.surfaces"
-                },
-                "OuterLoop": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 4294967295,
-                    "description": "Index into Brep.loops — outer boundary (CCW seen from surface normal)"
-                },
-                "InnerLoops": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 4294967295
-                    },
-                    "description": "Indices into Brep.loops — inner boundaries (holes through the face)"
-                },
-                "SameSense": {
-                    "type": "boolean",
-                    "description": "If false, the surface normal is reversed to give the face's outward normal"
-                }
-            },
-            "required": [
-                "SurfaceIndex",
-                "OuterLoop",
-                "SameSense"
-            ]
-        },
-        "BrepShell": {
-            "type": "object",
-            "properties": {
-                "FaceList": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 4294967295
-                    },
-                    "description": "Indices into Brep.faces — must form a closed manifold for v1.1"
-                }
-            },
-            "required": [
-                "FaceList"
-            ]
-        },
-        "BrepRegion": {
-            "type": "object",
-            "properties": {
-                "ShellList": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 4294967295
-                    },
-                    "description": "Indices into Brep.shells — first is the outer shell; rest are cavities (v1.2)"
-                }
-            },
-            "required": [
-                "ShellList"
-            ]
-        },
-        "BrepOrientedEdge": {
-            "type": "object",
-            "properties": {
-                "EdgeIndex": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 4294967295,
-                    "description": "Index into Brep.edges"
-                },
-                "Reversed": {
-                    "type": "boolean",
-                    "description": "True: traverse from EndVertex → StartVertex (i.e., reversed)"
-                }
-            },
-            "required": [
-                "EdgeIndex",
-                "Reversed"
-            ]
-        }
-    }
+    "description": "One row of `ifcx.geom.brep.ndjson` — the attribute body of a single Brep\ntopology node. The whole solid is the subtree of such nodes under the Brep\nbody node, wired by relative-path references (BrepRef), not ordinal indices.\n\nA Brep body node at composed path `P` has children\nP/Vertex_<id>, P/Edge_<id>, P/Loop_<id>, P/Face_<id>, P/Shell_<id>, P/Region_<id>\nwhere each `<id>` is a stable authored identity (preserved UUID or content\nkey), never a recomputed ordinal. A federated layer attaches per-element\nproperties by authoring an opinion on the real child node (e.g. a material on\n`P/Face_3`) — ordinary IFCX composition."
 }

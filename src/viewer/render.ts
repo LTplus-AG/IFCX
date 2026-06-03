@@ -280,24 +280,22 @@ function createCurveFromJson(path: ComposedObject[]) {
 }
 
 /**
- * Build a material descriptor from per-face attributes authored via the
- * latent-path mechanism. The IFCX composer flattens nested attribute objects
- * into double-colon paths, so the face attributes appear as flat keys like
- * `ifcx::brep::face::3::bsi::ifc::presentation::diffuseColor` rather than as
- * a nested object at `ifcx::brep::face::3`. We scan for that flattened prefix.
+ * Build a material descriptor from a face's own composed child node. Topology is
+ * identity-bearing: each Brep face is a real child node (e.g. `body/Face_3`), and
+ * any per-face presentation opinion is composed onto it the normal layering way.
+ * The tessellator's faceGroups carry the face name, so we look the face node up by
+ * name and read its presentation attributes directly.
  *
  * Falls back to the body's default material if the face has no overriding
  * presentation attributes.
  */
-function faceMaterialFromAttrs(
-    allAttrs: Record<string, any>,
-    faceIndex: number,
+function faceMaterialFromFace(
+    faceObj: ComposedObject | undefined,
     fallback: { color: THREE.Color; transparent: boolean; opacity: number },
 ) {
-    const prefix = `ifcx::brep::face::${faceIndex}::`;
-    const color = allAttrs[`${prefix}bsi::ifc::presentation::diffuseColor`];
+    const color = faceObj?.attributes?.["bsi::ifc::presentation::diffuseColor"];
     if (color && Array.isArray(color)) {
-        const opacity = allAttrs[`${prefix}bsi::ifc::presentation::opacity`];
+        const opacity = faceObj!.attributes!["bsi::ifc::presentation::opacity"];
         return {
             color: new THREE.Color(color[0], color[1], color[2]),
             transparent: opacity != null,
@@ -317,16 +315,22 @@ function createMeshFromJson(path: ComposedObject[]) {
   geometry.computeVertexNormals();
 
   // Per-face material path: when the mesh was derived from a Brep, the tessellator
-  // emitted faceGroups + the loader absorbed any latent-path per-face attributes.
-  // Build a multi-material mesh so faces with `ifcx::brep::face::<n>` overrides
-  // render with their own material.
+  // emitted faceGroups carrying each source face's name. Per-face presentation
+  // opinions live on the composed face child nodes (e.g. `body/Face_3`); build a
+  // multi-material mesh so each face renders with its own material.
   const faceGroups = path[0].attributes["ifcx::brep::face_groups"];
   if (Array.isArray(faceGroups) && faceGroups.length > 0) {
     const baseMatDesc = createMaterialFromParent(path);
+    const faceByName = new Map<string, ComposedObject>();
+    for (const child of path[0].children ?? []) {
+      const seg = (child.name ?? "").split("/").pop();
+      if (seg) faceByName.set(seg, child);
+    }
     const materials: THREE.Material[] = [];
     for (let gi = 0; gi < faceGroups.length; gi++) {
       const group = faceGroups[gi];
-      const matDesc = faceMaterialFromAttrs(path[0].attributes, group.faceIndex, baseMatDesc);
+      const faceObj = group.faceName ? faceByName.get(group.faceName) : undefined;
+      const matDesc = faceMaterialFromFace(faceObj, baseMatDesc);
       materials.push(new THREE.MeshPhongMaterial({ ...matDesc, side: THREE.DoubleSide, flatShading: true }));
       geometry.addGroup(group.start, group.count, gi);
     }

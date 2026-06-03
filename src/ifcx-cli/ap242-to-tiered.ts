@@ -10,7 +10,8 @@ import * as path from "path";
 
 import { parseStep21 } from "../ifcx-core/step21/parser";
 import { extractAp242Breps } from "../ifcx-core/step21/ap242-brep";
-import { Brep } from "../ifcx-core/geometry/geometry-tiers";
+import { Brep, BrepNodeBody } from "../ifcx-core/geometry/geometry-tiers";
+import { writeBrep } from "../ifcx-core/geometry/brep-writer";
 
 export interface Ap242ToTieredResult {
     indexPath: string;
@@ -40,21 +41,19 @@ export function ap242ToTiered(inputPath: string, outDir: string): Ap242ToTieredR
         { path: rootPath, children: [] as any[] },
     ];
 
-    const brepNdjson: string[] = [];
+    // Each Brep is serialized as a body node + one child node per topology
+    // primitive (vertex / edge / loop / face / shell / region), wired by relative
+    // path. Rows accumulate into a single per-primitive brep table.
+    const brepRows: BrepNodeBody[] = [];
     breps.forEach((brep: Brep, i: number) => {
-        const childName = `Brep_${i}`;
-        const childPath = `${baseName}-brep-${i}`;
-        nodes[0].children.push({ opinion: "VALUE", name: childName, value: childPath });
-        nodes.push({
-            path: childPath,
-            attributes: [{
-                opinion: "VALUE",
-                name: "ifcx::geom::brep",
-                value: { typeID: "ifcx.geom.brep", componentIndex: i },
-            }],
-        });
-        brepNdjson.push(JSON.stringify(brep));
+        const bodyName = `Brep_${i}`;
+        const bodyPath = `${baseName}-brep-${i}`;
+        nodes[0].children.push({ opinion: "VALUE", name: bodyName, value: bodyPath });
+        const written = writeBrep(brep, { bodyPath, baseComponentIndex: brepRows.length });
+        nodes.push(...written.nodes);
+        brepRows.push(...written.rows);
     });
+    const brepNdjson: string[] = brepRows.map(r => JSON.stringify(r));
 
     const indexFile = {
         header: { ifcxVersion: "ifcx_post_alpha" },

@@ -3,20 +3,26 @@ import "@typespec/json-schema";
 using JsonSchema;
 
 /**
- * Tiered geometry system for IFCX.
+ * Tiered geometry system for IFCX, aligned to the bSI Technical Roadmap (p.14)
+ * three geometry levels. Each level is an independent attribute table:
  *
- * Three independent tiers, stored as separate attribute tables:
+ *   Level 3 — Procedural (table `ifcx.geom.proc`) — the authoring tier; primary
+ *             source of truth where it can be expressed. Swept solids and
+ *             booleans over a profile catalog.
+ *   Level 2 — Explicit Brep (table `ifcx.geom.brep`) — native explicit Brep,
+ *             used when Level 3 can't express the shape. Identity-bearing
+ *             topology authored as child nodes (see the Brep section).
+ *   Level 1 — Mesh (table `ifcx.geom.mesh`) — display geometry. Authored or
+ *             derived from a higher level.
  *
- *   Tier P (procedural) — the authoring tier; primary source of truth where it can be expressed.
- *                          Catalog: swept solids and booleans over a profile catalog.
- *   Tier M (mesh)       — display geometry. Authored or derived from Tier P/B.
- *   Tier B (brep)       — native explicit Brep. Reserved for v2.
+ * Source-of-truth rule: the highest level present wins (procedural > brep >
+ * mesh). Lower levels are derived/cached views.
  *
- * Source-of-truth rule: highest tier present wins. Lower tiers are derived/cached views.
+ * Encoding convention for procedural table entries: single-key tagged objects in
+ * the `bsi::ifc::geometry::procedural::*` namespace. Matches the existing profile
+ * vocabulary already used by `bsi::ifc::procedural_geometry::has_profile`.
  *
- * Encoding convention for Tier P table entries: single-key tagged objects in the
- * `bsi::ifc::geometry::procedural::*` namespace. Matches the existing profile vocabulary
- * already used by `bsi::ifc::procedural_geometry::has_profile`.
+ * (The historical names Tier P / B / M map to Level 3 / 2 / 1 respectively.)
  */
 
 // =============================================================================
@@ -228,13 +234,17 @@ enum MeshSourceTier {
 
 /**
  * Maps a contiguous slice of faceVertexIndices back to its source Brep face.
- * Emitted by Tier B tessellation; lets renderers apply per-face materials
- * authored via latent-path attributes (e.g. `bodyPath/Face_3`).
+ * Emitted by Brep (Level 2) tessellation; lets renderers apply per-face
+ * materials authored on the composed face child node (e.g. `bodyPath/Face_3`).
  */
 model MeshFaceGroup {
     start: uint32;
     count: uint32;
+    /** Position of the face in the assembled Brep (in-memory compile order). */
     faceIndex: uint32;
+    /** Stable name of the source face child node (e.g. "Face_3"); the durable
+     * correlation key a renderer uses to find the face node's own attributes. */
+    faceName?: string;
 }
 
 /** Tier M entry. Triangulated mesh for rendering. May be authored or derived. */
@@ -304,27 +314,36 @@ model ExternalGeometryReference {
 }
 
 // =============================================================================
-// Tier B — Native Brep (closed-shell manifold + planar / NURBS / analytic surfaces)
+// Level 2 — Explicit Brep (closed-shell manifold + planar / NURBS / analytic surfaces)
 // =============================================================================
 //
-// One Brep is a single row in ifcx.geom.brep.ndjson. Topology and geometry are
-// packed into flat-indexed arrays so faces, edges, and vertices each have a
-// stable global index used both for internal references and for latent-path
-// face addressing (bodyPath/Face_<n>, bodyPath/Edge_<n>, bodyPath/Vertex_<n>).
+// Topology is identity-bearing: each primitive (vertex / edge / loop / face /
+// shell / region) is authored as a CHILD NODE under the Brep body node, and
+// primitives reference one another by RELATIVE PATH (BrepRef, e.g. "<../Edge_3>")
+// resolved against the post-composition tree — never by ordinal array index.
+// This gives every primitive a stable, layer-addressable identity: a federated
+// layer attaches per-face properties by authoring an opinion on the real
+// `bodyPath/Face_<id>` node, through ordinary IFCX composition (no latent-path
+// absorption, no GeomSubset-style indirection prim).
+//
+// The flat-indexed in-memory `Brep` of earlier drafts is NOT a wire format; it
+// is a private compile target produced by the Brep assembler (which resolves the
+// references) and consumed by the tessellator/validator. See the Brep union
+// below for the authored row shape, and docs/geometry-tiers-rework-plan.md.
 //
 // IFC-equivalent lineage:
-//   Brep        ≈ IfcManifoldSolidBrep / IfcAdvancedBrep
-//   Region      ≈ IfcClosedShell wrapper allowing inner cavities (v1.2)
-//   Shell       ≈ IfcClosedShell
-//   Face        ≈ IfcAdvancedFace / IfcFace
-//   Loop        ≈ IfcPolyLoop / IfcEdgeLoop
-//   OrientedEdge≈ IfcOrientedEdge
-//   Edge        ≈ IfcEdge / IfcEdgeCurve
-//   Vertex      ≈ IfcVertexPoint
+//   BrepBodyNode  ≈ IfcManifoldSolidBrep / IfcAdvancedBrep
+//   BrepRegionNode≈ IfcClosedShell wrapper allowing inner cavities (v1.2)
+//   BrepShellNode ≈ IfcClosedShell
+//   BrepFaceNode  ≈ IfcAdvancedFace / IfcFace
+//   BrepLoopNode  ≈ IfcPolyLoop / IfcEdgeLoop
+//   OrientedEdge  ≈ IfcOrientedEdge
+//   BrepEdgeNode  ≈ IfcEdge / IfcEdgeCurve
+//   BrepVertexNode≈ IfcVertexPoint
 //
-// Catalog scope for v1.1: PlanarSurface, LineCurve, CircleCurve only.
-// NURBS surfaces/curves, non-manifold topology, and per-face subset materials
-// arrive in v1.2.
+// Advanced Brep (NURBS surfaces/curves, non-manifold topology) is kept for
+// completeness but is explicitly NOT a primary exchange path — see the design
+// doc for the implementation pitfalls and limited exchange utility.
 
 // --- Curve catalog ---
 
@@ -484,81 +503,120 @@ union BrepSurface {
     BSplineSurfaceTag,
 }
 
-// --- Topology ---
+// --- Topology (identity-bearing nodes, referenced by relative path) ---
+//
+// Each model below is the attribute BODY of one Brep topology node. One row of
+// `ifcx.geom.brep.ndjson` is one of these (validated by the Brep union). The
+// node's identity is its authored path segment (`Vertex_<id>`, `Edge_<id>`, …);
+// cross-links are BrepRef relative paths, not array indices.
 
-model BrepVertex {
+/**
+ * Relative- or absolute-path reference to another Brep topology node, wrapped in
+ * angle brackets (USD relationship-target syntax). `../` ascends one segment
+ * relative to the referencing node's composed path; a leading `/` is absolute.
+ * Examples: "<../Edge_3>", "<../Vertex_0>".
+ */
+@pattern("^<[^>]+>$")
+scalar BrepRef extends string;
+
+/** Vertex node body — a point in body-local coordinates. */
+@jsonSchema
+model BrepVertexNode {
     /** [x, y, z] in body-local coordinates */
     Point: float64[];
 }
 
-model BrepEdge {
-    /** Index into Brep.curves */
-    CurveIndex: uint32;
-    /** Index into Brep.vertices */
-    StartVertex: uint32;
-    /** Index into Brep.vertices */
-    EndVertex: uint32;
+/** Edge node body — a curve bounded by two vertex references. */
+@jsonSchema
+model BrepEdgeNode {
+    /** Geometric carrier of the edge, inline (the edge *is* this curve). */
+    Curve: BrepCurve;
+    /** Reference to the start vertex node */
+    Start: BrepRef;
+    /** Reference to the end vertex node */
+    End: BrepRef;
 }
 
+/** One oriented use of an edge within a loop. */
 model BrepOrientedEdge {
-    /** Index into Brep.edges */
-    EdgeIndex: uint32;
-    /** True: traverse from EndVertex → StartVertex (i.e., reversed) */
+    /** Reference to the edge node */
+    Edge: BrepRef;
+    /** True: traverse from End → Start (i.e., reversed) */
     Reversed: boolean;
 }
 
-model BrepLoop {
-    /** Ordered list of oriented edges forming a closed cycle */
+/** Loop node body — an ordered cycle of oriented edge references forming a closed boundary. */
+@jsonSchema
+model BrepLoopNode {
     EdgeList: BrepOrientedEdge[];
 }
 
-model BrepFace {
-    /** Index into Brep.surfaces */
-    SurfaceIndex: uint32;
-    /** Index into Brep.loops — outer boundary (CCW seen from surface normal) */
-    OuterLoop: uint32;
-    /** Indices into Brep.loops — inner boundaries (holes through the face) */
-    InnerLoops?: uint32[];
+/** Face node body — a surface bounded by an outer loop and optional inner loops. */
+@jsonSchema
+model BrepFaceNode {
+    /** Geometric carrier of the face, inline (the face *is* this surface). */
+    Surface: BrepSurface;
+    /** Reference to the outer-boundary loop node (CCW seen from surface normal) */
+    OuterLoop: BrepRef;
+    /** References to inner-boundary loop nodes (holes through the face) */
+    InnerLoops?: BrepRef[];
     /** If false, the surface normal is reversed to give the face's outward normal */
     SameSense: boolean;
 }
 
-model BrepShell {
-    /** Indices into Brep.faces — must form a closed manifold for v1.1 */
-    FaceList: uint32[];
+/** Shell node body — face references that must form a closed manifold for v1.1. */
+@jsonSchema
+model BrepShellNode {
+    FaceList: BrepRef[];
 }
 
-model BrepRegion {
-    /** Indices into Brep.shells — first is the outer shell; rest are cavities (v1.2) */
-    ShellList: uint32[];
+/** Region node body — shell references; first is the outer shell, rest are cavities (v1.2). */
+@jsonSchema
+model BrepRegionNode {
+    ShellList: BrepRef[];
+}
+
+/** Brep body node — the root of a Brep subtree; topology hangs off it as children. */
+@jsonSchema
+model BrepBodyNode {
+    /** Geometric tolerance for vertex / edge comparisons, in body units */
+    Tolerance?: float64;
 }
 
 /**
- * Tier B entry. Encoded as the row body in `ifcx.geom.brep.ndjson`.
- *
- * Latent paths: a Brep at IfcxNode path `P` exposes the following addressable
- * sub-paths without requiring authored child nodes:
- *
- *   P/Face_<i>     — the i-th entry in `faces`
- *   P/Edge_<i>     — the i-th entry in `edges`
- *   P/Vertex_<i>   — the i-th entry in `vertices`
- *
- * Federated layers may target these latent paths to attach per-element
- * properties (e.g. per-face material, per-edge tolerance) that participate in
- * IFCX composition the same way any other attribute does.
+ * Provenance for derived (e.g. boolean-output) topology. Authored as the
+ * cache-only attribute `bsi::ifc::geometry::brep::derived_from` on a derived
+ * face node: the operation plus references to the contributing input faces, so
+ * annotations on durable input faces can be re-propagated after a re-evaluation.
+ * Derived-face identity is best-effort and kernel-dependent — see
+ * docs/boolean-output-identity.md.
  */
 @jsonSchema
-model Brep {
-    vertices: BrepVertex[];
-    curves: BrepCurve[];
-    surfaces: BrepSurface[];
+model BrepDerivedFrom {
+    operation: BooleanOperator;
+    /** References to the contributing input-face nodes */
+    sources: BrepRef[];
+}
 
-    edges: BrepEdge[];
-    loops: BrepLoop[];
-    faces: BrepFace[];
-    shells: BrepShell[];
-    regions: BrepRegion[];
-
-    /** Geometric tolerance for vertex / edge comparisons, in body units */
-    Tolerance?: float64;
+/**
+ * One row of `ifcx.geom.brep.ndjson` — the attribute body of a single Brep
+ * topology node. The whole solid is the subtree of such nodes under the Brep
+ * body node, wired by relative-path references (BrepRef), not ordinal indices.
+ *
+ * A Brep body node at composed path `P` has children
+ *   P/Vertex_<id>, P/Edge_<id>, P/Loop_<id>, P/Face_<id>, P/Shell_<id>, P/Region_<id>
+ * where each `<id>` is a stable authored identity (preserved UUID or content
+ * key), never a recomputed ordinal. A federated layer attaches per-element
+ * properties by authoring an opinion on the real child node (e.g. a material on
+ * `P/Face_3`) — ordinary IFCX composition.
+ */
+@jsonSchema
+union Brep {
+    BrepBodyNode,
+    BrepVertexNode,
+    BrepEdgeNode,
+    BrepLoopNode,
+    BrepFaceNode,
+    BrepShellNode,
+    BrepRegionNode,
 }

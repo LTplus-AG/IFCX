@@ -7,11 +7,21 @@
     "timestamp": "time string"
   },
   "imports": [
-    { "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/ifc@v5a.ifcx" },
-    { "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/prop@v5a.ifcx" },
-    { "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/ifc-mat/ifc-mat@v1.0.0.ifcx" },
-    { "uri": "https://ifcx.dev/@openusd.org/usd@v1.ifcx" },
-    { "uri": "https://ifcx.dev/@nlsfb/nlsfb@v1.ifcx" }
+    {
+      "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/ifc@v5a.ifcx"
+    },
+    {
+      "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/prop@v5a.ifcx"
+    },
+    {
+      "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/ifc-mat/ifc-mat@v1.0.0.ifcx"
+    },
+    {
+      "uri": "https://ifcx.dev/@openusd.org/usd@v1.ifcx"
+    },
+    {
+      "uri": "https://ifcx.dev/@nlsfb/nlsfb@v1.ifcx"
+    }
   ],
   "schemas": {
     "customdata": {
@@ -24,6 +34,11 @@
             }
           }
         }
+      }
+    },
+    "bsi::ifc::geometry::procedural::extruded_area_solid": {
+      "value": {
+        "dataType": "Object"
       }
     }
   },
@@ -80,9 +95,6 @@
       "path": "93791d5d-5beb-437b-b8ec-2f1f0ba4bf3b",
       "children": {
         "Body": "634f90c3-831e-5f29-a9b2-fa69b207821e",
-        "Axis": "8407e490-ceaa-56e5-96df-2351d9110668",
-        "Directrix": "9d1fce89-e179-5076-9a3b-1b40eef3524b",
-        "Basis": "367f7f7d-b4c5-50fe-829a-6bbced170dd1",
         "Window": "2c2d549f-f9fe-4e22-8590-562fda81a690",
         "Window_001": "592504dc-469a-44d6-9ae8-c801b591679b"
       }
@@ -667,6 +679,36 @@
     {
       "path": "634f90c3-831e-5f29-a9b2-fa69b207821e",
       "attributes": {
+        "bsi::ifc::geometry::procedural::extruded_area_solid": {
+          "SweptArea": {
+            "bsi::ifc::geometry::procedural::polyline": {
+              "Points": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0.1
+                ],
+                [
+                  10,
+                  0.1
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          },
+          "ExtrudedDirection": [
+            0,
+            0,
+            1
+          ],
+          "Depth": 3
+        },
         "usd::usdgeom::mesh": {
           "faceVertexIndices": [
             3,
@@ -1186,81 +1228,6 @@
               5.8466067,
               0.1,
               1
-            ]
-          ]
-        }
-      }
-    },
-    {
-      "path": "8407e490-ceaa-56e5-96df-2351d9110668",
-      "attributes": {
-        "usd::usdgeom::basiscurves": {
-          "points": [
-            [
-              0,
-              0,
-              0
-            ],
-            [
-              10,
-              0,
-              0
-            ]
-          ]
-        }
-      }
-    },
-    {
-      "path": "9d1fce89-e179-5076-9a3b-1b40eef3524b",
-      "attributes": {
-        "usd::usdgeom::basiscurves": {
-          "points": [
-            [
-              0,
-              0,
-              0
-            ],
-            [
-              0,
-              0,
-              3
-            ]
-          ]
-        }
-      }
-    },
-    {
-      "path": "367f7f7d-b4c5-50fe-829a-6bbced170dd1",
-      "attributes": {
-        "usd::usdgeom::mesh": {
-          "faceVertexIndices": [
-            0,
-            1,
-            3,
-            2,
-            3,
-            1
-          ],
-          "points": [
-            [
-              0,
-              0,
-              0
-            ],
-            [
-              0,
-              0.1,
-              0
-            ],
-            [
-              10,
-              0.1,
-              0
-            ],
-            [
-              10,
-              0,
-              0
             ]
           ]
         }

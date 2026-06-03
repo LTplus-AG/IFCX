@@ -4,9 +4,11 @@
 
 import { IfcxFile, IfcxNode } from "../schema/schema-helper";
 import { AttributeTable } from "./attribute-table";
-import { Brep, GeometryTier, ProceduralGeometry, TIER_TABLE_NAMES, parseLatentBrepPath } from "./geometry-tiers";
+import { GeometryTier, ProceduralGeometry, TIER_TABLE_NAMES } from "./geometry-tiers";
 import { AttributeTableProvider, InMemoryTableProvider, TierResolver } from "./tier-resolver";
 import { tessellate, tessellateBrep } from "./tessellate";
+import { assembleBrep, AssemblerNode } from "./brep-assembler";
+import { kindOfName, kindOfBody } from "./brep-reference";
 
 export interface IndexFileData {
     header: {
@@ -180,28 +182,19 @@ function convertToAlpha(
                     }
                 }
 
-                // Derivation: if a higher tier is present and Tier M is missing, derive a
-                // display mesh from the highest available tier. Source-of-truth priority
-                // matches docs/geometry-tiers-design.md: Tier P > Tier B > Tier M.
-                if (attributes["usd::usdgeom::mesh::points"] === undefined) {
-                    let derived = null as ReturnType<typeof tessellate>;
-                    if (attributes["ifcx::geom::proc"] !== undefined) {
-                        derived = tessellate(attributes["ifcx::geom::proc"] as ProceduralGeometry);
-                    } else if (attributes["ifcx::geom::brep"] !== undefined) {
-                        derived = tessellateBrep(attributes["ifcx::geom::brep"] as Brep);
-                    }
+                // Derivation: if Tier M is missing, derive a display mesh from procedural
+                // geometry (self-contained per node). Brep is NOT self-contained — its
+                // topology is spread across child nodes — so Brep derivation happens in a
+                // post-pass over the whole node set (assembleAndTessellateBreps below).
+                if (attributes["usd::usdgeom::mesh::points"] === undefined &&
+                    attributes["ifcx::geom::proc"] !== undefined) {
+                    const derived = tessellate(attributes["ifcx::geom::proc"] as ProceduralGeometry);
                     if (derived) {
                         attributes["usd::usdgeom::mesh::points"] = derived.points;
                         attributes["usd::usdgeom::mesh::faceVertexIndices"] = derived.faceVertexIndices;
                         if (!schemas["usd::usdgeom::mesh::points"]) {
                             schemas["usd::usdgeom::mesh::points"] = inferSchema(derived.points);
                             schemas["usd::usdgeom::mesh::faceVertexIndices"] = inferSchema(derived.faceVertexIndices);
-                        }
-                        if (derived.faceGroups && derived.faceGroups.length > 0) {
-                            attributes["ifcx::brep::face_groups"] = derived.faceGroups;
-                            if (!schemas["ifcx::brep::face_groups"]) {
-                                schemas["ifcx::brep::face_groups"] = { value: { dataType: "Object" } };
-                            }
                         }
                     }
                 }
@@ -213,13 +206,11 @@ function convertToAlpha(
         }
     }
 
-    // Resolve latent Brep sub-paths: a node authored at `bodyPath/Face_<n>` (or Edge_/Vertex_)
-    // gets its attributes lifted into the parent Brep node under the key
-    // `ifcx::brep::<kind>::<index>` and removed from the data array. This implements the
-    // federation-friendly per-face authoring described in docs/geometry-tiers-design.md
-    // (Tier B latent-path face addressing).
-    const resolvedLatentPaths = resolveLatentBrepPaths(data, schemas);
-    data = data.filter(n => !resolvedLatentPaths.has(n.path));
+    // Assemble Brep bodies from their topology child nodes and derive a display
+    // mesh. Topology is identity-bearing child nodes referenced by relative path
+    // (no latent-path absorption); per-face opinions live on the real face nodes
+    // and are merged by ordinary composition downstream.
+    assembleAndTessellateBreps(data, schemas);
 
     // Use the first section's header.id as the alpha file ID. The previous code used
     // ifcxVersion which is a format identifier, not a unique file ID — every reload
@@ -244,44 +235,60 @@ function convertToAlpha(
 }
 
 /**
- * Identify nodes whose path matches the latent Brep sub-path pattern
- * (bodyPath/Face_<n>, /Edge_<n>, /Vertex_<n>) and merge their attributes into
- * the parent Brep node. Returns the set of paths that were absorbed so the
- * caller can remove them from `data`.
+ * Find Brep body nodes — nodes whose children carry Brep topology rows — assemble
+ * each into a flat in-memory Brep (resolving relative-path references), tessellate
+ * once, and attach the display mesh + face groups to the body node. The mesh is
+ * derived only when absent (a cached Tier-M mesh on the body wins).
  *
- * Per-element attributes appear on the parent under
- *   ifcx::brep::face::<n> = { ...attrs }
- *   ifcx::brep::edge::<n> = { ...attrs }
- *   ifcx::brep::vertex::<n> = { ...attrs }
- *
- * A node is considered latent only if a parent node actually exists in this
- * file (so unrelated paths that happen to match the regex pattern aren't
- * silently absorbed — they pass through as ordinary IfcxNodes).
+ * A node is treated as a Brep body when at least one of its children carries an
+ * `ifcx::geom::brep` row that classifies as a topology primitive.
  */
-function resolveLatentBrepPaths(data: IfcxNode[], schemas: Record<string, any>): Set<string> {
-    const byPath = new Map<string, IfcxNode>();
-    for (const n of data) byPath.set(n.path, n);
-
-    const resolved = new Set<string>();
+function assembleAndTessellateBreps(data: IfcxNode[], schemas: Record<string, any>): void {
+    // A path may carry several opinions (separate layers): the topology row lives
+    // on one of them, a federated material/semantics opinion on another. Index the
+    // Brep row by path, taking the first node at each path that carries one.
+    const brepRowByPath = new Map<string, any>();
     for (const n of data) {
-        const latent = parseLatentBrepPath(n.path);
-        if (!latent) continue;
-        const parent = byPath.get(latent.bodyPath);
-        if (!parent) continue; // dangling latent path — leave as a regular node
-        if (!n.attributes || Object.keys(n.attributes).length === 0) {
-            // Latent node with no attributes carries no information; mark resolved (drop it)
-            resolved.add(n.path);
-            continue;
-        }
-
-        const key = `ifcx::brep::${latent.kind}::${latent.index}`;
-        if (!parent.attributes) parent.attributes = {};
-        const existing = (parent.attributes[key] as Record<string, unknown>) ?? {};
-        parent.attributes[key] = { ...existing, ...n.attributes };
-        if (!schemas[key]) {
-            schemas[key] = { value: { dataType: "Object" } };
-        }
-        resolved.add(n.path);
+        const row = n.attributes?.["ifcx::geom::brep"];
+        if (row !== undefined && !brepRowByPath.has(n.path)) brepRowByPath.set(n.path, row);
     }
-    return resolved;
+
+    const processed = new Set<string>();
+    for (const node of data) {
+        if (!node.children || processed.has(node.path)) continue;
+
+        const children: AssemblerNode[] = [];
+        let hasPrimitive = false;
+        for (const [name, childPath] of Object.entries(node.children)) {
+            if (typeof childPath !== "string") continue;
+            const body = brepRowByPath.get(childPath);
+            if (body === undefined) continue;
+            children.push({ name, body });
+            const kind = kindOfName(name) ?? kindOfBody(body);
+            if (kind !== "body") hasPrimitive = true;
+        }
+        if (!hasPrimitive) continue;
+        processed.add(node.path);
+
+        const bodyBody = node.attributes?.["ifcx::geom::brep"];
+        const { brep, faceNames } = assembleBrep({ bodyBody, children });
+
+        if (node.attributes?.["usd::usdgeom::mesh::points"] !== undefined) continue;
+        const derived = tessellateBrep(brep, {}, faceNames);
+        if (!derived) continue;
+
+        if (!node.attributes) node.attributes = {};
+        node.attributes["usd::usdgeom::mesh::points"] = derived.points;
+        node.attributes["usd::usdgeom::mesh::faceVertexIndices"] = derived.faceVertexIndices;
+        if (!schemas["usd::usdgeom::mesh::points"]) {
+            schemas["usd::usdgeom::mesh::points"] = inferSchema(derived.points);
+            schemas["usd::usdgeom::mesh::faceVertexIndices"] = inferSchema(derived.faceVertexIndices);
+        }
+        if (derived.faceGroups && derived.faceGroups.length > 0) {
+            node.attributes["ifcx::brep::face_groups"] = derived.faceGroups;
+            if (!schemas["ifcx::brep::face_groups"]) {
+                schemas["ifcx::brep::face_groups"] = { value: { dataType: "Object" } };
+            }
+        }
+    }
 }

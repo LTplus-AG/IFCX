@@ -1,0 +1,24 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "BrepShellNode.json",
+    "type": "object",
+    "properties": {
+        "FaceList": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/BrepRef"
+            }
+        }
+    },
+    "required": [
+        "FaceList"
+    ],
+    "description": "Shell node body — face references that must form a closed manifold for v1.1.",
+    "$defs": {
+        "BrepRef": {
+            "type": "string",
+            "pattern": "^<[^>]+>$",
+            "description": "Relative- or absolute-path reference to another Brep topology node, wrapped in\nangle brackets (USD relationship-target syntax). `../` ascends one segment\nrelative to the referencing node's composed path; a leading `/` is absolute.\nExamples: \"<../Edge_3>\", \"<../Vertex_0>\"."
+        }
+    }
+}

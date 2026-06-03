@@ -1,0 +1,42 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "BrepLoopNode.json",
+    "type": "object",
+    "properties": {
+        "EdgeList": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/BrepOrientedEdge"
+            }
+        }
+    },
+    "required": [
+        "EdgeList"
+    ],
+    "description": "Loop node body — an ordered cycle of oriented edge references forming a closed boundary.",
+    "$defs": {
+        "BrepOrientedEdge": {
+            "type": "object",
+            "properties": {
+                "Edge": {
+                    "$ref": "#/$defs/BrepRef",
+                    "description": "Reference to the edge node"
+                },
+                "Reversed": {
+                    "type": "boolean",
+                    "description": "True: traverse from End → Start (i.e., reversed)"
+                }
+            },
+            "required": [
+                "Edge",
+                "Reversed"
+            ],
+            "description": "One oriented use of an edge within a loop."
+        },
+        "BrepRef": {
+            "type": "string",
+            "pattern": "^<[^>]+>$",
+            "description": "Relative- or absolute-path reference to another Brep topology node, wrapped in\nangle brackets (USD relationship-target syntax). `../` ascends one segment\nrelative to the referencing node's composed path; a leading `/` is absolute.\nExamples: \"<../Edge_3>\", \"<../Vertex_0>\"."
+        }
+    }
+}

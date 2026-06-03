@@ -9,7 +9,7 @@
       "type": "NDJSON",
       "schema": {
         "tier": "B",
-        "description": "Native Brep — closed-shell manifold with planar faces"
+        "description": "Native Brep \u2014 closed-shell manifold with planar faces"
       }
     },
     {
@@ -18,16 +18,23 @@
       "schema": {
         "description": "Semantic properties"
       }
+    },
+    {
+      "filename": "ifcx.geom.feature.ndjson",
+      "type": "NDJSON",
+      "schema": {
+        "description": "Level-3 generative features (operands referenced by path)"
+      }
     }
   ],
   "sections": [
     {
       "header": {
-        "id": "hello-brep-cube",
+        "id": "parametric-edge-feature",
         "dataVersion": "1.0.0",
         "author": "technical@buildingsmart.org",
         "timestamp": "2026-05-27",
-        "application": "ifcx-tier-b-example"
+        "application": "ifcx-ws4-level3-proof"
       },
       "nodes": [
         {
@@ -37,6 +44,11 @@
               "opinion": "VALUE",
               "name": "Body",
               "value": "11111111-2222-3333-4444-555555555555"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "EdgeFillet",
+              "value": "feature-edge-fillet-0001"
             }
           ],
           "attributes": [
@@ -711,6 +723,19 @@
               "value": {
                 "typeID": "ifcx.geom.brep",
                 "componentIndex": 33
+              }
+            }
+          ]
+        },
+        {
+          "path": "feature-edge-fillet-0001",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::feature",
+              "value": {
+                "typeID": "ifcx.geom.feature",
+                "componentIndex": 0
               }
             }
           ]

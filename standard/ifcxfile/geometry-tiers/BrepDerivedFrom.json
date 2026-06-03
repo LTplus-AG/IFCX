@@ -1,0 +1,37 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "BrepDerivedFrom.json",
+    "type": "object",
+    "properties": {
+        "operation": {
+            "$ref": "#/$defs/BooleanOperator"
+        },
+        "sources": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/BrepRef"
+            },
+            "description": "References to the contributing input-face nodes"
+        }
+    },
+    "required": [
+        "operation",
+        "sources"
+    ],
+    "description": "Provenance for derived (e.g. boolean-output) topology. Authored as the\ncache-only attribute `bsi::ifc::geometry::brep::derived_from` on a derived\nface node: the operation plus references to the contributing input faces, so\nannotations on durable input faces can be re-propagated after a re-evaluation.\nDerived-face identity is best-effort and kernel-dependent — see\ndocs/boolean-output-identity.md.",
+    "$defs": {
+        "BooleanOperator": {
+            "type": "string",
+            "enum": [
+                "union",
+                "difference",
+                "intersection"
+            ]
+        },
+        "BrepRef": {
+            "type": "string",
+            "pattern": "^<[^>]+>$",
+            "description": "Relative- or absolute-path reference to another Brep topology node, wrapped in\nangle brackets (USD relationship-target syntax). `../` ascends one segment\nrelative to the referencing node's composed path; a leading `/` is absolute.\nExamples: \"<../Edge_3>\", \"<../Vertex_0>\"."
+        }
+    }
+}

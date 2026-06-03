@@ -10,8 +10,13 @@ import {
     ProceduralGeometry,
     ExtrudedAreaSolid,
     TIER_TABLE_NAMES,
-    parseLatentBrepPath,
 } from "../ifcx-core/geometry/geometry-tiers";
+import { writeBrep } from "../ifcx-core/geometry/brep-writer";
+import { assembleBrep, AssemblerNode } from "../ifcx-core/geometry/brep-assembler";
+import { makeRef, parseRef, resolveRef, kindOfName, nameOf, kindOfBody } from "../ifcx-core/geometry/brep-reference";
+import { ResolveRelative, GetParent } from "../ifcx-core/composition/path";
+import { LoadIfcxFile } from "../ifcx-core/workflows";
+import { GetChildNodeWithPath } from "../ifcx-core/composition/node";
 import { loadIndexFile, IndexFileData } from "../ifcx-core/geometry/index-file-loader";
 import { convertAlphaToTiered } from "../ifcx-core/geometry/alpha-to-tiered";
 import { tessellate, tessellateBrep } from "../ifcx-core/geometry/tessellate";
@@ -995,36 +1000,34 @@ describe("tier B brep", () => {
         }
     });
 
-    it("Tier B integrates into loader as ifcx::geom::brep attribute", () => {
-        const cube = makeUnitCube();
+    /** Author a unit cube in the children form (body + per-primitive nodes/rows). */
+    function authoredCube(bodyPath: string, extraNodes: any[] = []): { indexData: IndexFileData; ndjsonFiles: Map<string, string> } {
+        const { nodes, rows } = writeBrep(makeUnitCube(), { bodyPath, baseComponentIndex: 0 });
         const ndjsonFiles = new Map<string, string>();
-        ndjsonFiles.set("ifcx.geom.brep.ndjson", JSON.stringify(cube));
-
+        ndjsonFiles.set("ifcx.geom.brep.ndjson", rows.map(r => JSON.stringify(r)).join("\n"));
         const indexData: IndexFileData = {
             header: { ifcxVersion: "ifcx_post_alpha" },
             imports: [],
-            attributeTables: [
-                { filename: "ifcx.geom.brep.ndjson", type: "NDJSON", schema: {} },
-            ],
+            attributeTables: [{ filename: "ifcx.geom.brep.ndjson", type: "NDJSON", schema: {} }],
             sections: [{
                 header: { id: "cube-test", dataVersion: "1.0.0", author: "t", timestamp: "2026-01-01", application: "t" },
-                nodes: [{
-                    path: "cube-body",
-                    attributes: [{
-                        opinion: "VALUE",
-                        name: "ifcx::geom::brep",
-                        value: { typeID: TIER_TABLE_NAMES.brep, componentIndex: 0 },
-                    }],
-                }],
+                nodes: [...nodes, ...extraNodes] as any,
             }],
         };
+        return { indexData, ndjsonFiles };
+    }
 
+    it("Tier B body assembles from topology children and derives a display mesh", () => {
+        const { indexData, ndjsonFiles } = authoredCube("cube-body");
         const result = loadIndexFile(indexData, ndjsonFiles, ["brep"]);
         const body = result.alphaFile.data.find(n => n.path === "cube-body");
         expect(body).to.exist;
-        const brep = body!.attributes!["ifcx::geom::brep"] as Brep;
-        expect(brep).to.exist;
-        expect(brep.faces.length).to.equal(6);
+        // No latent absorption; the body carries a derived mesh, not a flat Brep blob.
+        const points = body!.attributes!["usd::usdgeom::mesh::points"] as number[][];
+        expect(points, "derived mesh points").to.exist;
+        expect(points.length).to.be.greaterThan(0);
+        const groups = body!.attributes!["ifcx::brep::face_groups"] as any[];
+        expect(groups.length).to.equal(6);
     });
 
     it("tessellateBrep emits faceGroups mapping triangle ranges to source face indices", () => {
@@ -1040,27 +1043,33 @@ describe("tier B brep", () => {
         expect(seen.size).to.equal(6);
     });
 
-    it("loader injects ifcx::brep::face_groups attribute on the Brep node", () => {
-        const cube = makeUnitCube();
-        const ndjsonFiles = new Map<string, string>();
-        ndjsonFiles.set("ifcx.geom.brep.ndjson", JSON.stringify(cube));
-        const indexData: IndexFileData = {
-            header: { ifcxVersion: "ifcx_post_alpha" },
-            imports: [],
-            attributeTables: [{ filename: "ifcx.geom.brep.ndjson", type: "NDJSON", schema: {} }],
-            sections: [{
-                header: { id: "fg", dataVersion: "1.0.0", author: "t", timestamp: "2026-01-01", application: "t" },
-                nodes: [{
-                    path: "body",
-                    attributes: [{ opinion: "VALUE", name: "ifcx::geom::brep", value: { typeID: TIER_TABLE_NAMES.brep, componentIndex: 0 } }],
-                }],
-            }],
-        };
+    it("loader injects face_groups carrying stable faceName onto the Brep body node", () => {
+        const { indexData, ndjsonFiles } = authoredCube("body");
         const result = loadIndexFile(indexData, ndjsonFiles, ["brep"]);
         const body = result.alphaFile.data.find(n => n.path === "body");
         const groups = body!.attributes!["ifcx::brep::face_groups"] as any[];
         expect(groups).to.exist;
         expect(groups.length).to.equal(6);
+        // Each group carries the stable face child-name used for per-face material correlation.
+        const names = new Set(groups.map(g => g.faceName));
+        expect(names.size).to.equal(6);
+        for (let i = 0; i < 6; i++) expect(names.has(`Face_${i}`), `faceName Face_${i}`).to.be.true;
+    });
+
+    it("a Brep body subtree composes (no self-subpath recursion) the way the viewer does", () => {
+        // Regression: topology children are authored at `body/Edge_n` — descendant
+        // paths of the body. The composer must compose them directly, not as
+        // <root>/<subpath> (which would recompose the body and recurse forever).
+        // The loader-level tests above never compose; this runs the composition
+        // that the viewer's compose3 path runs.
+        const { indexData, ndjsonFiles } = authoredCube("body");
+        const alpha = loadIndexFile(indexData, ndjsonFiles, ["brep"]).alphaFile;
+        const tree = LoadIfcxFile(alpha, false, true); // checkSchemas off (no remote imports here)
+        const body = GetChildNodeWithPath(tree, "body");
+        expect(body, "body composed").to.exist;
+        expect(body!.children.has("Edge_3"), "Edge_3 is a composed child of the body").to.be.true;
+        expect(body!.children.has("Face_0"), "Face_0 is a composed child of the body").to.be.true;
+        expect(body!.children.size).to.equal(34); // 8 verts + 12 edges + 6 loops + 6 faces + 1 shell + 1 region
     });
 
     it("tessellates a unit cube to 12 triangles with outward-facing normals", () => {
@@ -1093,36 +1102,15 @@ describe("tier B brep", () => {
         }
     });
 
-    it("loader derives mesh from Tier B when Tier M is absent", () => {
-        const cube = makeUnitCube();
-        const ndjsonFiles = new Map<string, string>();
-        ndjsonFiles.set("ifcx.geom.brep.ndjson", JSON.stringify(cube));
-
-        const indexData: IndexFileData = {
-            header: { ifcxVersion: "ifcx_post_alpha" },
-            imports: [],
-            attributeTables: [{ filename: "ifcx.geom.brep.ndjson", type: "NDJSON", schema: {} }],
-            sections: [{
-                header: { id: "cube-deriv", dataVersion: "1.0.0", author: "t", timestamp: "2026-01-01", application: "t" },
-                nodes: [{
-                    path: "cube-body",
-                    attributes: [{
-                        opinion: "VALUE",
-                        name: "ifcx::geom::brep",
-                        value: { typeID: TIER_TABLE_NAMES.brep, componentIndex: 0 },
-                    }],
-                }],
-            }],
-        };
-
+    it("loader derives mesh from Brep (Level 2) when the mesh level is absent", () => {
+        const { indexData, ndjsonFiles } = authoredCube("cube-body");
         const result = loadIndexFile(indexData, ndjsonFiles, ["brep"]);
-        const body = result.alphaFile.data.find(n => n.path === "cube-body");
+        const body = result.alphaFile.data.find(n => n.path === "cube-body" && !!n.children);
         expect(body).to.exist;
-        expect(body!.attributes!["ifcx::geom::brep"]).to.exist;
         expect(body!.attributes!["usd::usdgeom::mesh::points"]).to.exist;
         expect(body!.attributes!["usd::usdgeom::mesh::faceVertexIndices"]).to.exist;
         const points = body!.attributes!["usd::usdgeom::mesh::points"] as number[][];
-        expect(points.length).to.equal(24);
+        expect(points.length).to.equal(24); // 6 faces × 4 verts, per-face flat shading
     });
 
     it("Tier P wins over Tier B when both are present (source-of-truth priority)", () => {
@@ -1134,8 +1122,12 @@ describe("tier B brep", () => {
                 Depth: 1,
             },
         }];
+        // Brep is a subtree of topology nodes; the procedural opinion is an
+        // attribute on the same body node. Source-of-truth: procedural wins.
+        const { nodes, rows } = writeBrep(cube, { bodyPath: "body", baseComponentIndex: 0 });
+        nodes[0].attributes = [{ opinion: "VALUE", name: "ifcx::geom::proc", value: { typeID: TIER_TABLE_NAMES.procedural, componentIndex: 0 } }] as any;
         const ndjsonFiles = new Map<string, string>();
-        ndjsonFiles.set("ifcx.geom.brep.ndjson", JSON.stringify(cube));
+        ndjsonFiles.set("ifcx.geom.brep.ndjson", rows.map(r => JSON.stringify(r)).join("\n"));
         ndjsonFiles.set("ifcx.geom.proc.ndjson", procs.map(p => JSON.stringify(p)).join("\n"));
 
         const indexData: IndexFileData = {
@@ -1147,18 +1139,12 @@ describe("tier B brep", () => {
             ],
             sections: [{
                 header: { id: "both", dataVersion: "1.0.0", author: "t", timestamp: "2026-01-01", application: "t" },
-                nodes: [{
-                    path: "body",
-                    attributes: [
-                        { opinion: "VALUE", name: "ifcx::geom::proc", value: { typeID: TIER_TABLE_NAMES.procedural, componentIndex: 0 } },
-                        { opinion: "VALUE", name: "ifcx::geom::brep", value: { typeID: TIER_TABLE_NAMES.brep, componentIndex: 0 } },
-                    ],
-                }],
+                nodes: nodes as any,
             }],
         };
 
         const result = loadIndexFile(indexData, ndjsonFiles, ["procedural", "brep"]);
-        const body = result.alphaFile.data.find(n => n.path === "body");
+        const body = result.alphaFile.data.find(n => n.path === "body" && !!n.children);
         // Tier P tessellator emits 24 vertices for a unit cube (per-face flat-shaded);
         // Tier B tessellator also emits 24. Verify by checking derived-from would be
         // "procedural" if we exposed it — proxy by counting tetrahedra: Tier P generates
@@ -1169,46 +1155,31 @@ describe("tier B brep", () => {
     });
 
     it("tier resolver respects brep tier selection", () => {
-        const cube = makeUnitCube();
-        const ndjsonFiles = new Map<string, string>();
-        ndjsonFiles.set("ifcx.geom.brep.ndjson", JSON.stringify(cube));
+        const { indexData, ndjsonFiles } = authoredCube("cube-body");
 
-        const indexData: IndexFileData = {
-            header: { ifcxVersion: "ifcx_post_alpha" },
-            imports: [],
-            attributeTables: [{ filename: "ifcx.geom.brep.ndjson", type: "NDJSON", schema: {} }],
-            sections: [{
-                header: { id: "cube-test", dataVersion: "1.0.0", author: "t", timestamp: "2026-01-01", application: "t" },
-                nodes: [{
-                    path: "cube-body",
-                    attributes: [{
-                        opinion: "VALUE",
-                        name: "ifcx::geom::brep",
-                        value: { typeID: TIER_TABLE_NAMES.brep, componentIndex: 0 },
-                    }],
-                }],
-            }],
-        };
-
-        // Load WITHOUT brep tier — attribute should not appear
+        // Load WITHOUT brep tier — no brep row is resolved, no assembly, no mesh.
         const result = loadIndexFile(indexData, ndjsonFiles, ["mesh"]);
-        const body = result.alphaFile.data.find(n => n.path === "cube-body");
-        expect(body!.attributes!["ifcx::geom::brep"]).to.not.exist;
+        const anyBrep = result.alphaFile.data.some(n => n.attributes && n.attributes["ifcx::geom::brep"] !== undefined);
+        expect(anyBrep, "no brep row resolved").to.be.false;
+        const body = result.alphaFile.data.find(n => n.path === "cube-body" && !!n.children);
+        expect(body!.attributes?.["usd::usdgeom::mesh::points"]).to.not.exist;
         expect(result.tierResolver.accessLog.has(TIER_TABLE_NAMES.brep)).to.be.false;
     });
 });
 
-// ── Latent-path compositor integration ──
+// ── Per-face authoring through the children model (replaces latent paths) ──
 
-describe("latent-path compositor", () => {
-    function makeBrepCubeWithLatentFaceAttr(faceIdx: number, materialCode: string): { indexData: IndexFileData; ndjsonFiles: Map<string, string> } {
-        const cube = makeUnitCube();
+describe("per-face authoring (children model)", () => {
+    /** Author a cube plus a federated material opinion on the real face node. */
+    function cubeWithFaceMaterial(faceName: string, materialCode: string): { indexData: IndexFileData; ndjsonFiles: Map<string, string> } {
+        const { nodes, rows } = writeBrep(makeUnitCube(), { bodyPath: "body", baseComponentIndex: 0 });
         const ndjsonFiles = new Map<string, string>();
-        ndjsonFiles.set("ifcx.geom.brep.ndjson", JSON.stringify(cube));
-        ndjsonFiles.set("ifcx.semantics.ndjson", JSON.stringify({
-            "bsi::ifc::material": { code: materialCode },
-        }));
-
+        ndjsonFiles.set("ifcx.geom.brep.ndjson", rows.map(r => JSON.stringify(r)).join("\n"));
+        ndjsonFiles.set("ifcx.semantics.ndjson", JSON.stringify({ "bsi::ifc::material": { code: materialCode } }));
+        const materialNode = {
+            path: `body/${faceName}`,
+            attributes: [{ opinion: "VALUE", name: "ifcx::semantics", value: { typeID: "ifcx.semantics", componentIndex: 0 } }],
+        };
         const indexData: IndexFileData = {
             header: { ifcxVersion: "ifcx_post_alpha" },
             imports: [],
@@ -1217,142 +1188,98 @@ describe("latent-path compositor", () => {
                 { filename: "ifcx.semantics.ndjson", type: "NDJSON", schema: {} },
             ],
             sections: [{
-                header: { id: "latent-test", dataVersion: "1.0.0", author: "t", timestamp: "2026-01-01", application: "t" },
-                nodes: [
-                    {
-                        path: "body",
-                        attributes: [{
-                            opinion: "VALUE",
-                            name: "ifcx::geom::brep",
-                            value: { typeID: TIER_TABLE_NAMES.brep, componentIndex: 0 },
-                        }],
-                    },
-                    {
-                        path: `body/Face_${faceIdx}`,
-                        attributes: [{
-                            opinion: "VALUE",
-                            name: "ifcx::semantics",
-                            value: { typeID: "ifcx.semantics", componentIndex: 0 },
-                        }],
-                    },
-                ],
+                header: { id: "perface", dataVersion: "1.0.0", author: "t", timestamp: "2026-01-01", application: "t" },
+                nodes: [...nodes, materialNode] as any,
             }],
         };
-
         return { indexData, ndjsonFiles };
     }
 
-    it("absorbs latent Face_<n> nodes into the parent Brep node", () => {
-        const { indexData, ndjsonFiles } = makeBrepCubeWithLatentFaceAttr(3, "STEEL");
+    it("per-face opinion stays on the real face node — no latent absorption", () => {
+        const { indexData, ndjsonFiles } = cubeWithFaceMaterial("Face_3", "STEEL");
         const result = loadIndexFile(indexData, ndjsonFiles, ["brep"]);
 
-        const body = result.alphaFile.data.find(n => n.path === "body");
-        expect(body).to.exist;
-        // The latent node should be gone from data
-        const latent = result.alphaFile.data.find(n => n.path === "body/Face_3");
-        expect(latent).to.be.undefined;
+        // The material is a real node at body/Face_3, not absorbed into the body.
+        const matNode = result.alphaFile.data.find(n => n.path === "body/Face_3" && !!n.attributes?.["bsi::ifc::material"]);
+        expect(matNode, "face material survives as a real node").to.exist;
+        expect(matNode!.attributes!["bsi::ifc::material"]).to.deep.equal({ code: "STEEL" });
 
-        // The latent attribute should appear on the parent under ifcx::brep::face::3
-        const faceAttrs = body!.attributes!["ifcx::brep::face::3"] as Record<string, any>;
-        expect(faceAttrs).to.exist;
-        expect(faceAttrs["bsi::ifc::material"]).to.deep.equal({ code: "STEEL" });
+        const body = result.alphaFile.data.find(n => n.path === "body" && !!n.children);
+        expect(body!.attributes!["ifcx::brep::face::3"], "no flattened latent key on the body").to.be.undefined;
     });
 
-    it("dangling latent paths (no parent in file) pass through as ordinary nodes", () => {
-        const indexData: IndexFileData = {
-            header: { ifcxVersion: "ifcx_post_alpha" },
-            imports: [],
-            attributeTables: [{
-                filename: "ifcx.semantics.ndjson", type: "NDJSON", schema: {},
-            }],
-            sections: [{
-                header: { id: "dangling", dataVersion: "1.0.0", author: "t", timestamp: "2026-01-01", application: "t" },
-                nodes: [{
-                    // No "body" node exists in this file — bodyPath part of latent is dangling
-                    path: "body/Face_5",
-                    attributes: [{
-                        opinion: "VALUE",
-                        name: "ifcx::semantics",
-                        value: { typeID: "ifcx.semantics", componentIndex: 0 },
-                    }],
-                }],
-            }],
-        };
-        const ndjsonFiles = new Map<string, string>();
-        ndjsonFiles.set("ifcx.semantics.ndjson", JSON.stringify({ "bsi::ifc::material": { code: "X" } }));
-
+    it("body face_groups expose the faceName the renderer correlates the opinion by", () => {
+        const { indexData, ndjsonFiles } = cubeWithFaceMaterial("Face_3", "STEEL");
         const result = loadIndexFile(indexData, ndjsonFiles, ["brep"]);
-        const survivor = result.alphaFile.data.find(n => n.path === "body/Face_5");
-        expect(survivor).to.exist;
-        expect(survivor!.attributes!["bsi::ifc::material"]).to.exist;
-    });
-
-    it("merges multiple latent attributes on the same face", () => {
-        // Two latent nodes both targeting body/Face_2, one with material, one with finish
-        const cube = makeUnitCube();
-        const ndjsonFiles = new Map<string, string>();
-        ndjsonFiles.set("ifcx.geom.brep.ndjson", JSON.stringify(cube));
-        ndjsonFiles.set("ifcx.semantics.ndjson", [
-            JSON.stringify({ "bsi::ifc::material": { code: "WOOD" } }),
-            JSON.stringify({ "bsi::ifc::finish": "matte" }),
-        ].join("\n"));
-
-        const indexData: IndexFileData = {
-            header: { ifcxVersion: "ifcx_post_alpha" },
-            imports: [],
-            attributeTables: [
-                { filename: "ifcx.geom.brep.ndjson", type: "NDJSON", schema: {} },
-                { filename: "ifcx.semantics.ndjson", type: "NDJSON", schema: {} },
-            ],
-            sections: [{
-                header: { id: "merge-test", dataVersion: "1.0.0", author: "t", timestamp: "2026-01-01", application: "t" },
-                nodes: [
-                    { path: "body", attributes: [{ opinion: "VALUE", name: "ifcx::geom::brep", value: { typeID: TIER_TABLE_NAMES.brep, componentIndex: 0 } }] },
-                    { path: "body/Face_2", attributes: [{ opinion: "VALUE", name: "ifcx::semantics", value: { typeID: "ifcx.semantics", componentIndex: 0 } }] },
-                ],
-            }],
-        };
-
-        const result = loadIndexFile(indexData, ndjsonFiles, ["brep"]);
-        const body = result.alphaFile.data.find(n => n.path === "body");
-        const face2 = body!.attributes!["ifcx::brep::face::2"] as Record<string, any>;
-        expect(face2["bsi::ifc::material"]).to.deep.equal({ code: "WOOD" });
+        const body = result.alphaFile.data.find(n => n.path === "body" && !!n.children);
+        const groups = body!.attributes!["ifcx::brep::face_groups"] as any[];
+        expect(groups.some(g => g.faceName === "Face_3"), "a face group names Face_3").to.be.true;
     });
 });
 
-// ── Latent-path face addressing ──
+// ── Brep references and assembler ──
 
-describe("latent Brep path parser", () => {
-    it("parses Face_<i> sub-paths", () => {
-        const r = parseLatentBrepPath("wall-body-uuid/Face_3");
-        expect(r).to.not.be.null;
-        expect(r!.bodyPath).to.equal("wall-body-uuid");
-        expect(r!.kind).to.equal("face");
-        expect(r!.index).to.equal(3);
+describe("brep references", () => {
+    it("makeRef / parseRef round-trip", () => {
+        expect(makeRef("../Edge_3")).to.equal("<../Edge_3>");
+        expect(parseRef("<../Edge_3>")).to.equal("../Edge_3");
+        expect(parseRef("Edge_3")).to.be.null;
+        expect(parseRef(42)).to.be.null;
     });
 
-    it("parses Edge_<i> sub-paths", () => {
-        const r = parseLatentBrepPath("body/Edge_11");
-        expect(r!.kind).to.equal("edge");
-        expect(r!.index).to.equal(11);
+    it("resolveRef resolves siblings and absolute targets", () => {
+        expect(resolveRef("body/Edge_0", "<../Vertex_2>")).to.equal("body/Vertex_2");
+        expect(resolveRef("a/b/Loop_0", "<../Edge_9>")).to.equal("a/b/Edge_9");
+        expect(resolveRef("body/Face_0", "</abs/Surface_1>")).to.equal("abs/Surface_1");
     });
 
-    it("parses Vertex_<i> sub-paths", () => {
-        const r = parseLatentBrepPath("body/Vertex_0");
-        expect(r!.kind).to.equal("vertex");
-        expect(r!.index).to.equal(0);
+    it("ResolveRelative handles .. ascent and absolute refs", () => {
+        expect(ResolveRelative("a/b/c", "../x")).to.equal("a/b/x");
+        expect(ResolveRelative("a/b/c", "../../x")).to.equal("a/x");
+        expect(ResolveRelative("a/b/c", "/x/y")).to.equal("x/y");
+        expect(GetParent("a/b/c")).to.equal("a/b");
+        expect(GetParent("a")).to.equal("");
     });
 
-    it("returns null for non-latent paths", () => {
-        expect(parseLatentBrepPath("wall-body-uuid")).to.be.null;
-        expect(parseLatentBrepPath("wall-body/Window")).to.be.null;
-        expect(parseLatentBrepPath("wall-body/Face_abc")).to.be.null;
+    it("kindOfName / nameOf / kindOfBody classify topology primitives", () => {
+        expect(kindOfName("Face_3")).to.equal("face");
+        expect(kindOfName("Vertex_0")).to.equal("vertex");
+        expect(kindOfName("Body")).to.be.null;
+        expect(nameOf("edge", 11)).to.equal("Edge_11");
+        expect(kindOfBody({ Point: [0, 0, 0] } as any)).to.equal("vertex");
+        expect(kindOfBody({ FaceList: [] } as any)).to.equal("shell");
+        expect(kindOfBody({ Tolerance: 0.001 } as any)).to.equal("body");
+    });
+});
+
+describe("brep assembler", () => {
+    /** Map writeBrep output into the AssemblerNode list the assembler consumes. */
+    function childrenOf(bodyPath: string): AssemblerNode[] {
+        const { nodes, rows } = writeBrep(makeUnitCube(), { bodyPath, baseComponentIndex: 0 });
+        return nodes.slice(1).map(n => ({
+            name: n.path.split("/").pop()!,
+            body: rows[n.attributes![0].value.componentIndex],
+        }));
+    }
+
+    it("round-trips writeBrep → assembleBrep back to a tessellable cube", () => {
+        const { brep, faceNames } = assembleBrep({ children: childrenOf("body") });
+        expect(brep.vertices.length).to.equal(8);
+        expect(brep.edges.length).to.equal(12);
+        expect(brep.faces.length).to.equal(6);
+        expect(brep.shells.length).to.equal(1);
+        expect(brep.regions.length).to.equal(1);
+        expect(faceNames).to.deep.equal(["Face_0", "Face_1", "Face_2", "Face_3", "Face_4", "Face_5"]);
+
+        const mesh = tessellateBrep(brep, {}, faceNames)!;
+        expect(mesh).to.not.be.null;
+        expect(mesh.faceGroups!.length).to.equal(6);
+        expect(mesh.faceGroups!.map(g => g.faceName)).to.deep.equal(faceNames);
     });
 
-    it("preserves the parent path for deeply nested bodies", () => {
-        const r = parseLatentBrepPath("a/b/c/body-uuid/Face_5");
-        expect(r!.bodyPath).to.equal("a/b/c/body-uuid");
-        expect(r!.index).to.equal(5);
+    it("throws on a dangling reference", () => {
+        const children = childrenOf("body").filter(c => c.name !== "Vertex_0");
+        expect(() => assembleBrep({ children })).to.throw(/unknown vertex "Vertex_0"/);
     });
 });
 
@@ -1767,7 +1694,7 @@ describe("tiered example file", () => {
         }
     });
 
-    it("Hello Brep Cube end-to-end: Tier B tessellates + Face_1 attrs land on Body", () => {
+    it("Hello Brep Cube end-to-end: body tessellates + per-face semantics on real face nodes", () => {
         const dir = `${examplesFolderPath}/Hello Brep Cube`;
         const indexStr = fs.readFileSync(`${dir}/index.ifcx`).toString();
         const indexData = JSON.parse(indexStr) as IndexFileData;
@@ -1779,25 +1706,51 @@ describe("tiered example file", () => {
 
         const result = loadIndexFile(indexData, ndjsonFiles, ["brep"]);
 
-        const body = result.alphaFile.data.find(n =>
-            n.path === "11111111-2222-3333-4444-555555555555",
-        );
-        expect(body, "body node").to.exist;
-        // Tier B was tessellated to mesh attributes
-        expect(body!.attributes!["usd::usdgeom::mesh::points"]).to.exist;
-        expect(body!.attributes!["ifcx::brep::face_groups"]).to.exist;
-        // Latent Face_1 was absorbed
-        const face1 = body!.attributes!["ifcx::brep::face::1"] as Record<string, any>;
-        expect(face1, "Face_1 attrs").to.exist;
-        expect(face1["bsi::ifc::material"]).to.exist;
-        // Face_1 is the top of the cube — ROOFING material with brown diffuseColor
-        expect(face1["bsi::ifc::material"].code).to.equal("ROOFING");
-        const color = face1["bsi::ifc::presentation::diffuseColor"] as number[];
+        const bodyPath = "11111111-2222-3333-4444-555555555555";
+        const body = result.alphaFile.data.find(n => n.path === bodyPath && !!n.attributes?.["usd::usdgeom::mesh::points"]);
+        expect(body, "body node tessellated").to.exist;
+        const groups = body!.attributes!["ifcx::brep::face_groups"] as any[];
+        expect(groups.some(g => g.faceName === "Face_1"), "a face group names Face_1").to.be.true;
+        // The body carries no flattened latent face key — opinions live on the face nodes.
+        expect(body!.attributes!["ifcx::brep::face::1"]).to.be.undefined;
+
+        // Per-face semantics are on the real Face_1 child node (children model).
+        const face1 = result.alphaFile.data.find(n => n.path === `${bodyPath}/Face_1` && !!n.attributes?.["bsi::ifc::material"]);
+        expect(face1, "Face_1 node carries its material").to.exist;
+        expect(face1!.attributes!["bsi::ifc::material"].code).to.equal("ROOFING");
+        const color = face1!.attributes!["bsi::ifc::presentation::diffuseColor"] as number[];
         expect(color.length).to.equal(3);
-        // Latent node itself is gone from data
-        expect(result.alphaFile.data.find(n =>
-            n.path === "11111111-2222-3333-4444-555555555555/Face_1",
-        )).to.be.undefined;
+    });
+
+    it("WS4: a Level-3 feature references a named edge by path, and the operand resolves", () => {
+        const dir = `${examplesFolderPath}/Parametric Edge Feature`;
+        const indexData = JSON.parse(fs.readFileSync(`${dir}/index.ifcx`).toString()) as IndexFileData;
+        const ndjsonFiles = new Map<string, string>();
+        for (const table of indexData.attributeTables) {
+            ndjsonFiles.set(table.filename, fs.readFileSync(`${dir}/${table.filename}`).toString());
+        }
+        const result = loadIndexFile(indexData, ndjsonFiles, ["brep"]);
+
+        // The feature carries a generative operand: a named edge, referenced by path.
+        const feat = result.alphaFile.data.find(n => !!n.attributes?.["bsi::ifc::geometry::feature::fillet_edge"]);
+        expect(feat, "feature node").to.exist;
+        const operand = feat!.attributes!["bsi::ifc::geometry::feature::fillet_edge"] as { Edge: string; Radius: number };
+        const edgePath = resolveRef(feat!.path, operand.Edge);
+        expect(edgePath).to.equal("11111111-2222-3333-4444-555555555555/Edge_3");
+
+        // The operand resolves to a real, addressable edge node — impossible when the
+        // edge was an ordinal array index. The edge is identity-bearing topology.
+        const edgeNode = result.alphaFile.data.find(n => n.path === edgePath && !!n.attributes?.["ifcx::geom::brep"]);
+        expect(edgeNode, "operand resolves to a real edge node").to.exist;
+        const edgeBody = edgeNode!.attributes!["ifcx::geom::brep"] as Record<string, unknown>;
+        expect(edgeBody).to.have.property("Curve");
+        expect(edgeBody).to.have.property("Start");
+        expect(edgeBody).to.have.property("End");
+
+        // Graceful degradation: the body still tessellates, so a viewer without
+        // parametric support renders the explicit geometry unchanged.
+        const body = result.alphaFile.data.find(n => n.path === "11111111-2222-3333-4444-555555555555" && !!n.attributes?.["usd::usdgeom::mesh::points"]);
+        expect(body, "explicit fallback geometry present").to.exist;
     });
 
     it("Hello Wall Tiered loads with viewer config (mesh only)", () => {

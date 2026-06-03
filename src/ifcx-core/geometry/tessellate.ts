@@ -706,7 +706,7 @@ interface SurfaceFrame {
     isCurved: boolean;
 }
 
-export function tessellateBrep(brep: Brep, opts: TessellateOptions = {}): DisplayMesh | null {
+export function tessellateBrep(brep: Brep, opts: TessellateOptions = {}, faceNames?: string[]): DisplayMesh | null {
     if (!brep.faces || brep.faces.length === 0) return null;
 
     const points: number[][] = [];
@@ -776,7 +776,7 @@ export function tessellateBrep(brep: Brep, opts: TessellateOptions = {}): Displa
                 );
             }
         }
-        faceGroups.push({ start: groupStart, count: faceVertexIndices.length - groupStart, faceIndex: fi });
+        faceGroups.push({ start: groupStart, count: faceVertexIndices.length - groupStart, faceIndex: fi, faceName: faceNames?.[fi] });
     }
 
     if (faceVertexIndices.length === 0) return null;

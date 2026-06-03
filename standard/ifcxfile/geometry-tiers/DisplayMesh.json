@@ -91,7 +91,12 @@
                 "faceIndex": {
                     "type": "integer",
                     "minimum": 0,
-                    "maximum": 4294967295
+                    "maximum": 4294967295,
+                    "description": "Position of the face in the assembled Brep (in-memory compile order)."
+                },
+                "faceName": {
+                    "type": "string",
+                    "description": "Stable name of the source face child node (e.g. \"Face_3\"); the durable\ncorrelation key a renderer uses to find the face node's own attributes."
                 }
             },
             "required": [
@@ -99,7 +104,7 @@
                 "count",
                 "faceIndex"
             ],
-            "description": "Maps a contiguous slice of faceVertexIndices back to its source Brep face.\nEmitted by Tier B tessellation; lets renderers apply per-face materials\nauthored via latent-path attributes (e.g. `bodyPath/Face_3`)."
+            "description": "Maps a contiguous slice of faceVertexIndices back to its source Brep face.\nEmitted by Brep (Level 2) tessellation; lets renderers apply per-face\nmaterials authored on the composed face child node (e.g. `bodyPath/Face_3`)."
         }
     }
 }

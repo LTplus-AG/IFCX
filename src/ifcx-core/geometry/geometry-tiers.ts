@@ -177,15 +177,18 @@ export type MeshSourceTier = "procedural" | "brep";
 /**
  * Maps a contiguous slice of `faceVertexIndices` back to the source face that
  * produced it. Present when the mesh was derived from a Brep — allows the
- * viewer to apply per-face materials authored via latent-path attributes.
+ * viewer to apply per-face materials authored on the composed face child node.
  */
 export interface MeshFaceGroup {
     /** Start index in faceVertexIndices (multiple of 3) */
     start: number;
     /** Number of indices in this group (multiple of 3) */
     count: number;
-    /** Index into the source Brep's faces[] array */
+    /** Position of the face in the assembled (in-memory) Brep faces[] array */
     faceIndex: number;
+    /** Stable name of the source face child node (e.g. "Face_3") — the durable
+     *  key a renderer uses to find the face node's own attributes. */
+    faceName?: string;
 }
 
 export interface DisplayMesh {
@@ -332,7 +335,96 @@ export type BrepSurface =
     | ToroidalSurface
     | BSplineSurface;
 
-// --- Topology ---
+// --- Authored topology (identity-bearing nodes, referenced by relative path) ---
+//
+// This is the WIRE form: each primitive is a child node under the Brep body
+// node, and one row of `ifcx.geom.brep.ndjson` is one of the *Node bodies
+// below (validated by the `Brep` union schema). Cross-links are BrepRef relative
+// paths (e.g. "<../Edge_3>"), resolved against the post-composition tree — never
+// ordinal indices. The brep-assembler compiles these into the flat in-memory
+// `Brep` further down; the brep-writer is the inverse.
+
+/**
+ * Path reference to another Brep topology node, wrapped in angle brackets
+ * (USD relationship-target syntax). "../" ascends one segment relative to the
+ * referencing node's path; a leading "/" is absolute. E.g. "<../Edge_3>".
+ */
+export type BrepRef = string;
+
+/** Vertex node body. */
+export interface BrepVertexNode {
+    Point: Vector3;
+}
+
+/** Edge node body — a curve bounded by two vertex references. */
+export interface BrepEdgeNode {
+    /** Geometric carrier of the edge, inline (the edge *is* this curve). */
+    Curve: BrepCurve;
+    Start: BrepRef;
+    End: BrepRef;
+}
+
+/** One oriented use of an edge within a loop. */
+export interface BrepOrientedEdgeRef {
+    Edge: BrepRef;
+    Reversed: boolean;
+}
+
+/** Loop node body — an ordered cycle of oriented edge references. */
+export interface BrepLoopNode {
+    EdgeList: BrepOrientedEdgeRef[];
+}
+
+/** Face node body — a surface bounded by an outer loop and optional inner loops. */
+export interface BrepFaceNode {
+    /** Geometric carrier of the face, inline (the face *is* this surface). */
+    Surface: BrepSurface;
+    OuterLoop: BrepRef;
+    InnerLoops?: BrepRef[];
+    SameSense: boolean;
+}
+
+/** Shell node body — face references forming a (v1.1) closed manifold. */
+export interface BrepShellNode {
+    FaceList: BrepRef[];
+}
+
+/** Region node body — shell references; first is outer, rest are cavities (v1.2). */
+export interface BrepRegionNode {
+    ShellList: BrepRef[];
+}
+
+/** Brep body node — root of a Brep subtree; topology hangs off it as children. */
+export interface BrepBodyNode {
+    Tolerance?: number;
+}
+
+/**
+ * Provenance for derived (e.g. boolean-output) topology. Cache-only attribute
+ * `bsi::ifc::geometry::brep::derived_from` on a derived face node — see
+ * docs/boolean-output-identity.md.
+ */
+export interface BrepDerivedFrom {
+    operation: BooleanOperator;
+    /** References to the contributing input-face nodes */
+    sources: BrepRef[];
+}
+
+/** Any one row of `ifcx.geom.brep.ndjson` — the body of a single topology node. */
+export type BrepNodeBody =
+    | BrepBodyNode
+    | BrepVertexNode
+    | BrepEdgeNode
+    | BrepLoopNode
+    | BrepFaceNode
+    | BrepShellNode
+    | BrepRegionNode;
+
+// --- Compiled topology (private in-memory form, flat-indexed) ---
+//
+// NOT a wire format. Produced by the brep-assembler from the authored node tree
+// (references resolved → array indices) and consumed by the tessellator and
+// validator. Earlier drafts authored this directly; it is now derived/cache-only.
 
 export interface BrepVertex {
     Point: Vector3;
@@ -369,15 +461,9 @@ export interface BrepRegion {
 }
 
 /**
- * Tier B record. One Brep per row in ifcx.geom.brep.ndjson.
- *
- * Latent paths: when this Brep lives at IfcxNode path `P`, the following
- * sub-paths are addressable without authored child nodes — federated layers
- * may target them to attach per-face / per-edge / per-vertex attributes:
- *
- *   P/Face_<i>     i ∈ [0, faces.length)
- *   P/Edge_<i>     i ∈ [0, edges.length)
- *   P/Vertex_<i>   i ∈ [0, vertices.length)
+ * Compiled Brep — the in-memory result of assembling a Brep body subtree.
+ * Flat-indexed for the tessellator; never serialized (the wire form is the
+ * subtree of authored topology nodes above).
  */
 export interface Brep {
     vertices: BrepVertex[];
@@ -389,38 +475,6 @@ export interface Brep {
     shells: BrepShell[];
     regions: BrepRegion[];
     Tolerance?: number;
-}
-
-// =============================================================================
-// Latent-path helpers
-// =============================================================================
-
-const LATENT_FACE_RE = /^(.*)\/Face_(\d+)$/;
-const LATENT_EDGE_RE = /^(.*)\/Edge_(\d+)$/;
-const LATENT_VERTEX_RE = /^(.*)\/Vertex_(\d+)$/;
-
-export interface LatentBrepPath {
-    /** The IfcxNode path that owns the Brep */
-    bodyPath: string;
-    /** Which Brep sub-element kind the latent path addresses */
-    kind: "face" | "edge" | "vertex";
-    /** Zero-based index into Brep.faces / .edges / .vertices */
-    index: number;
-}
-
-/**
- * Parse a latent Brep sub-element path. Returns null if `path` is not a Brep
- * latent path (e.g. it's a regular IfcxNode path). The caller is responsible
- * for verifying that `bodyPath` actually holds a Tier B Brep.
- */
-export function parseLatentBrepPath(path: string): LatentBrepPath | null {
-    let m = LATENT_FACE_RE.exec(path);
-    if (m) return { bodyPath: m[1], kind: "face", index: parseInt(m[2], 10) };
-    m = LATENT_EDGE_RE.exec(path);
-    if (m) return { bodyPath: m[1], kind: "edge", index: parseInt(m[2], 10) };
-    m = LATENT_VERTEX_RE.exec(path);
-    if (m) return { bodyPath: m[1], kind: "vertex", index: parseInt(m[2], 10) };
-    return null;
 }
 
 // =============================================================================
