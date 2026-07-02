@@ -3,5 +3,19 @@
 *.dot
 
 *.js
+# esbuild output bundles (src/test.mjs, src/ifcx-cli.mjs, web/viewer/render.mjs).
+# These inline external deps (e.g. the private sibling ifc-lite tree); they are
+# build artifacts and must never be committed.
+*.mjs
 *.exe
 temp
+# Local working scratch — never committed.
+scratch/
+
+# Local-only planning / decision docs for this project — kept local, never committed.
+# Existing plan docs:
+docs/geometry-tiers-rework-plan.md
+docs/boolean-output-identity.md
+# Convention for future plan docs (name them *.plan.md, or drop them under .plans/):
+docs/*.plan.md
+.plans/

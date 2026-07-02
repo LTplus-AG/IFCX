@@ -1,0 +1,48 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "ExternalGeometryReference.json",
+    "type": "object",
+    "properties": {
+        "format": {
+            "$ref": "#/$defs/ExternalGeometryFormat",
+            "description": "Content format"
+        },
+        "uri": {
+            "type": "string",
+            "description": "URI or filesystem path to the external geometry payload"
+        },
+        "integrity": {
+            "type": "string",
+            "description": "Integrity hash of the referenced content; format \"<algo>-<hex>\", e.g. \"sha256-abcdef...\". Optional."
+        },
+        "units": {
+            "type": "string",
+            "description": "Source units, if known. Default: producer's convention."
+        },
+        "tolerance": {
+            "type": "number",
+            "description": "Geometric tolerance, if known"
+        }
+    },
+    "required": [
+        "format",
+        "uri"
+    ],
+    "$defs": {
+        "ExternalGeometryFormat": {
+            "type": "string",
+            "enum": [
+                "STEP_AP242",
+                "STEP_AP203",
+                "STEP_AP214",
+                "IFC_SPF",
+                "OCCT_BREP",
+                "PARASOLID_XT",
+                "JT",
+                "GLTF",
+                "OBJ",
+                "PLY"
+            ]
+        }
+    }
+}

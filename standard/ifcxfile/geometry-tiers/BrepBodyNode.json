@@ -1,0 +1,12 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "BrepBodyNode.json",
+    "type": "object",
+    "properties": {
+        "Tolerance": {
+            "type": "number",
+            "description": "Geometric tolerance for vertex / edge comparisons, in body units"
+        }
+    },
+    "description": "Brep body node — the root of a Brep subtree; topology hangs off it as children."
+}

@@ -1,0 +1,24 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "BrepRegionNode.json",
+    "type": "object",
+    "properties": {
+        "ShellList": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/BrepRef"
+            }
+        }
+    },
+    "required": [
+        "ShellList"
+    ],
+    "description": "Region node body — shell references; first is the outer shell, rest are cavities (v1.2).",
+    "$defs": {
+        "BrepRef": {
+            "type": "string",
+            "pattern": "^<[^>]+>$",
+            "description": "Relative- or absolute-path reference to another Brep topology node, wrapped in\nangle brackets (USD relationship-target syntax). `../` ascends one segment\nrelative to the referencing node's composed path; a leading `/` is absolute.\nExamples: \"<../Edge_3>\", \"<../Vertex_0>\"."
+        }
+    }
+}

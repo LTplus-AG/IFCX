@@ -1,0 +1,328 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "Profile.json",
+    "anyOf": [
+        {
+            "$ref": "#/$defs/RectangleTag"
+        },
+        {
+            "$ref": "#/$defs/CircleTag"
+        },
+        {
+            "$ref": "#/$defs/IShapeTag"
+        },
+        {
+            "$ref": "#/$defs/LShapeTag"
+        },
+        {
+            "$ref": "#/$defs/PolylineTag"
+        },
+        {
+            "$ref": "#/$defs/CompositeCurveTag"
+        },
+        {
+            "$ref": "#/$defs/ProfileWithVoidsTag"
+        },
+        {
+            "$ref": "#/$defs/CompositeProfileTag"
+        }
+    ],
+    "description": "Profile (2D area or curve) used as input to solid operations.\nA polyline or composite curve is accepted as a closed profile.",
+    "$defs": {
+        "RectangleTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::procedural::rectangle": {
+                    "$ref": "#/$defs/RectangleBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::procedural::rectangle"
+            ]
+        },
+        "CircleTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::procedural::circle": {
+                    "$ref": "#/$defs/CircleBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::procedural::circle"
+            ]
+        },
+        "IShapeTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::procedural::i_shape": {
+                    "$ref": "#/$defs/IShapeBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::procedural::i_shape"
+            ]
+        },
+        "LShapeTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::procedural::l_shape": {
+                    "$ref": "#/$defs/LShapeBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::procedural::l_shape"
+            ]
+        },
+        "PolylineTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::procedural::polyline": {
+                    "$ref": "#/$defs/PolylineBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::procedural::polyline"
+            ]
+        },
+        "CompositeCurveTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::procedural::composite_curve": {
+                    "$ref": "#/$defs/CompositeCurveBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::procedural::composite_curve"
+            ]
+        },
+        "ProfileWithVoidsTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::procedural::profile_with_voids": {
+                    "$ref": "#/$defs/ProfileWithVoidsBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::procedural::profile_with_voids"
+            ]
+        },
+        "CompositeProfileTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::procedural::composite_profile": {
+                    "$ref": "#/$defs/CompositeProfileBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::procedural::composite_profile"
+            ]
+        },
+        "RectangleBody": {
+            "type": "object",
+            "properties": {
+                "position": {
+                    "$ref": "#/$defs/Position2D"
+                },
+                "Width": {
+                    "type": "number"
+                },
+                "Height": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "Width",
+                "Height"
+            ],
+            "description": "Center-positioned rectangle."
+        },
+        "CircleBody": {
+            "type": "object",
+            "properties": {
+                "position": {
+                    "$ref": "#/$defs/Position2D"
+                },
+                "Radius": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "Radius"
+            ],
+            "description": "Center-positioned circle."
+        },
+        "IShapeBody": {
+            "type": "object",
+            "properties": {
+                "position": {
+                    "$ref": "#/$defs/Position2D"
+                },
+                "OverallWidth": {
+                    "type": "number"
+                },
+                "OverallDepth": {
+                    "type": "number"
+                },
+                "WebThickness": {
+                    "type": "number"
+                },
+                "FlangeThickness": {
+                    "type": "number"
+                },
+                "FilletRadius": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "OverallWidth",
+                "OverallDepth",
+                "WebThickness",
+                "FlangeThickness"
+            ],
+            "description": "IFC IfcIShapeProfileDef-equivalent."
+        },
+        "LShapeBody": {
+            "type": "object",
+            "properties": {
+                "position": {
+                    "$ref": "#/$defs/Position2D"
+                },
+                "Depth": {
+                    "type": "number"
+                },
+                "Width": {
+                    "type": "number"
+                },
+                "Thickness": {
+                    "type": "number"
+                },
+                "FilletRadius": {
+                    "type": "number"
+                },
+                "EdgeRadius": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "Depth",
+                "Width",
+                "Thickness"
+            ],
+            "description": "IFC IfcLShapeProfileDef-equivalent."
+        },
+        "PolylineBody": {
+            "type": "object",
+            "properties": {
+                "Points": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        }
+                    }
+                }
+            },
+            "required": [
+                "Points"
+            ],
+            "description": "Polyline (open or closed) as a sequence of 2D points."
+        },
+        "CompositeCurveBody": {
+            "type": "object",
+            "properties": {
+                "Segments": {
+                    "type": "array",
+                    "items": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/$defs/PolylineTag"
+                            },
+                            {
+                                "$ref": "#/$defs/CircularArcTag"
+                            }
+                        ]
+                    }
+                }
+            },
+            "required": [
+                "Segments"
+            ],
+            "description": "Curve assembled from polyline and arc segments."
+        },
+        "ProfileWithVoidsBody": {
+            "type": "object",
+            "properties": {
+                "exterior": {
+                    "$ref": "Profile.json"
+                },
+                "Interior": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "Profile.json"
+                    }
+                }
+            },
+            "required": [
+                "exterior"
+            ],
+            "description": "Profile with one exterior boundary and zero or more interior holes."
+        },
+        "CompositeProfileBody": {
+            "type": "object",
+            "properties": {
+                "Profiles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "Profile.json"
+                    }
+                }
+            },
+            "required": [
+                "Profiles"
+            ],
+            "description": "Collection of profiles drawn together."
+        },
+        "Position2D": {
+            "type": "object",
+            "properties": {
+                "Location": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                }
+            },
+            "description": "Position record matching the existing rectangle vocabulary."
+        },
+        "CircularArcTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::procedural::circular_arc": {
+                    "$ref": "#/$defs/CircularArcBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::procedural::circular_arc"
+            ]
+        },
+        "CircularArcBody": {
+            "type": "object",
+            "properties": {
+                "Points": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        }
+                    }
+                }
+            },
+            "required": [
+                "Points"
+            ],
+            "description": "Three-point circular arc: start, midpoint-on-arc, end."
+        }
+    }
+}

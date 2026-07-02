@@ -4,10 +4,13 @@
 import { ComposedObject } from './composed-object';
 import { IfcxFile } from '../ifcx-core/schema/schema-helper';
 import { compose3 } from './compose-flattened';
+import { isTieredFormat } from './tiered-loader';
+import { IndexFileData, loadIndexFile } from '../ifcx-core/geometry/index-file-loader';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { PCDLoader } from 'three/addons/loaders/PCDLoader.js';
+import { buildSVGFromProceduralGeometry, Profile } from './profile';
 
 let controls, renderer, scene, camera;
 type datastype = [string, IfcxFile][];
@@ -113,18 +116,29 @@ function FindChildWithAttr(node: ComposedObject | undefined, attrName: string)
 function setHighlight(obj: any, highlight: boolean) {
     if (!obj) return;
     obj.traverse((o) => {
-        const mat = o.material;
-        if (mat && mat.color) {
-            if (highlight) {
-                if (!o.userData._origColor) {
-                    o.userData._origColor = mat.color.clone();
-                }
-                o.material = mat.clone();
-                o.material.color.set(0xff0000);
-            } else if (o.userData._origColor) {
-                mat.color.copy(o.userData._origColor);
-                delete o.userData._origColor;
+        if (!o.material) return;
+        const isArray = Array.isArray(o.material);
+        const mats: any[] = isArray ? o.material : [o.material];
+
+        if (highlight) {
+            if (!o.userData._origColors) {
+                // Snapshot original colors and replace with cloned materials so we don't
+                // mutate shared materials elsewhere in the scene.
+                o.userData._origColors = mats.map(m => (m && m.color) ? m.color.clone() : null);
+                const cloned = mats.map(m => m ? m.clone() : m);
+                o.material = isArray ? cloned : cloned[0];
             }
+            const current = Array.isArray(o.material) ? o.material : [o.material];
+            for (const m of current) {
+                if (m && m.color) m.color.set(0xff0000);
+            }
+        } else if (o.userData._origColors) {
+            const orig = o.userData._origColors;
+            const current = Array.isArray(o.material) ? o.material : [o.material];
+            current.forEach((m: any, i: number) => {
+                if (m && m.color && orig[i]) m.color.copy(orig[i]);
+            });
+            delete o.userData._origColors;
         }
     });
 }
@@ -265,25 +279,72 @@ function createCurveFromJson(path: ComposedObject[]) {
   return new THREE.Line(geometry, lineMaterial);
 }
 
+/**
+ * Build a material descriptor from a face's own composed child node. Topology is
+ * identity-bearing: each Brep face is a real child node (e.g. `body/Face_3`), and
+ * any per-face presentation opinion is composed onto it the normal layering way.
+ * The tessellator's faceGroups carry the face name, so we look the face node up by
+ * name and read its presentation attributes directly.
+ *
+ * Falls back to the body's default material if the face has no overriding
+ * presentation attributes.
+ */
+function faceMaterialFromFace(
+    faceObj: ComposedObject | undefined,
+    fallback: { color: THREE.Color; transparent: boolean; opacity: number },
+) {
+    const color = faceObj?.attributes?.["bsi::ifc::presentation::diffuseColor"];
+    if (color && Array.isArray(color)) {
+        const opacity = faceObj!.attributes!["bsi::ifc::presentation::opacity"];
+        return {
+            color: new THREE.Color(color[0], color[1], color[2]),
+            transparent: opacity != null,
+            opacity: opacity ?? 1,
+        };
+    }
+    return fallback;
+}
+
 function createMeshFromJson(path: ComposedObject[]) {
   let points = new Float32Array(path[0].attributes["usd::usdgeom::mesh::points"].flat());
   let indices = new Uint16Array(path[0].attributes["usd::usdgeom::mesh::faceVertexIndices"]);
-  
+
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(points, 3));
   geometry.setIndex(new THREE.BufferAttribute(indices, 1));
   geometry.computeVertexNormals();
-  
-  
+
+  // Per-face material path: when the mesh was derived from a Brep, the tessellator
+  // emitted faceGroups carrying each source face's name. Per-face presentation
+  // opinions live on the composed face child nodes (e.g. `body/Face_3`); build a
+  // multi-material mesh so each face renders with its own material.
+  const faceGroups = path[0].attributes["ifcx::brep::face_groups"];
+  if (Array.isArray(faceGroups) && faceGroups.length > 0) {
+    const baseMatDesc = createMaterialFromParent(path);
+    const faceByName = new Map<string, ComposedObject>();
+    for (const child of path[0].children ?? []) {
+      const seg = (child.name ?? "").split("/").pop();
+      if (seg) faceByName.set(seg, child);
+    }
+    const materials: THREE.Material[] = [];
+    for (let gi = 0; gi < faceGroups.length; gi++) {
+      const group = faceGroups[gi];
+      const faceObj = group.faceName ? faceByName.get(group.faceName) : undefined;
+      const matDesc = faceMaterialFromFace(faceObj, baseMatDesc);
+      materials.push(new THREE.MeshPhongMaterial({ ...matDesc, side: THREE.DoubleSide, flatShading: true }));
+      geometry.addGroup(group.start, group.count, gi);
+    }
+    return new THREE.Mesh(geometry, materials);
+  }
+
+  // Single-material fallback path
   var meshMaterial;
-  
   let gltfPbrMaterial = tryCreateMeshGltfMaterial(path);
   if (gltfPbrMaterial) {
     meshMaterial = gltfPbrMaterial
-    // console.log(meshMaterial)
   } else {
     const m = createMaterialFromParent(path);
-    meshMaterial = new THREE.MeshLambertMaterial({ ...m });
+    meshMaterial = new THREE.MeshPhongMaterial({ ...m, side: THREE.DoubleSide, flatShading: true });
   }
 
   return new THREE.Mesh(geometry, meshMaterial);
@@ -438,6 +499,7 @@ const icons = {
     'pcd::base64': 'grain',
     'points::array::positions': 'grain',
     'points::base64::positions': 'grain',
+    'bsi::ifc::procedural_geometry::has_profile': 'format_italic',
 };
 
 function handleClick(prim, pathMapping, root) {
@@ -446,13 +508,15 @@ function handleClick(prim, pathMapping, root) {
   container.innerHTML = "";
   const table = document.createElement("table");
   table.setAttribute("border", "0");
-  const entries = [["name", prim.name], ...Object.entries(prim.attributes).filter(([k, _]) => !k.startsWith('__internal_'))];
-  const format = (value) => {
+  const entries = [["name", prim.name], ...Object.entries(prim.attributes || {}).filter(([k, _]) => !k.startsWith('__internal_'))];
+  const format = (value, attrKey?: string) => {
     if (Array.isArray(value)) {
       let N = document.createElement('span');
       N.appendChild(document.createTextNode('('));
       let first = true;
-      for (let n of value.map(format)) {
+      // Don't pass `.map`'s index argument as attrKey — it'd be a number, breaking the
+      // attrKey.indexOf() checks further down. Explicit lambda discards extra args.
+      for (let n of value.map(v => format(v))) {
         if (!first) {
           N.appendChild(document.createTextNode(','));
         }
@@ -483,6 +547,27 @@ function handleClick(prim, pathMapping, root) {
           }
         }
         return a;
+      } else if ((ks.length == 1 && ks[0].indexOf("procedural") !== -1) || (attrKey && attrKey.indexOf("procedural") !== -1 && attrKey.indexOf("profile") !== -1)) {
+        // Wrap flattened profile data back into expected format if needed
+        let profileData = value;
+        if (attrKey && attrKey.indexOf("profile_with_voids") !== -1 && !Object.keys(value).some(k => k.indexOf("procedural") !== -1)) {
+          profileData = { "bsi::ifc::geometry::procedural::profile_with_voids": value };
+        } else if (attrKey && attrKey.indexOf("composite_profile") !== -1 && !Object.keys(value).some(k => k.indexOf("procedural") !== -1)) {
+          profileData = { "bsi::ifc::geometry::procedural::composite_profile": value };
+        }
+        const svgString = buildSVGFromProceduralGeometry(profileData as Profile, { pixelSize: 240, stroke: "#222", strokeWidth: 0.001 });
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(svgString, "image/svg+xml");
+        let container = document.createElement('div');
+        let left = document.createElement('div');
+        left.style.float = 'left';
+        left.appendChild(doc.documentElement);
+        let right = document.createElement('div');
+        right.innerHTML = `<span style="white-space:pre;float:right">${JSON.stringify(value, null, 4).replace(/\n\s+([\-\+\d\.e]+|\])(,?)(?=\n)/g, '$1$2')}</span>`
+        right.style.float = 'right';
+        container.appendChild(left);
+        container.appendChild(right);
+        return container;
       } else {
         return document.createTextNode(JSON.stringify(value));
       }
@@ -495,7 +580,7 @@ function handleClick(prim, pathMapping, root) {
     const tdKey = document.createElement("td");
     tdKey.textContent = encodeHtmlEntities(key);
     const tdValue = document.createElement("td");
-    tdValue.appendChild(format(value));
+    tdValue.appendChild(format(value, key));
     tr.appendChild(tdKey);
     tr.appendChild(tdValue);
     table.appendChild(tr);
@@ -611,8 +696,82 @@ function createLayerDom() {
     });
 }
 
-export default async function addModel(name, m: IfcxFile) {
-    datas.push([name, m]);
+/**
+ * Browser entry-point for raw IFC STEP files. Runs the pure-TS STEP21 importer
+ * and feeds the result through the existing tiered-loader path. Avoids any
+ * WASM / Node-only dependencies — works entirely in the browser.
+ */
+export async function loadIfcText(name: string, ifcText: string, requestedTiers?: string[], replace?: boolean) {
+    const { importIfcToTieredText } = await import("../ifcx-core/step21/ifc-import");
+    const { loadIndexFile } = await import("../ifcx-core/geometry/index-file-loader");
+
+    const result = importIfcToTieredText(ifcText, name);
+
+    const toggle = document.getElementById('tierToggle');
+    if (toggle) toggle.style.display = 'block';
+
+    // Default to procedural + mesh derivation on (geometry source-of-truth from IFC).
+    const tiers = requestedTiers ?? ["mesh", "procedural"];
+    const loaded = loadIndexFile(result.indexFile, result.ndjsonFiles, tiers as any);
+    const file = loaded.alphaFile;
+
+    if (replace) {
+        datas = [[name, file]];
+    } else {
+        datas.push([name, file]);
+    }
+    createLayerDom();
+    await composeAndRender();
+}
+
+export default async function addModel(name: string, m: IfcxFile | IndexFileData, baseUrl?: string, requestedTiers?: string[], replace?: boolean) {
+    let file: IfcxFile;
+
+    if (isTieredFormat(m)) {
+        // Show tier toggle UI
+        const toggle = document.getElementById('tierToggle');
+        if (toggle) toggle.style.display = 'block';
+
+        const tiers = requestedTiers ?? ["mesh"];
+
+        // Tiered format: fetch companion NDJSON files and convert to alpha format
+        const ndjsonFiles = new Map<string, string>();
+        const base = baseUrl ?? '';
+
+        for (const table of m.attributeTables) {
+            const fetchUrl = base ? `${base}/${table.filename}` : table.filename;
+            // Use _originalFilename if set (file upload with blob URLs), otherwise use filename
+            const mapKey = (table as any)._originalFilename ?? table.filename;
+            try {
+                const resp = await fetch(fetchUrl);
+                if (resp.ok) {
+                    ndjsonFiles.set(mapKey, await resp.text());
+                }
+            } catch (e) {
+                console.warn(`Failed to fetch ${fetchUrl}:`, e);
+            }
+        }
+
+        // Restore original filenames for loadIndexFile
+        const cleanIndex = JSON.parse(JSON.stringify(m));
+        for (const table of cleanIndex.attributeTables) {
+            if ((table as any)._originalFilename) {
+                table.filename = (table as any)._originalFilename;
+                delete (table as any)._originalFilename;
+            }
+        }
+
+        const result = loadIndexFile(cleanIndex as IndexFileData, ndjsonFiles, tiers as any);
+        file = result.alphaFile;
+    } else {
+        file = m;
+    }
+
+    if (replace) {
+        datas = [[name, file]];
+    } else {
+        datas.push([name, file]);
+    }
     createLayerDom();
     await composeAndRender();
 }

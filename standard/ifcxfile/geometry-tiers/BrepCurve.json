@@ -1,0 +1,161 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "BrepCurve.json",
+    "anyOf": [
+        {
+            "$ref": "#/$defs/LineCurveTag"
+        },
+        {
+            "$ref": "#/$defs/CircleCurveTag"
+        },
+        {
+            "$ref": "#/$defs/BSplineCurveTag"
+        }
+    ],
+    "$defs": {
+        "LineCurveTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::brep::line": {
+                    "$ref": "#/$defs/LineCurveBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::brep::line"
+            ]
+        },
+        "CircleCurveTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::brep::circle": {
+                    "$ref": "#/$defs/CircleCurveBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::brep::circle"
+            ]
+        },
+        "BSplineCurveTag": {
+            "type": "object",
+            "properties": {
+                "bsi::ifc::geometry::brep::bspline_curve": {
+                    "$ref": "#/$defs/BSplineCurveBody"
+                }
+            },
+            "required": [
+                "bsi::ifc::geometry::brep::bspline_curve"
+            ]
+        },
+        "LineCurveBody": {
+            "type": "object",
+            "properties": {
+                "Pnt": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Point on the line, world coords"
+                },
+                "Dir": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Unit direction vector"
+                }
+            },
+            "required": [
+                "Pnt",
+                "Dir"
+            ]
+        },
+        "CircleCurveBody": {
+            "type": "object",
+            "properties": {
+                "Pnt": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Center"
+                },
+                "Axis": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Normal of the plane the circle lies in"
+                },
+                "RefDirection": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "In-plane direction marking the 0-angle position"
+                },
+                "Radius": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "Pnt",
+                "Axis",
+                "RefDirection",
+                "Radius"
+            ]
+        },
+        "BSplineCurveBody": {
+            "type": "object",
+            "properties": {
+                "Degree": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                },
+                "ControlPoints": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        }
+                    },
+                    "description": "Control points, each [x, y, z]"
+                },
+                "Knots": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Knot vector"
+                },
+                "KnotMultiplicities": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295
+                    },
+                    "description": "Multiplicity of each distinct knot (sums to ControlPoints.length + Degree + 1)"
+                },
+                "Weights": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "description": "Optional per-control-point weights for rational curves"
+                },
+                "Closed": {
+                    "type": "boolean",
+                    "description": "True if the curve is closed (control points wrap)"
+                }
+            },
+            "required": [
+                "Degree",
+                "ControlPoints",
+                "Knots"
+            ],
+            "description": "Non-uniform rational B-spline curve (IFC IfcBSplineCurveWithKnots /\nIfcRationalBSplineCurveWithKnots). Weights are optional; absent = non-rational."
+        }
+    }
+}

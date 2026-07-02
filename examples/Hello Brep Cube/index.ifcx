@@ -1,0 +1,721 @@
+{
+  "header": {
+    "ifcxVersion": "ifcx_post_alpha"
+  },
+  "imports": [],
+  "attributeTables": [
+    {
+      "filename": "ifcx.geom.brep.ndjson",
+      "type": "NDJSON",
+      "schema": {
+        "tier": "B",
+        "description": "Native Brep — closed-shell manifold with planar faces"
+      }
+    },
+    {
+      "filename": "ifcx.semantics.ndjson",
+      "type": "NDJSON",
+      "schema": {
+        "description": "Semantic properties"
+      }
+    }
+  ],
+  "sections": [
+    {
+      "header": {
+        "id": "hello-brep-cube",
+        "dataVersion": "1.0.0",
+        "author": "technical@buildingsmart.org",
+        "timestamp": "2026-05-27",
+        "application": "ifcx-tier-b-example"
+      },
+      "nodes": [
+        {
+          "path": "01a2b3c4-d5e6-7890-1234-56789abcdef0",
+          "children": [
+            {
+              "opinion": "VALUE",
+              "name": "Body",
+              "value": "11111111-2222-3333-4444-555555555555"
+            }
+          ],
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "bsi::ifc::class",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 0
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555",
+          "children": [
+            {
+              "opinion": "VALUE",
+              "name": "Vertex_0",
+              "value": "11111111-2222-3333-4444-555555555555/Vertex_0"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Vertex_1",
+              "value": "11111111-2222-3333-4444-555555555555/Vertex_1"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Vertex_2",
+              "value": "11111111-2222-3333-4444-555555555555/Vertex_2"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Vertex_3",
+              "value": "11111111-2222-3333-4444-555555555555/Vertex_3"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Vertex_4",
+              "value": "11111111-2222-3333-4444-555555555555/Vertex_4"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Vertex_5",
+              "value": "11111111-2222-3333-4444-555555555555/Vertex_5"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Vertex_6",
+              "value": "11111111-2222-3333-4444-555555555555/Vertex_6"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Vertex_7",
+              "value": "11111111-2222-3333-4444-555555555555/Vertex_7"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Edge_0",
+              "value": "11111111-2222-3333-4444-555555555555/Edge_0"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Edge_1",
+              "value": "11111111-2222-3333-4444-555555555555/Edge_1"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Edge_2",
+              "value": "11111111-2222-3333-4444-555555555555/Edge_2"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Edge_3",
+              "value": "11111111-2222-3333-4444-555555555555/Edge_3"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Edge_4",
+              "value": "11111111-2222-3333-4444-555555555555/Edge_4"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Edge_5",
+              "value": "11111111-2222-3333-4444-555555555555/Edge_5"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Edge_6",
+              "value": "11111111-2222-3333-4444-555555555555/Edge_6"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Edge_7",
+              "value": "11111111-2222-3333-4444-555555555555/Edge_7"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Edge_8",
+              "value": "11111111-2222-3333-4444-555555555555/Edge_8"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Edge_9",
+              "value": "11111111-2222-3333-4444-555555555555/Edge_9"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Edge_10",
+              "value": "11111111-2222-3333-4444-555555555555/Edge_10"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Edge_11",
+              "value": "11111111-2222-3333-4444-555555555555/Edge_11"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Loop_0",
+              "value": "11111111-2222-3333-4444-555555555555/Loop_0"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Loop_1",
+              "value": "11111111-2222-3333-4444-555555555555/Loop_1"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Loop_2",
+              "value": "11111111-2222-3333-4444-555555555555/Loop_2"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Loop_3",
+              "value": "11111111-2222-3333-4444-555555555555/Loop_3"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Loop_4",
+              "value": "11111111-2222-3333-4444-555555555555/Loop_4"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Loop_5",
+              "value": "11111111-2222-3333-4444-555555555555/Loop_5"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Face_0",
+              "value": "11111111-2222-3333-4444-555555555555/Face_0"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Face_1",
+              "value": "11111111-2222-3333-4444-555555555555/Face_1"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Face_2",
+              "value": "11111111-2222-3333-4444-555555555555/Face_2"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Face_3",
+              "value": "11111111-2222-3333-4444-555555555555/Face_3"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Face_4",
+              "value": "11111111-2222-3333-4444-555555555555/Face_4"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Face_5",
+              "value": "11111111-2222-3333-4444-555555555555/Face_5"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Shell_0",
+              "value": "11111111-2222-3333-4444-555555555555/Shell_0"
+            },
+            {
+              "opinion": "VALUE",
+              "name": "Region_0",
+              "value": "11111111-2222-3333-4444-555555555555/Region_0"
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Vertex_0",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 0
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Vertex_1",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 1
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Vertex_2",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 2
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Vertex_3",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 3
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Vertex_4",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 4
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Vertex_5",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 5
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Vertex_6",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 6
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Vertex_7",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 7
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Edge_0",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 8
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Edge_1",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 9
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Edge_2",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 10
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Edge_3",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 11
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Edge_4",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 12
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Edge_5",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 13
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Edge_6",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 14
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Edge_7",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 15
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Edge_8",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 16
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Edge_9",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 17
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Edge_10",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 18
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Edge_11",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 19
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Loop_0",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 20
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Loop_1",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 21
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Loop_2",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 22
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Loop_3",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 23
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Loop_4",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 24
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Loop_5",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 25
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Face_0",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 26
+              }
+            },
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::semantics",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 1
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Face_1",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 27
+              }
+            },
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::semantics",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 2
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Face_2",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 28
+              }
+            },
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::semantics",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 3
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Face_3",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 29
+              }
+            },
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::semantics",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 4
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Face_4",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 30
+              }
+            },
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::semantics",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 5
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Face_5",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 31
+              }
+            },
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::semantics",
+              "value": {
+                "typeID": "ifcx.semantics",
+                "componentIndex": 6
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Shell_0",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 32
+              }
+            }
+          ]
+        },
+        {
+          "path": "11111111-2222-3333-4444-555555555555/Region_0",
+          "attributes": [
+            {
+              "opinion": "VALUE",
+              "name": "ifcx::geom::brep",
+              "value": {
+                "typeID": "ifcx.geom.brep",
+                "componentIndex": 33
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

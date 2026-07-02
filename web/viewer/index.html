@@ -232,6 +232,12 @@
             <form id="urlForm">
                 <input type="text" placeholder="url" id="urlInput" name="urlInput" required><button class="url-submit" type="submit">view ></button>
             </form>
+            <div id="tierToggle" style="display:none; padding:4px 8px; font-size:0.85em; background:#f8f8f8; border-top:1px solid #ddd;">
+                <strong>Geometry tiers:</strong>
+                <label title="Procedural — authoring tier (extrude, revolve, boolean over profiles)"><input type="checkbox" id="tierProcedural"> Procedural (P)</label>
+                <label title="Native Brep — closed-shell topology with planar / NURBS surfaces"><input type="checkbox" id="tierBrep"> Brep (B)</label>
+                <label title="Display mesh — tessellated view; derived from higher tiers where present"><input type="checkbox" id="tierMesh" checked> Mesh (M)</label>
+            </div>
         </div>
         <div class='tree-container'>
             <h2>Model tree</h2>
@@ -261,40 +267,122 @@
     }
     </script>
     <script type="module">
-        import addModel from './render.mjs';
+        import addModel, { loadIfcText } from './render.mjs';
 
-        document.querySelector('#fileForm').addEventListener('submit', function(event) {
+        document.querySelector('#fileForm').addEventListener('submit', async function(event) {
             event.preventDefault();
 
             const fileInput = document.getElementById('fileInput');
-            for (const file of fileInput.files) {
+            const files = Array.from(fileInput.files);
+
+            // Read all files into a map
+            const fileContents = new Map();
+            await Promise.all(files.map(file => new Promise((resolve) => {
                 const reader = new FileReader();
-                reader.onload = function(e) {
-                    let json = null;
+                reader.onload = (e) => { fileContents.set(file.name, e.target.result); resolve(); };
+                reader.readAsText(file);
+            })));
+
+            // Find index/ifcx files and regular files
+            for (const [name, content] of fileContents) {
+                // IFC STEP file: pass through the browser importer
+                if (typeof content === 'string' && content.trimStart().startsWith('ISO-10303-21')) {
                     try {
-                        json = JSON.parse(e.target.result);
+                        await loadIfcText(name, content);
+                    } catch(e) {
+                        document.querySelector('.error-modal .message').innerHTML = `IFC import failed: ${e.message}`;
+                        document.querySelector('.error-modal').style.display = 'block';
+                    }
+                    continue;
+                }
+
+                let json = null;
+                try {
+                    json = JSON.parse(content);
+                } catch(e) {
+                    // NDJSON files won't parse as JSON — skip them
+                    continue;
+                }
+                if (json && json.sections && json.attributeTables) {
+                    // Tiered format: build NDJSON map from companion files and pass as baseUrl-less
+                    // The render.ts addModel will fetch NDJSON via relative URLs, but for local files
+                    // we create object URLs so they can be fetched
+                    const ndjsonBlobs = {};
+                    for (const table of json.attributeTables) {
+                        const ndjsonContent = fileContents.get(table.filename);
+                        if (ndjsonContent) {
+                            const blob = new Blob([ndjsonContent], { type: 'text/plain' });
+                            ndjsonBlobs[table.filename] = URL.createObjectURL(blob);
+                        }
+                    }
+                    // Pass original JSON — addModel will fetch NDJSON via relative URLs
+                    // Create a blob URL base so fetch works for local files
+                    const blobBase = {};
+                    for (const table of json.attributeTables) {
+                        if (ndjsonBlobs[table.filename]) {
+                            blobBase[table.filename] = ndjsonBlobs[table.filename];
+                        }
+                    }
+                    // Override fetch for blob-based loading: patch filenames temporarily
+                    const patched = JSON.parse(JSON.stringify(json));
+                    for (const table of patched.attributeTables) {
+                        if (blobBase[table.filename]) {
+                            table._originalFilename = table.filename;
+                            table.filename = blobBase[table.filename];
+                        }
+                    }
+                    try {
+                        await addModel(name, patched);
                     } catch(e) {
                         document.querySelector('.error-modal .message').innerHTML = e.message;
                         document.querySelector('.error-modal').style.display = 'block';
                     }
-                    if (json) {
-                        addModel(file.name, json).catch(e => {
-                            document.querySelector('.error-modal .message').innerHTML = e.message;
-                            document.querySelector('.error-modal').style.display = 'block';
-                        });
+                    // Clean up blob URLs
+                    Object.values(ndjsonBlobs).forEach(url => URL.revokeObjectURL(url));
+                } else if (json) {
+                    try {
+                        await addModel(name, json);
+                    } catch(e) {
+                        document.querySelector('.error-modal .message').innerHTML = e.message;
+                        document.querySelector('.error-modal').style.display = 'block';
                     }
-                };
-                reader.readAsText(file);
+                }
             }
+        });
+
+        // Track last tiered load for tier toggle reloading
+        let lastTieredLoad = null;
+
+        function getSelectedTiers() {
+            const tiers = [];
+            if (document.getElementById('tierMesh').checked) tiers.push('mesh');
+            if (document.getElementById('tierProcedural').checked) tiers.push('procedural');
+            if (document.getElementById('tierBrep').checked) tiers.push('brep');
+            return tiers;
+        }
+
+        // Tier toggle: reload with different tiers (replaces current model)
+        document.querySelectorAll('#tierToggle input[type=checkbox]').forEach(cb => {
+            cb.addEventListener('change', async () => {
+                if (!lastTieredLoad) return;
+                const { name, data, baseUrl } = lastTieredLoad;
+                const tiers = getSelectedTiers();
+                await addModel(name, JSON.parse(JSON.stringify(data)), baseUrl, tiers, true);
+            });
         });
 
         document.querySelector('#urlForm').addEventListener('submit', function(event) {
             event.preventDefault();
-            fetch(event.target.urlInput.value)
+            const url = event.target.urlInput.value;
+            const baseUrl = url.substring(0, url.lastIndexOf('/'));
+            fetch(url)
                 .then(r => r.json())
                 .then((j) => {
-                    const name = event.target.urlInput.value.split('/').reverse()[0];
-                    addModel(name, j);
+                    const name = url.split('/').reverse()[0];
+                    if (j.sections && j.attributeTables) {
+                        lastTieredLoad = { name, data: JSON.parse(JSON.stringify(j)), baseUrl };
+                    }
+                    addModel(name, j, baseUrl, getSelectedTiers());
                 })
                 .catch(e => {
                     document.querySelector('.error-modal .message').innerHTML = e.message;

@@ -1,0 +1,28 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "Brep.json",
+    "anyOf": [
+        {
+            "$ref": "BrepBodyNode.json"
+        },
+        {
+            "$ref": "BrepVertexNode.json"
+        },
+        {
+            "$ref": "BrepEdgeNode.json"
+        },
+        {
+            "$ref": "BrepLoopNode.json"
+        },
+        {
+            "$ref": "BrepFaceNode.json"
+        },
+        {
+            "$ref": "BrepShellNode.json"
+        },
+        {
+            "$ref": "BrepRegionNode.json"
+        }
+    ],
+    "description": "One row of `ifcx.geom.brep.ndjson` — the attribute body of a single Brep\ntopology node. The whole solid is the subtree of such nodes under the Brep\nbody node, wired by relative-path references (BrepRef), not ordinal indices.\n\nA Brep body node at composed path `P` has children\nP/Vertex_<id>, P/Edge_<id>, P/Loop_<id>, P/Face_<id>, P/Shell_<id>, P/Region_<id>\nwhere each `<id>` is a stable authored identity (preserved UUID or content\nkey), never a recomputed ordinal. A federated layer attaches per-element\nproperties by authoring an opinion on the real child node (e.g. a material on\n`P/Face_3`) — ordinary IFCX composition."
+}
