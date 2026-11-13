@@ -260,7 +260,8 @@ Both lineage nodes compose side by side; IFCX cannot drop one entry from
 another layer's `entries` list. The rule that a manual entry replaces every
 ifc-lite entry naming one of its elements is a convention, applied in the test
 (`EffectiveLineage` in `src/test/example-file-test.ts`). With it, every
-element new in v2-samename has a predecessor; without it, Wand 1.2 has none.
+element new in v2-samename has a predecessor; without it, the smaller piece
+(`2WandW1bNeuTeilstueckB`) has none.
 (proven by running: `timber junction: ifc-lite misses a split whose pieces
 keep the old name, a manual entry states it`) The example does not carry
 assignments for v2-samename.
