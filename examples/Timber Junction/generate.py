@@ -37,6 +37,10 @@ def header(name, author):
             "author": author, "timestamp": DATE}
 
 
+def ifcx_file(name, author, data, schemas, imports=()):
+    return {"header": header(name, author), "imports": list(imports), "schemas": schemas, "data": data}
+
+
 def write_bytes(p, data):
     # Bytes, not text mode, so the files are LF on every OS and the hash is over what was written.
     p.write_bytes(data)
@@ -159,8 +163,7 @@ def model(version):
         "bsi::ifc::class": ifc_class("IfcBuildingStorey"),
         "bsi::ifc::prop::Name": "EG",
     }})
-    return {"header": header(f"1-model-{version}.ifcx", "architect (authoring tool export)"),
-            "imports": MODEL_IMPORTS, "schemas": {}, "data": data}
+    return ifcx_file(f"1-model-{version}.ifcx", "architect (authoring tool export)", data, {}, MODEL_IMPORTS)
 
 
 # ---- IFC STEP twins, for ifc-lite ------------------------------------------
@@ -307,8 +310,7 @@ def catalog():
             "roles": arr(obj({"role": S_STR, "assembly": S_STR})),
             "document": S_STR})},
     }
-    return {"header": header("2-catalog.ifcx", "DOKwood platform (detail catalog)"),
-            "imports": [], "schemas": schemas, "data": data}
+    return ifcx_file("2-catalog.ifcx", "DOKwood platform (detail catalog)", data, schemas)
 
 
 # ---- derivation ----------------------------------------------------------
@@ -369,8 +371,8 @@ def derivation(version, source):
     schemas["dokwood::derivation"] = {"value": obj({
         "operation": S_STR, "engine": S_STR, "engineVersion": S_STR, "tolerance": S_REAL,
         "sources": arr(S_REF), "sourceLayer": S_STR, "sourceSha256": S_STR})}
-    return {"header": header(f"3-derivation-{version}.ifcx", "detail-finder 1.4.0 (derived, do not edit)"),
-            "imports": [PROP_IMPORT], "schemas": schemas, "data": data}
+    return ifcx_file(f"3-derivation-{version}.ifcx", "detail-finder 1.4.0 (derived, do not edit)", data, schemas,
+                     [PROP_IMPORT])
 
 
 def derivation_shas(f):
@@ -422,8 +424,7 @@ def reviewed_v1(shas):
 
 def assignment_v1(shas):
     data = [assignment_node(OCC[k], *a) for k, a in reviewed_v1(shas).items()]
-    return {"header": header("4-assignment-v1.ifcx", "detail editor (DOKwood platform)"),
-            "imports": [], "schemas": ASSIGN_SCHEMA, "data": data}
+    return ifcx_file("4-assignment-v1.ifcx", "detail editor (DOKwood platform)", data, ASSIGN_SCHEMA)
 
 
 def lineage_path(head, *extra):
@@ -431,7 +432,7 @@ def lineage_path(head, *extra):
 
 
 def ifc_lite_lineage(head, step_v1, step_head):
-    """The sidecar's file and hash, and (predecessor keys, successor keys, relation, reason, shares) per entry."""
+    """The sidecar's file and hash, and its entries as ifc-lite wrote them."""
     sidecar = sidecar_path(head)
     if not sidecar.exists():
         sys.exit(f"{sidecar} is missing. Create it with: {lineage_cmd(head)}")
@@ -451,8 +452,7 @@ def ifc_lite_lineage(head, step_v1, step_head):
             sys.exit(f"{sidecar.name} has an entry this example does not model: {e}")
     # Also into OUT, so an output folder holds what the lineage points at.
     ref = {"file": f"{STEP_DIR}/{sidecar.name}", "sha256": write_bytes(OUT / STEP_DIR / sidecar.name, raw)}
-    return ref, [([KEY[g] for g in e["base"]], [KEY[g] for g in e["head"]], e["relation"], e["reason"], e.get("shares"))
-            for e in side["entries"]]
+    return ref, side["entries"]
 
 
 LINEAGE_SCHEMA = {"dokwood::lineage": {"value": obj({
@@ -466,17 +466,16 @@ LINEAGE_SCHEMA = {"dokwood::lineage": {"value": obj({
 
 
 def lineage_file(name, path, author, value):
-    return {"header": header(name, author), "imports": [], "schemas": LINEAGE_SCHEMA,
-            "data": [{"path": path, "attributes": {"dokwood::lineage": value}}]}
+    return ifcx_file(name, author, [{"path": path, "attributes": {"dokwood::lineage": value}}], LINEAGE_SCHEMA)
 
 
 def lineage(head, base_ref, head_ref, sidecar, entries):
     out = []
-    for pre, suc, rel, ev, shares in entries:
-        e = {"predecessors": [W[k] for k in pre], "successors": [W[k] for k in suc],
-             "relation": rel, "evidence": ev, "source": "ifc-lite"}
-        if shares is not None:
-            e["shares"] = shares
+    for side in entries:
+        e = {"predecessors": [path_of(g) for g in side["base"]], "successors": [path_of(g) for g in side["head"]],
+             "relation": side["relation"], "evidence": side["reason"], "source": "ifc-lite"}
+        if "shares" in side:
+            e["shares"] = side["shares"]
         out.append(e)
     return lineage_file(f"4-lineage-v1-{head}.ifcx", lineage_path(head), "model comparison (@ifc-lite/diff)", {
         "producer": f"{IFC_LITE} diff {DIFF_FLAGS}, run on the STEP twins in {STEP_DIR}/",
@@ -509,7 +508,8 @@ def assignment_v2(head, entries, shas_v1, shas_v2):
         state = carried_state(s, rev, shas_v2[OCC[k]]) if OCC[k] in shas_v2 else s
         if state != s:
             data.append(assignment_node(OCC[k], c, v, state, rev))
-    for pre, suc, rel, _, _ in entries:
+    for e in entries:
+        pre, suc, rel = [KEY[g] for g in e["base"]], [KEY[g] for g in e["head"]], e["relation"]
         if not any(k in old for k in pre):
             continue
         carried = {"occurrences": [OCC[k] for k in pre], "lineage": lineage_path(head), "relation": rel}
@@ -527,8 +527,7 @@ def assignment_v2(head, entries, shas_v1, shas_v2):
                 data.append(assignment_node(OCC[k], c, v, state, rev, dict(carried, policy="copy-to-all")))
         else:
             raise ValueError(f"{rel} with several predecessors is not carried")
-    return {"header": header("4-assignment-v2.ifcx", "detail editor (DOKwood platform)"),
-            "imports": [], "schemas": ASSIGN_SCHEMA, "data": data}
+    return ifcx_file("4-assignment-v2.ifcx", "detail editor (DOKwood platform)", data, ASSIGN_SCHEMA)
 
 
 # ---- manual split ----------------------------------------------------------
@@ -549,8 +548,7 @@ def manual_split():
             "dokwood::detail::members": members(j.bearing, j.supported),
             "dokwood::detail::topology": {"junction": j.kind, "extent": line(x0, x1, y, z)},
         }})
-    return {"header": header("4-manual-split.ifcx", MANUAL_AUTHOR),
-            "imports": [], "schemas": {**SPLIT_SCHEMA, **MEMBERS_SCHEMA, **TOPOLOGY_SCHEMA}, "data": data}
+    return ifcx_file("4-manual-split.ifcx", MANUAL_AUTHOR, data, {**SPLIT_SCHEMA, **MEMBERS_SCHEMA, **TOPOLOGY_SCHEMA})
 
 
 steps = {v: write_step(v) for v in MODELS}

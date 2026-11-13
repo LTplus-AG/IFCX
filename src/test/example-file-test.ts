@@ -136,12 +136,12 @@ describe("example file", () => {
             const before: PostCompositionNode[] = merge.predecessors.map((p: string) => v1.get(p)!);
             const after = v2.get(merge.successors[0])!;
             // The merged occurrence gets the type only if every predecessor had the same one, and is to be confirmed.
-            const types = new Set(before.map(o => o.attributes.has("dokwood::detail::assignment") ? Summary(o).split(" ")[0] : "-"));
+            const types = new Set(before.map(o => o.attributes.has("dokwood::detail::assignment") ? TypeOf(o) : "-"));
             const agreed = types.size === 1 && !types.has("-");
             expect(after.attributes.get("dokwood::detail::assignment")).to.deep.equal(!agreed ? undefined : { state: "to-confirm",
                 carriedFrom: { occurrences: before.map(o => o.node), lineage: LineageNode("4-lineage-v1-v2").path,
                                relation: "merge", policy: "same-type-or-none" } });
-            expect(Summary(after).split(" ")[0]).to.equal(agreed ? [...types][0] : "-");
+            expect(TypeOf(after)).to.equal(agreed ? [...types][0] : "-");
         }
         // The balcony is the agreeing case: D031/v1 approved and D031/v1 in-review.
         expect(merges[0].predecessors.map((p: string) => Summary(v1.get(p)!))).to.deep.equal(["D031/v1 approved", "D031/v1 in-review"]);
@@ -342,12 +342,17 @@ function StepElements(v: string)
 }
 
 // "<code>/<version> <state> <carried relation> <carried-from path prefixes>", with "-" in place of a missing type.
-function Summary(o: PostCompositionNode)
+function TypeOf(o: PostCompositionNode)
 {
     const type = o.attributes.get("dokwood::detail::type");
+    return type ? `${type.code}/${type.version}` : "-";
+}
+
+function Summary(o: PostCompositionNode)
+{
     const assignment = o.attributes.get("dokwood::detail::assignment");
     const carried = assignment?.carriedFrom;
-    return [type ? `${type.code}/${type.version}` : "-", assignment?.state, carried?.relation,
+    return [TypeOf(o), assignment?.state, carried?.relation,
             carried?.occurrences.map((p: string) => p.slice(0, 8)).join("+")]
         .filter(x => x).join(" ");
 }
