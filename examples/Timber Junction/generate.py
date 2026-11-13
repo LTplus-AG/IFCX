@@ -51,8 +51,18 @@ def write(f):
 
 
 def record_sha(record):
-    """SHA-256 of one attribute value, as sorted compact JSON. What an approval says it reviewed."""
-    return hashlib.sha256(json.dumps(record, sort_keys=True, separators=(",", ":"),
+    """SHA-256 of one attribute value, as sorted compact JSON. What an approval says it reviewed.
+
+    Whole floats are written as integers, as JSON.stringify does, so the test can recompute it.
+    Not a general canonical form: exponents still differ between Python and JS (RFC 8785 would fix that).
+    """
+    def plain(v):
+        if isinstance(v, float) and v.is_integer():
+            return int(v)
+        if isinstance(v, dict):
+            return {k: plain(x) for k, x in v.items()}
+        return [plain(x) for x in v] if isinstance(v, list) else v
+    return hashlib.sha256(json.dumps(plain(record), sort_keys=True, separators=(",", ":"),
                                      ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
@@ -175,6 +185,9 @@ def ifc_guid(*parts):
 
 
 def step_str(s):
+    if any(ord(c) > 0xFFFF for c in s):
+        raise ValueError(f"{s!r}: characters above U+FFFF need \\X4\\, which this writer does not do")
+    s = s.replace("\\", "\\\\").replace("'", "''")
     return "'" + "".join(c if ord(c) < 128 else f"\\X2\\{ord(c):04X}\\X0\\" for c in s) + "'"
 
 
@@ -431,8 +444,10 @@ def ifc_lite_lineage(head, step_v1, step_head):
             sys.exit(f"{sidecar.name} {end} is not bound to the STEP twin written now. Rerun: {lineage_cmd(head)}")
     if side["deleted"]:
         sys.exit(f"{sidecar.name} lists deleted elements, which this example does not model")
+    in_model = {v: {e.gid for e in MODELS[v]} for v in ("v1", head)}
     for e in side["entries"]:
-        if e["relation"] not in RELATIONS or any(g not in KEY for g in e["base"] + e["head"]):
+        if (e["relation"] not in RELATIONS or not set(e["base"]) <= in_model["v1"]
+                or not set(e["head"]) <= in_model[head]):
             sys.exit(f"{sidecar.name} has an entry this example does not model: {e}")
     # Also into OUT, so an output folder holds what the lineage points at.
     ref = {"file": f"{STEP_DIR}/{sidecar.name}", "sha256": write_bytes(OUT / STEP_DIR / sidecar.name, raw)}
@@ -486,7 +501,7 @@ def carried_state(state, reviewed, current):
     return "to-confirm" if reviewed and reviewed != current else state
 
 
-def assignment_v2(entries, shas_v1, shas_v2):
+def assignment_v2(head, entries, shas_v1, shas_v2):
     old = reviewed_v1(shas_v1)
     data = []
     # Same path in v2: the derivation was redone, so a stale approval drops to to-confirm.
@@ -497,7 +512,7 @@ def assignment_v2(entries, shas_v1, shas_v2):
     for pre, suc, rel, _, _ in entries:
         if not any(k in old for k in pre):
             continue
-        carried = {"occurrences": [OCC[k] for k in pre], "lineage": lineage_path("v2"), "relation": rel}
+        carried = {"occurrences": [OCC[k] for k in pre], "lineage": lineage_path(head), "relation": rel}
         if rel == "merge":
             types = {old[k][:2] if k in old else None for k in pre}
             if len(types) == 1 and None not in types:
@@ -550,5 +565,5 @@ write(assignment_v1(shas_v1))
 write(manual_split())
 for h, (side, entries) in sidecars.items():
     write(lineage(h, m["v1"], m[h], side, entries))
-write(assignment_v2(sidecars["v2"][1], shas_v1, shas_v2))
+write(assignment_v2("v2", sidecars["v2"][1], shas_v1, shas_v2))
 write(manual_lineage("v2-samename", m["v1"], m["v2-samename"]))

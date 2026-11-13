@@ -66,6 +66,7 @@ describe("example file", () => {
             for (const [name, o] of OccurrenceNodes(await ComposeTimberJunction(stack))) {
                 const a = o.attributes.get("dokwood::detail::assignment");
                 if (!a) continue;
+                expect(o.attributes.has("dokwood::derivation"), `${name} derivation`).to.be.true;
                 const current = RecordSha(o.attributes.get("dokwood::derivation"));
                 if (a.state === "approved") {
                     expect(a.reviewedSha256, name).to.equal(current);
@@ -326,8 +327,9 @@ function StepElements(v: string)
     for (const [id, r] of rows) {
         const cls = { IFCWALL: "IfcWall", IFCSLAB: "IfcSlab" }[r.type];
         if (!cls) continue;
-        const [, gid, rawName, lp, pds] = r.args.match(/^'([^']+)',#\d+,'([^']*)',\$,\$,(#\d+),(#\d+)/)!;
-        const name = rawName.replace(/\\X2\\([0-9A-F]{4})\\X0\\/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+        const [, gid, rawName, lp, pds] = r.args.match(/^'([^']+)',#\d+,'((?:[^']|'')*)',\$,\$,(#\d+),(#\d+)/)!;
+        const name = rawName.replace(/\\X2\\([0-9A-F]{4})\\X0\\|''|\\\\/g, (m, hex) =>
+            hex ? String.fromCharCode(parseInt(hex, 16)) : m[0]);
         const origin = nums(refs(refs(lp)[1])[0]);
         const solid = refs(refs(pds)[0])[1];
         const profile = refs(solid)[0];

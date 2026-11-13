@@ -118,15 +118,20 @@ model version an occurrence was derived from.
 ### Approval bound to the derivation
 
 An approval stores `reviewedSha256`, the SHA-256 of the derivation record it
-approved, taken over sorted compact JSON (`record_sha` in `generate.py`).
-Only approvals carry it; `in-review` and `proposed` do not.
+approved, taken over sorted compact JSON with whole floats written as
+integers (`record_sha` in `generate.py`). That matches `JSON.stringify` for
+the values here, but it is not a general canonical form; RFC 8785 would be.
+An approval sets it, and it stays when the approval drops to `to-confirm`, to
+show what was approved. `in-review` and `proposed` never have one.
 
 The rule: `approved` needs `reviewedSha256` equal to the hash of the
 occurrence's current derivation record, and a `reviewedSha256` that differs
 needs `to-confirm`. `generate.py` applies it when it writes
 `4-assignment-v2.ifcx` (`carried_state`), and `npm test` checks it on every
-composed occurrence of both stacks. (proven by running: `timber junction
-approvals hold only for the derivation they reviewed`)
+derived occurrence of both stacks. (proven by running: `timber junction
+approvals hold only for the derivation they reviewed`) It cannot be checked
+on the orphan roots of gap 1: they have no derivation record, and two of them
+still say `approved`. (proven by running)
 
 The Wand 3 occurrence `68b553da` keeps its path, but its derivation record
 has `sourceSha256` `7a3e9751...` in v1 and `4d106680...` in v2, so its record
@@ -207,11 +212,11 @@ was reviewed. Here both are D031/v1, so the merged occurrence gets D031/v1
 `to-confirm`, with `carriedFrom.occurrences` listing both old occurrences.
 (proven by running: `timber junction carries merges by same-type-or-none`,
 which checks the rule for every merge entry) If they disagree, nothing is
-carried (pointed at `generate.py:503`; unproven, the example has no such case).
+carried (pointed at `generate.py:518`; unproven, the example has no such case).
 
 Every other relation uses `copy-to-all`: every successor gets the type. Only
 an `identity` successor keeps its state, unless the approval rule resets it;
-any other successor is `to-confirm` (pointed at `generate.py:511`; `replaced`
+any other successor is `to-confirm` (pointed at `generate.py:526`; `replaced`
 is unproven, the example has none).
 
 ### Pieces keep the old name
