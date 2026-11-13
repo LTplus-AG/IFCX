@@ -15,7 +15,7 @@ wrote when diffing those twins (ifc-lite/lineage-v1-v2.json, see LINEAGE_CMD).
 import hashlib, itertools, json, sys, uuid
 from pathlib import Path
 
-OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent
+OUT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parent
 OUT.mkdir(parents=True, exist_ok=True)
 NS = uuid.uuid5(uuid.NAMESPACE_URL, "dokwood.example/timber-junction")
 ID_PREFIX = "ifc5.technical.buildingsmart.org/examples/Timber Junction/"
@@ -143,7 +143,7 @@ def model(walls, version):
 STEP_DIR = "ifc-lite"
 SIDECAR = Path(__file__).resolve().parent / STEP_DIR / "lineage-v1-v2.json"
 IFC_LITE, DIFF_FLAGS = "@ifc-lite/cli@0.45.1", "--geometry --split-merge"
-LINEAGE_CMD = (f'cd "{OUT.resolve() / STEP_DIR}" && npx -y {IFC_LITE} diff model-v1.ifc model-v2.ifc {DIFF_FLAGS}'
+LINEAGE_CMD = (f'cd "{OUT / STEP_DIR}" && npx -y {IFC_LITE} diff model-v1.ifc model-v2.ifc {DIFF_FLAGS}'
                f' --lineage-out "{SIDECAR}"')
 B64 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$"
 
