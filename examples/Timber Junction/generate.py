@@ -460,8 +460,6 @@ def ifc_lite_lineage(head, step_v1, step_head):
     in_model = {v: {e.gid for e in MODELS[v] if e.key in OCC} for v in ("v1", head)}
     seen = set()
     for e in side["entries"]:
-        if e.get("shares", 0) is None:
-            del e["shares"]
         names = e["base"] + e["head"]
         n_base, n_head = len(e["base"]), len(e["head"])
         shape = {"merge": n_base >= 2 and n_head == 1, "split": n_base == 1 and n_head >= 2}
@@ -474,7 +472,8 @@ def ifc_lite_lineage(head, step_v1, step_head):
             (shape.get(e["relation"], n_base == 1 and n_head == 1), f"{n_base}:{n_head} for {e['relation']}"),
             (not set(e["head"]) & in_model["v1"], "head element is also in v1"),
             (len(set(names)) == len(names) and seen.isdisjoint(names), "element named twice"),
-            (shares is None or (len(shares) == max(n_base, n_head) and abs(sum(shares) - 1) <= 1e-9), "bad shares"),
+            ("shares" not in e or (isinstance(shares, list) and len(shares) == max(n_base, n_head)
+                                   and abs(sum(shares) - 1) <= 1e-9), "bad shares"),
         ]
         for ok, why in rules:
             if not ok:
@@ -556,8 +555,9 @@ def assignment_v2(head, entries, shas_v1, shas_v2):
                 # Only an identity keeps its state; anything else is a new occurrence to confirm.
                 state = carried_state(s, rev, shas_v2[OCC[k]]) if rel == "identity" else "to-confirm"
                 data.append(assignment_node(OCC[k], c, v, state, rev, dict(carried, policy="copy-to-all")))
-    if len({d["path"] for d in data}) != len(data):
-        raise ValueError("two carried assignments for one occurrence")
+    paths = [d["path"] for d in data]
+    if len(set(paths)) != len(paths):
+        sys.exit(f"two carried assignments for one occurrence: {sorted(p for p in paths if paths.count(p) > 1)}")
     return ifcx_file("4-assignment-v2.ifcx", "detail editor (DOKwood platform)", data, ASSIGN_SCHEMA)
 
 
