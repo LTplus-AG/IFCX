@@ -65,10 +65,12 @@ describe("example file", () => {
         expect(NodeToJSON(reverse)).to.deep.equal(NodeToJSON(forward));
     });
     it("timber junction lineage and derivations are bound to the model files", () => {
-        const binding = (v: string) => ({
-            layer: ReadTimberJunction(`1-model-${v}`).header.id,
-            sha256: createHash("sha256").update(fs.readFileSync(TimberJunctionFile(`1-model-${v}`))).digest("hex") });
-        const lineage = ReadTimberJunction("4-lineage-v1-v2").data[0].attributes!["dokwood::lineage"];
+        const binding = (v: string) => {
+            const bytes = fs.readFileSync(TimberJunctionFile(`1-model-${v}`));
+            return { layer: (JSON.parse(bytes.toString()) as IfcxFile).header.id,
+                     sha256: createHash("sha256").update(bytes).digest("hex") };
+        };
+        const lineage = ReadTimberJunction("4-lineage-v1-v2").data.find(d => d.attributes?.["dokwood::lineage"])!.attributes!["dokwood::lineage"];
         expect(lineage.base).to.deep.equal(binding("v1"));
         expect(lineage.head).to.deep.equal(binding("v2"));
         for (const v of ["v1", "v2"]) {

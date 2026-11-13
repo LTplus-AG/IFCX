@@ -26,14 +26,6 @@ def path_of(gid):
     return u("element", gid)
 
 
-def model_name(version):
-    return f"1-model-{version}.ifcx"
-
-
-def model_id(version):
-    return ID_PREFIX + model_name(version)
-
-
 def header(name, author):
     return {"id": ID_PREFIX + name, "ifcxVersion": "ifcx_alpha", "dataVersion": "1.0.0",
             "author": author, "timestamp": DATE}
@@ -42,7 +34,8 @@ def header(name, author):
 def write(f):
     p = OUT / f["header"]["id"][len(ID_PREFIX):]
     p.write_text(json.dumps(f, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return hashlib.sha256(p.read_bytes()).hexdigest()
+    # What a derived layer records about the layer it was derived from.
+    return {"layer": f["header"]["id"], "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
 
 
 # key, GlobalId (from wp9-identity-demo), name, x0, y0, length, thickness, external
@@ -127,7 +120,7 @@ def model(walls, version):
         "bsi::ifc::class": ifc_class("IfcBuildingStorey"),
         "bsi::ifc::prop::Name": "EG",
     }})
-    return {"header": header(model_name(version), "architect (authoring tool export)"),
+    return {"header": header(f"1-model-{version}.ifcx", "architect (authoring tool export)"),
             "imports": MODEL_IMPORTS, "schemas": {}, "data": data}
 
 
@@ -192,7 +185,7 @@ def occ_path(wall_path, slab_path):
     return u("occurrence", "slab-on-wall", *sorted([wall_path, slab_path]))
 
 
-def derivation(walls, version, model_sha):
+def derivation(walls, version, source):
     data, children = [], {}
     for _, gid, name, x0, y0, length, thick, _ in walls:
         wp = path_of(gid)
@@ -206,8 +199,8 @@ def derivation(walls, version, model_sha):
                 "start": [x0, yc, WALL_HEIGHT], "end": [x0 + length, yc, WALL_HEIGHT]}},
             "dokwood::derivation": dict(ENGINE, operation="junction-detection",
                                         sources=sorted([wp, SLAB_P]),
-                                        sourceLayer=model_id(version),
-                                        sourceSha256=model_sha),
+                                        sourceLayer=source["layer"],
+                                        sourceSha256=source["sha256"]),
         }})
     data.insert(0, {"path": OCC_GROUP, "children": children,
                     "attributes": {"bsi::ifc::prop::Name": "Detail occurrences (derived)"}})
@@ -259,7 +252,7 @@ LINEAGE_ENTRIES = [
 ]
 
 
-def lineage(sha1, sha2):
+def lineage(base, head):
     entries = []
     for pre, suc, rel, ev, shares in LINEAGE_ENTRIES:
         e = {"predecessors": [W[k] for k in pre], "successors": [W[k] for k in suc],
@@ -269,8 +262,8 @@ def lineage(sha1, sha2):
         entries.append(e)
     data = [{"path": LINEAGE, "attributes": {"dokwood::lineage": {
         "producer": "@ifc-lite/diff lineage, transcribed",
-        "base": {"layer": model_id("v1"), "sha256": sha1},
-        "head": {"layer": model_id("v2"), "sha256": sha2},
+        "base": base,
+        "head": head,
         "entries": entries, "deleted": []}}}]
     model_ref = obj({"layer": S_STR, "sha256": S_STR})
     schemas = {"dokwood::lineage": {"value": obj({
@@ -303,11 +296,11 @@ def assignment_v2():
             "imports": [], "schemas": ASSIGN_SCHEMA, "data": data}
 
 
-sha1 = write(model(WALLS_V1, "v1"))
-sha2 = write(model(WALLS_V2, "v2"))
+m1 = write(model(WALLS_V1, "v1"))
+m2 = write(model(WALLS_V2, "v2"))
 write(catalog())
-write(derivation(WALLS_V1, "v1", sha1))
-write(derivation(WALLS_V2, "v2", sha2))
+write(derivation(WALLS_V1, "v1", m1))
+write(derivation(WALLS_V2, "v2", m2))
 write(assignment_v1())
-write(lineage(sha1, sha2))
+write(lineage(m1, m2))
 write(assignment_v2())
