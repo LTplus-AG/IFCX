@@ -55,9 +55,9 @@ python3 generate.py
 It writes next to itself and is deterministic, so an unchanged script gives
 the committed files byte for byte. (proven by running: `python3 generate.py
 <empty folder>` and `cmp` of every file) If a change touches an element's GlobalId,
-name, class, box or `IsExternal`, the STEP twins change too and the script
-stops until the lineage sidecars are rerun (Node 20 or later). Other model
-edits, such as colours or the storey name, do not reach the twins (pointed at
+name, class, box or `IsExternal`, the element order, or `DATE`, the STEP twins
+change too and the script stops until the lineage sidecars are rerun (Node 20
+or later). Colours and the storey name do not reach the twins (pointed at
 `generate.py:204`, `step_model`, and the fixed storey name at
 `generate.py:225`):
 
@@ -238,7 +238,9 @@ is unproven, the example has none).
 ### Pieces keep the old name
 
 In `v2-samename` both Wand 1 pieces are named "Wand 1". ifc-lite does not
-report the split (proven by running: second command above, `--json`):
+report the split (proven by running: `npx -y @ifc-lite/cli@0.45.1 diff
+model-v1.ifc model-v2-samename.ifc --geometry --split-merge --json` in
+`ifc-lite/`):
 
 - content matches: Wand 2 `renamed`, Wand 4 `moved`, and Wand 1 to Wand 1.1
   `reshaped`, so the lineage says `identity`, `content-match:reshaped`, from
