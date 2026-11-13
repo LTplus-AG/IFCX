@@ -555,9 +555,8 @@ def assignment_v2(head, entries, shas_v1, shas_v2):
                 # Only an identity keeps its state; anything else is a new occurrence to confirm.
                 state = carried_state(s, rev, shas_v2[OCC[k]]) if rel == "identity" else "to-confirm"
                 data.append(assignment_node(OCC[k], c, v, state, rev, dict(carried, policy="copy-to-all")))
-    paths = [d["path"] for d in data]
-    if len(set(paths)) != len(paths):
-        sys.exit(f"two carried assignments for one occurrence: {sorted(p for p in paths if paths.count(p) > 1)}")
+    # The sidecar rules (heads are new, no element twice) leave one carried assignment per occurrence.
+    assert len({d["path"] for d in data}) == len(data)
     return ifcx_file("4-assignment-v2.ifcx", "detail editor (DOKwood platform)", data, ASSIGN_SCHEMA)
 
 
