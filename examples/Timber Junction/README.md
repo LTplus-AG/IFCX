@@ -242,9 +242,10 @@ report the split (proven by running: `npx -y @ifc-lite/cli@0.45.1 diff
 model-v1.ifc model-v2-samename.ifc --geometry --split-merge --json` in
 `ifc-lite/`):
 
-- content matches: Wand 2 `renamed`, Wand 4 `moved`, and Wand 1 to Wand 1.1
-  `reshaped`, so the lineage says `identity`, `content-match:reshaped`, from
-  Wand 1 to the larger piece only;
+- content matches: Wand 2 `renamed`, Wand 4 `moved`, and Wand 1 to the larger
+  piece (`2WandW1aNeuTeilstueckA`, also named "Wand 1") `reshaped`, so the
+  lineage says `identity`, `content-match:reshaped`, from Wand 1 to that piece
+  only;
 - split/merge claims: the balcony merge only;
 - the smaller piece (`2WandW1bNeuTeilstueckB`) is in no lineage entry, so it
   would get no data.
