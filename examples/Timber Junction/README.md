@@ -663,8 +663,8 @@ rerun for the stacks above. (unproven)
    node, and a later layer cannot delete a node. (proven by running; root
    detection at `src/ifcx-core/composition/cycles.ts:50`) Nulling the
    orphan's `inherits` entry and its `dokwood::detail::assignment` attribute
-   composes and validates. The type and the state are gone, the root and its
-   split stay. (proven by running: `timber junction manual split of the Wand 2
+   composes and validates. The type is gone, the assignment attribute stays
+   as a key with value null, and the root and its split stay. (proven by running: `timber junction manual split of the Wand 2
    occurrence is orphaned when Wand 2 is re-derived`)
 2. **A section along an edge as reference target.** The extent is a line given
    by coordinates inside an attribute. A path can name a node (a wall, or a
