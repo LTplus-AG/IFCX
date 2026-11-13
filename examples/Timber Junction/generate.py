@@ -26,8 +26,12 @@ def path_of(gid):
     return u("element", gid)
 
 
+def model_name(version):
+    return f"1-model-{version}.ifcx"
+
+
 def model_id(version):
-    return ID_PREFIX + f"1-model-{version}.ifcx"
+    return ID_PREFIX + model_name(version)
 
 
 def header(name, author):
@@ -123,7 +127,7 @@ def model(walls, version):
         "bsi::ifc::class": ifc_class("IfcBuildingStorey"),
         "bsi::ifc::prop::Name": "EG",
     }})
-    return {"header": header(f"1-model-{version}.ifcx", "architect (authoring tool export)"),
+    return {"header": header(model_name(version), "architect (authoring tool export)"),
             "imports": MODEL_IMPORTS, "schemas": {}, "data": data}
 
 

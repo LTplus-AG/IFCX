@@ -54,6 +54,9 @@ describe("example file", () => {
         const derivedV2 = new Set(ReadTimberJunction("3-derivation-v2").data.map(d => d.path));
         const notRederived = ReadTimberJunction("4-assignment-v1").data.map(d => d.path).filter(p => !derivedV2.has(p));
         expect(orphans.map(n => n.node).sort()).to.deep.equal(notRederived.sort());
+        expect(orphans.map(Summary).sort()).to.deep.equal(["D012/v3 approved", "D012/v3 in-review"]);
+        const carriedFrom = ReadTimberJunction("4-assignment-v2").data.map(d => d.attributes!["dokwood::detail::assignment"].carriedFrom.occurrence);
+        expect([...new Set(carriedFrom)].sort()).to.deep.equal(notRederived.sort());
     });
     it("timber junction v2 stack composes the same in reverse layer order", async () => {
         // No two layers write the same attribute on the same path, so order cannot decide anything here.
@@ -61,17 +64,23 @@ describe("example file", () => {
         const reverse = await ComposeTimberJunction([...timberJunctionV2].reverse());
         expect(NodeToJSON(reverse)).to.deep.equal(NodeToJSON(forward));
     });
-    it("timber junction lineage and derivations are bound to the model file hashes", () => {
-        const sha = (name: string) => createHash("sha256").update(fs.readFileSync(TimberJunctionFile(name))).digest("hex");
+    it("timber junction lineage and derivations are bound to the model files", () => {
+        const binding = (v: string) => ({
+            layer: ReadTimberJunction(`1-model-${v}`).header.id,
+            sha256: createHash("sha256").update(fs.readFileSync(TimberJunctionFile(`1-model-${v}`))).digest("hex") });
         const lineage = ReadTimberJunction("4-lineage-v1-v2").data[0].attributes!["dokwood::lineage"];
-        expect(lineage.base.sha256).to.equal(sha("1-model-v1"));
-        expect(lineage.head.sha256).to.equal(sha("1-model-v2"));
+        expect(lineage.base).to.deep.equal(binding("v1"));
+        expect(lineage.head).to.deep.equal(binding("v2"));
         for (const v of ["v1", "v2"]) {
-            // Every occurrence listed in the group carries the hash; the group itself is the only record with children.
-            const [group, ...occurrences] = ReadTimberJunction(`3-derivation-${v}`).data;
-            const expected = sha(`1-model-${v}`);
-            expect(occurrences.map(d => d.attributes!["dokwood::derivation"].sourceSha256))
-                .to.deep.equal(Object.keys(group.children!).map(() => expected));
+            const data = ReadTimberJunction(`3-derivation-${v}`).data;
+            const group = data.find(d => d.children);
+            const occurrences = data.filter(d => d !== group);
+            expect(occurrences.map(d => d.path).sort()).to.deep.equal(Object.values(group?.children ?? {}).sort());
+            const expected = binding(v);
+            for (const d of occurrences) {
+                const derivation = d.attributes!["dokwood::derivation"];
+                expect({ layer: derivation.sourceLayer, sha256: derivation.sourceSha256 }).to.deep.equal(expected);
+            }
         }
     });
 });
@@ -111,13 +120,12 @@ async function ComposeTimberJunction(names: string[])
     return LoadIfcxFile(layerStack.GetFederatedLayer());
 }
 
-// "<code>/<version> <state> <carried relation>", "-" for an occurrence with no type.
+// "<code>/<version> <state> <carried relation>", with "-" in place of a missing type.
 function Summary(o: PostCompositionNode)
 {
     const type = o.attributes.get("dokwood::detail::type");
     const assignment = o.attributes.get("dokwood::detail::assignment");
-    if (!type) return "-";
-    return [`${type.code}/${type.version}`, assignment?.state, assignment?.carriedFrom?.relation].filter(x => x).join(" ");
+    return [type ? `${type.code}/${type.version}` : "-", assignment?.state, assignment?.carriedFrom?.relation].filter(x => x).join(" ");
 }
 
 function OccurrenceSummaries(root: PostCompositionNode)
