@@ -662,13 +662,10 @@ rerun for the stacks above. (unproven)
    state, or a split, but no members. IFCX has no rule to flag or drop such a
    node, and a later layer cannot delete a node. (proven by running; root
    detection at `src/ifcx-core/composition/cycles.ts:50`) Nulling the
-   orphan's `inherits` entry composes, but the root stays, with its state and
-   no type. Nulling its `dokwood::detail::assignment` attribute crashes
-   validation with a TypeError at
-   `src/ifcx-core/schema/schema-validation.ts:93`: the Object check passes
-   because `typeof null` is `"object"`, then `Object.hasOwn(null, ...)` throws.
-   (both proven by running) That validator bug is a separate fix, not part of
-   this example.
+   orphan's `inherits` entry and its `dokwood::detail::assignment` attribute
+   composes and validates. The type and the state are gone, the root and its
+   split stay. (proven by running: `timber junction manual split of the Wand 2
+   occurrence is orphaned when Wand 2 is re-derived`)
 2. **A section along an edge as reference target.** The extent is a line given
    by coordinates inside an attribute. A path can name a node (a wall, or a
    Brep edge on the geometry-tiers branch) but not a stretch of it, such as

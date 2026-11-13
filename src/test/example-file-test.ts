@@ -188,6 +188,16 @@ describe("example file", () => {
         expect(orphan.attributes.has("dokwood::detail::members")).to.be.false;
         expect(parts(orphan)).to.deep.equal(split);
         expect(ModelElements("v2").map(d => d.path)).to.not.include(oldWall);
+        // A later layer can null the orphan's type and state. The root and its split stay.
+        expect([orphan.attributes.has("dokwood::detail::type"), orphan.attributes.get("dokwood::detail::assignment").state])
+            .to.deep.equal([true, "in-review"]);
+        const nulling = { header: { ...ReadTimberJunction("4-manual-split").header, id: "timber-junction-nulling" }, imports: [],
+            schemas: {}, data: [{ path: before.node, inherits: { detailType: null }, attributes: { "dokwood::detail::assignment": null } }]
+        } as unknown as IfcxFile;
+        const nulled = (await ComposeFiles([...timberJunctionV2.map(ReadTimberJunction), nulling])).children.get(before.node)!;
+        expect([nulled.attributes.has("dokwood::detail::type"), nulled.attributes.get("dokwood::detail::assignment") ?? null])
+            .to.deep.equal([false, null]);
+        expect(parts(nulled)).to.deep.equal(split);
     });
     it("timber junction STEP twins match the IFCX models", () => {
         for (const v of ["v1", "v2", "v2-samename"]) {
