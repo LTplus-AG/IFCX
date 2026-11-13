@@ -445,15 +445,21 @@ def ifc_lite_lineage(head, step_v1, step_head):
             sys.exit(f"{sidecar.name} {end} is not bound to the STEP twin written now. Rerun: {lineage_cmd(head)}")
     if side["deleted"]:
         sys.exit(f"{sidecar.name} lists deleted elements, which this example does not model")
-    # Only elements with an occurrence (walls, balcony pieces), from the right model; merges are n:1.
+    # Only elements with an occurrence (walls, balcony pieces), from the right model.
     in_model = {v: {e.gid for e in MODELS[v] if e.key in OCC} for v in ("v1", head)}
     for e in side["entries"]:
         shares = e.get("shares", [1.0])
-        if (e["relation"] not in RELATIONS or not isinstance(e.get("reason"), str)
-                or not set(e["base"]) <= in_model["v1"] or not set(e["head"]) <= in_model[head]
-                or (e["relation"] == "merge" and len(e["head"]) != 1)
-                or len(shares) not in (1, len(e["base"]), len(e["head"])) or abs(sum(shares) - 1) > 1e-9):
-            sys.exit(f"{sidecar.name} has an entry this example does not model: {e}")
+        rules = [
+            (e["relation"] in RELATIONS, "unknown relation"),
+            (isinstance(e.get("reason"), str), "no reason"),
+            (set(e["base"]) <= in_model["v1"], "base is not an element with an occurrence in v1"),
+            (set(e["head"]) <= in_model[head], f"head is not an element with an occurrence in {head}"),
+            (len(e["head"]) == 1 if e["relation"] == "merge" else len(e["base"]) == 1, "not 1:n or n:1"),
+            (len(shares) in (1, len(e["base"]), len(e["head"])) and abs(sum(shares) - 1) <= 1e-9, "bad shares"),
+        ]
+        for ok, why in rules:
+            if not ok:
+                sys.exit(f"{sidecar.name} has an entry this example does not model ({why}): {e}")
     # Also into OUT, so an output folder holds what the lineage points at.
     ref = {"file": f"{STEP_DIR}/{sidecar.name}", "sha256": write_bytes(OUT / STEP_DIR / sidecar.name, raw)}
     return ref, side["entries"]
@@ -523,14 +529,12 @@ def assignment_v2(head, entries, shas_v1, shas_v2):
                 (c, v), = types
                 data.append(assignment_node(OCC[suc[0]], c, v, "to-confirm",
                                             carried=dict(carried, policy="same-type-or-none")))
-        elif len(pre) == 1:
+        else:
             c, v, s, rev = old[pre[0]]
             for k in suc:
                 # Only an identity keeps its state; anything else is a new occurrence to confirm.
                 state = carried_state(s, rev, shas_v2[OCC[k]]) if rel == "identity" else "to-confirm"
                 data.append(assignment_node(OCC[k], c, v, state, rev, dict(carried, policy="copy-to-all")))
-        else:
-            raise ValueError(f"{rel} with several predecessors is not carried")
     if len({d["path"] for d in data}) != len(data):
         raise ValueError("two carried assignments for one occurrence")
     return ifcx_file("4-assignment-v2.ifcx", "detail editor (DOKwood platform)", data, ASSIGN_SCHEMA)

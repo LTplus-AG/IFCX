@@ -217,11 +217,11 @@ was reviewed. Here both are D031/v1, so the merged occurrence gets D031/v1
 `to-confirm`, with `carriedFrom.occurrences` listing both old occurrences.
 (proven by running: `timber junction carries merges by same-type-or-none`,
 which checks the rule for every merge entry) If they disagree, nothing is
-carried (pointed at `generate.py:522`; unproven, the example has no such case).
+carried (pointed at `generate.py:528`; unproven, the example has no such case).
 
 Every other relation uses `copy-to-all`: every successor gets the type. Only
 an `identity` successor keeps its state, unless the approval rule resets it;
-any other successor is `to-confirm` (pointed at `generate.py:530`; `replaced`
+any other successor is `to-confirm` (pointed at `generate.py:536`; `replaced`
 is unproven, the example has none).
 
 ### Pieces keep the old name

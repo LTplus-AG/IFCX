@@ -94,9 +94,8 @@ describe("example file", () => {
         const twice = writes.filter((w, i) => keys.indexOf(w[0]) !== i);
         const wand3 = OccurrencePath("v1", "Wand_3__Decke");
         expect(twice.map(w => w[0])).to.deep.equal([`${wand3} dokwood::detail::assignment`, `${wand3} inherits detailType`]);
-        // Both layers inherit the same type, so only the assignment can differ by order.
-        expect(writes.filter(w => w[0] === `${wand3} inherits detailType`).map(w => w[1])).to.have.members(
-            Array(2).fill(JSON.stringify(`${ReadTimberJunction("2-catalog").data[0].path}/D021/v1`)));
+        // Every other repeated write has the value of the first, so only the assignment can differ by order.
+        expect(twice.filter(w => !w[0].endsWith("assignment") && w[1] !== writes[keys.indexOf(w[0])][1])).to.deep.equal([]);
         // The later layer wins: as committed 4-assignment-v2 comes last and says to-confirm.
         const forward = OccurrenceSummaries(await ComposeTimberJunction(timberJunctionV2));
         const swapped = OccurrenceSummaries(await ComposeTimberJunction(
