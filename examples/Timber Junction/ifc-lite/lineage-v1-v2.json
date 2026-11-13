@@ -2,14 +2,29 @@
   "format": "ifc-lite/lineage",
   "version": 1,
   "base": {
-    "hash": "sha256:cd655fc08116109ac10d28761a153052910014ccaf441a09295fe1acc58900fc",
+    "hash": "sha256:aa35ba9fa01c2297c7b1ff849550b4708fe08efada63d2798e0033118713c123",
     "path": "model-v1.ifc"
   },
   "head": {
-    "hash": "sha256:e3fe2ff9346858df7bcb6a3c5650b9a0fe12eb2e301dabcd724b61fe9a126e28",
+    "hash": "sha256:ca7324ed19081f31483cbe46606a1e04e07520707e0ba57e2d8e77515b12f50b",
     "path": "model-v2.ifc"
   },
   "entries": [
+    {
+      "base": [
+        "1BalkonplatteTeilA0001",
+        "1BalkonplatteTeilB0001"
+      ],
+      "head": [
+        "2BalkonplatteGanz00001"
+      ],
+      "relation": "merge",
+      "reason": "merge:verified",
+      "shares": [
+        0.5,
+        0.5
+      ]
+    },
     {
       "base": [
         "1WandW1altAussenwand01"

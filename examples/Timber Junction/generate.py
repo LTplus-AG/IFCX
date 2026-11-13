@@ -8,14 +8,16 @@ Without an argument the files are written next to this script, replacing the
 committed ones. The output is deterministic: running it on an unchanged script
 gives the committed files byte for byte.
 
-It also writes IFC STEP twins of the two models to ifc-lite/, because ifc-lite
-reads STEP and not IFCX. The lineage layer is translated from what ifc-lite
-wrote when diffing those twins (ifc-lite/lineage-v1-v2.json, see LINEAGE_CMD).
+It also writes IFC STEP twins of the models to ifc-lite/, because ifc-lite
+reads STEP and not IFCX. The lineage layers are translated from what ifc-lite
+wrote when diffing those twins (ifc-lite/lineage-*.json, see lineage_cmd).
 """
 import hashlib, itertools, json, sys, uuid
+from collections import namedtuple
 from pathlib import Path
 
-OUT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent
+OUT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else HERE
 OUT.mkdir(parents=True, exist_ok=True)
 NS = uuid.uuid5(uuid.NAMESPACE_URL, "dokwood.example/timber-junction")
 ID_PREFIX = "ifc5.technical.buildingsmart.org/examples/Timber Junction/"
@@ -48,25 +50,52 @@ def write(f):
     return {"layer": f["header"]["id"], "sha256": write_bytes(p, data)}
 
 
-# key, GlobalId (from wp9-identity-demo), name, x0, y0, length, thickness, external
+def record_sha(record):
+    """SHA-256 of one attribute value, as sorted compact JSON. What an approval says it reviewed."""
+    return hashlib.sha256(json.dumps(record, sort_keys=True, separators=(",", ":"),
+                                     ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+# One wall or slab. box is (x0, y0, z0, x1, y1, z1); external is None for slabs.
+Element = namedtuple("Element", "key gid name cls box external")
 WALL_HEIGHT = 2.6
+
+
+def wall(key, gid, name, x0, y0, length, thick, external):
+    return Element(key, gid, name, "IfcWall", (x0, y0, 0.0, x0 + length, y0 + thick, WALL_HEIGHT), external)
+
+
+def balcony(key, gid, name, x0, x1):
+    # Outside Wand 2, flush with the top of the floor slab, 0.16 thick.
+    return Element(key, gid, name, "IfcSlab", (x0, 5.24, WALL_HEIGHT + 0.08, x1, 6.74, WALL_HEIGHT + 0.24), None)
+
+
+# GlobalIds of the walls from wp9-identity-demo.
 WALLS_V1 = [
-    ("W1", "1WandW1altAussenwand01", "Wand 1", 0.0, 0.0, 6.0, 0.24, True),
-    ("W2", "1WandW2altAussenwand02", "Wand 2", 0.0, 5.0, 6.0, 0.24, True),
-    ("W3", "1WandW3InnenwandStabil", "Wand 3", 0.0, 2.5, 3.0, 0.12, False),
-    ("W4", "1WandW4altInnenwand004", "Wand 4", 3.5, 2.5, 2.5, 0.12, False),
+    wall("W1", "1WandW1altAussenwand01", "Wand 1", 0.0, 0.0, 6.0, 0.24, True),
+    wall("W2", "1WandW2altAussenwand02", "Wand 2", 0.0, 5.0, 6.0, 0.24, True),
+    wall("W3", "1WandW3InnenwandStabil", "Wand 3", 0.0, 2.5, 3.0, 0.12, False),
+    wall("W4", "1WandW4altInnenwand004", "Wand 4", 3.5, 2.5, 2.5, 0.12, False),
 ]
 WALLS_V2 = [
-    ("W1a", "2WandW1aNeuTeilstueckA", "Wand 1.1", 0.0, 0.0, 4.0, 0.24, True),
-    ("W1b", "2WandW1bNeuTeilstueckB", "Wand 1.2", 4.0, 0.0, 2.0, 0.24, True),
-    ("W2neu", "2WandW2NeuNurNeueGuid2", "Wand 2", 0.0, 5.0, 6.0, 0.24, True),
+    wall("W1a", "2WandW1aNeuTeilstueckA", "Wand 1.1", 0.0, 0.0, 4.0, 0.24, True),
+    wall("W1b", "2WandW1bNeuTeilstueckB", "Wand 1.2", 4.0, 0.0, 2.0, 0.24, True),
+    wall("W2neu", "2WandW2NeuNurNeueGuid2", "Wand 2", 0.0, 5.0, 6.0, 0.24, True),
     WALLS_V1[2],
-    ("W4neu", "2WandW4NeuVerschoben04", "Wand 4", 3.5, 3.0, 2.5, 0.12, False),
+    wall("W4neu", "2WandW4NeuVerschoben04", "Wand 4", 3.5, 3.0, 2.5, 0.12, False),
 ]
-SLAB_GID = "1DeckeUeberEGStabil001"
-SLAB_P = path_of(SLAB_GID)
-SLAB_NAME = "Decke über EG"
-SLAB_BOX = (0.0, 0.0, WALL_HEIGHT, 6.0, 5.24, WALL_HEIGHT + 0.24)
+# Second scenario: the same v2, but both pieces of Wand 1 keep the old name.
+WALLS_V2_SAMENAME = [w._replace(name="Wand 1") if w.key in ("W1a", "W1b") else w for w in WALLS_V2]
+SLAB = Element("S", "1DeckeUeberEGStabil001", "Decke über EG", "IfcSlab",
+               (0.0, 0.0, WALL_HEIGHT, 6.0, 5.24, WALL_HEIGHT + 0.24), None)
+SLAB_P = path_of(SLAB.gid)
+# Two balcony slab pieces in v1, merged into one in v2.
+BALCONY_V1 = [balcony("BA", "1BalkonplatteTeilA0001", "Balkonplatte A", 0.0, 3.0),
+              balcony("BB", "1BalkonplatteTeilB0001", "Balkonplatte B", 3.0, 6.0)]
+BALCONY_V2 = [balcony("B", "2BalkonplatteGanz00001", "Balkonplatte", 0.0, 6.0)]
+MODELS = {"v1": WALLS_V1 + [SLAB] + BALCONY_V1,
+          "v2": WALLS_V2 + [SLAB] + BALCONY_V2,
+          "v2-samename": WALLS_V2_SAMENAME + [SLAB] + BALCONY_V2}
 
 STOREY = u("storey")
 CATALOG = u("catalog")
@@ -74,15 +103,11 @@ OCC_GROUP = u("detail-occurrences")
 
 
 def slug(name):
-    return name.replace(" ", "_").replace(".", "_")
+    return name.replace(" ", "_").replace(".", "_").replace("ü", "ue")
 
 
 def ifc_class(code):
     return {"code": code, "uri": "https://identifier.buildingsmart.org/uri/buildingsmart/ifc/4.3/class/" + code}
-
-
-def wall_box(x0, y0, length, thick):
-    return (x0, y0, 0.0, x0 + length, y0 + thick, WALL_HEIGHT)
 
 
 def box_mesh(x0, y0, z0, x1, y1, z1):
@@ -103,33 +128,19 @@ MODEL_IMPORTS = [
 ]
 
 
-def model(walls, version):
-    data = []
-    children = {}
-    for _, gid, name, x0, y0, length, thick, ext in walls:
-        p = path_of(gid)
-        body = u("body", gid)
-        children[slug(name)] = p
-        data.append({"path": p, "children": {"Body": body}, "attributes": {
-            "bsi::ifc::class": ifc_class("IfcWall"),
-            "bsi::ifc::prop::Name": name,
-            "bsi::ifc::prop::IsExternal": ext,
-        }})
-        data.append({"path": body, "attributes": {
-            "usd::usdgeom::mesh": box_mesh(*wall_box(x0, y0, length, thick)),
-            "bsi::ifc::presentation::diffuseColor": [0.82, 0.68, 0.47] if ext else [0.9, 0.82, 0.66],
-        }})
-    sbody = u("body", SLAB_GID)
-    children["Decke_ueber_EG"] = SLAB_P
-    data.append({"path": SLAB_P, "children": {"Body": sbody}, "attributes": {
-        "bsi::ifc::class": ifc_class("IfcSlab"),
-        "bsi::ifc::prop::Name": SLAB_NAME,
-    }})
-    data.append({"path": sbody, "attributes": {
-        "usd::usdgeom::mesh": box_mesh(*SLAB_BOX),
-        "bsi::ifc::presentation::diffuseColor": [0.7, 0.7, 0.7],
-        "bsi::ifc::presentation::opacity": 0.4,
-    }})
+def model(version):
+    data, children = [], {}
+    for e in MODELS[version]:
+        p, body = path_of(e.gid), u("body", e.gid)
+        # Two pieces both named "Wand 1" need distinct child names.
+        children[slug(e.name) if slug(e.name) not in children else slug(e.name) + "_" + e.key] = p
+        attrs = {"bsi::ifc::class": ifc_class(e.cls), "bsi::ifc::prop::Name": e.name}
+        look = {"bsi::ifc::presentation::diffuseColor": [0.7, 0.7, 0.7], "bsi::ifc::presentation::opacity": 0.4}
+        if e.external is not None:
+            attrs["bsi::ifc::prop::IsExternal"] = e.external
+            look = {"bsi::ifc::presentation::diffuseColor": [0.82, 0.68, 0.47] if e.external else [0.9, 0.82, 0.66]}
+        data.append({"path": p, "children": {"Body": body}, "attributes": attrs})
+        data.append({"path": body, "attributes": {"usd::usdgeom::mesh": box_mesh(*e.box), **look}})
     data.insert(0, {"path": STOREY, "children": children, "attributes": {
         "bsi::ifc::class": ifc_class("IfcBuildingStorey"),
         "bsi::ifc::prop::Name": "EG",
@@ -141,11 +152,17 @@ def model(walls, version):
 # ---- IFC STEP twins, for ifc-lite ------------------------------------------
 # Same GlobalIds, names, IsExternal and boxes as model(), as IfcExtrudedAreaSolid.
 STEP_DIR = "ifc-lite"
-SIDECAR = Path(__file__).resolve().parent / STEP_DIR / "lineage-v1-v2.json"
 IFC_LITE, DIFF_FLAGS = "@ifc-lite/cli@0.45.1", "--geometry --split-merge"
-LINEAGE_CMD = (f'cd "{OUT / STEP_DIR}" && npx -y {IFC_LITE} diff model-v1.ifc model-v2.ifc {DIFF_FLAGS}'
-               f' --lineage-out "{SIDECAR}"')
 B64 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$"
+
+
+def sidecar_path(head):
+    return HERE / STEP_DIR / f"lineage-v1-{head}.json"
+
+
+def lineage_cmd(head):
+    return (f'cd "{OUT / STEP_DIR}" && npx -y {IFC_LITE} diff model-v1.ifc model-{head}.ifc {DIFF_FLAGS}'
+            f' --lineage-out "{sidecar_path(head)}"')
 
 
 def ifc_guid(*parts):
@@ -157,7 +174,7 @@ def step_str(s):
     return "'" + "".join(c if ord(c) < 128 else f"\\X2\\{ord(c):04X}\\X0\\" for c in s) + "'"
 
 
-def step_model(walls, version):
+def step_model(version):
     lines = [
         "#1=IFCPERSON($,'Example',$,$,$,$,$,$);",
         "#2=IFCORGANIZATION($,'DOKwood example',$,$,$);",
@@ -191,8 +208,9 @@ def step_model(walls, version):
         lines.append(f"{ref}={text};")
         return ref
 
-    def product(cls, gid, name, box, kind):
-        x0, y0, z0, x1, y1, z1 = box
+    contained = []
+    for e in MODELS[version]:
+        x0, y0, z0, x1, y1, z1 = e.box
         dx, dy, dz = x1 - x0, y1 - y0, z1 - z0
         origin = add(f"IFCCARTESIANPOINT(({x0:.3f},{y0:.3f},{z0:.3f}))")
         lp = add(f"IFCLOCALPLACEMENT(#35,{add(f'IFCAXIS2PLACEMENT3D({origin},#21,#22)')})")
@@ -201,16 +219,13 @@ def step_model(walls, version):
         solid = add(f"IFCEXTRUDEDAREASOLID({profile},#23,#21,{dz:.3f})")
         rep = add(f"IFCSHAPEREPRESENTATION(#25,'Body','SweptSolid',({solid}))")
         pds = add(f"IFCPRODUCTDEFINITIONSHAPE($,$,({rep}))")
-        return add(f"{cls}('{gid}',#5,{step_str(name)},$,$,{lp},{pds},$,{kind})")
-
-    contained = []
-    for _, gid, name, x0, y0, length, thick, ext in walls:
-        w = product("IFCWALL", gid, name, wall_box(x0, y0, length, thick), ".STANDARD.")
-        prop = add(f"IFCPROPERTYSINGLEVALUE('IsExternal',$,IFCBOOLEAN({'.T.' if ext else '.F.'}),$)")
-        pset = add(f"IFCPROPERTYSET('{ifc_guid('pset', gid)}',#5,'Pset_WallCommon',$,({prop}))")
-        add(f"IFCRELDEFINESBYPROPERTIES('{ifc_guid('rdp', gid)}',#5,$,$,({w}),{pset})")
-        contained.append(w)
-    contained.append(product("IFCSLAB", SLAB_GID, SLAB_NAME, SLAB_BOX, ".FLOOR."))
+        kind = ".STANDARD." if e.cls == "IfcWall" else ".FLOOR."
+        p = add(f"{e.cls.upper()}('{e.gid}',#5,{step_str(e.name)},$,$,{lp},{pds},$,{kind})")
+        if e.external is not None:
+            prop = add(f"IFCPROPERTYSINGLEVALUE('IsExternal',$,IFCBOOLEAN({'.T.' if e.external else '.F.'}),$)")
+            pset = add(f"IFCPROPERTYSET('{ifc_guid('pset', e.gid)}',#5,'Pset_WallCommon',$,({prop}))")
+            add(f"IFCRELDEFINESBYPROPERTIES('{ifc_guid('rdp', e.gid)}',#5,$,$,({p}),{pset})")
+        contained.append(p)
     add(f"IFCRELCONTAINEDINSPATIALSTRUCTURE('{ifc_guid('contained')}',#5,$,$,({','.join(contained)}),#36)")
     return ("ISO-10303-21;\nHEADER;\n"
             f"FILE_DESCRIPTION(('ViewDefinition [DesignTransferView]','Timber Junction {version}'),'2;1');\n"
@@ -218,9 +233,9 @@ def step_model(walls, version):
             "FILE_SCHEMA(('IFC4'));\nENDSEC;\nDATA;\n" + "\n".join(lines) + "\nENDSEC;\nEND-ISO-10303-21;\n")
 
 
-def write_step(walls, version):
+def write_step(version):
     (OUT / STEP_DIR).mkdir(exist_ok=True)
-    return write_bytes(OUT / STEP_DIR / f"model-{version}.ifc", step_model(walls, version).encode("ascii"))
+    return write_bytes(OUT / STEP_DIR / f"model-{version}.ifc", step_model(version).encode("ascii"))
 
 
 S_REF = {"dataType": "Reference"}
@@ -246,8 +261,12 @@ def enum(*opts):
 
 # ---- catalog -------------------------------------------------------------
 DETAIL_TYPES = {
-    "D012": (["v2", "v3"], "Deckenauflager aussen", [("bearing", "AW Holzrahmen 240"), ("supported", "Decke Holz 240")]),
-    "D021": (["v1"], "Innenwand unter Decke", [("bearing", "IW Holzrahmen 120"), ("supported", "Decke Holz 240")]),
+    "D012": (["v2", "v3"], "Deckenauflager aussen", "slab-on-wall",
+             [("bearing", "AW Holzrahmen 240"), ("supported", "Decke Holz 240")]),
+    "D021": (["v1"], "Innenwand unter Decke", "slab-on-wall",
+             [("bearing", "IW Holzrahmen 120"), ("supported", "Decke Holz 240")]),
+    "D031": (["v1"], "Balkonanschluss", "slab-to-slab",
+             [("bearing", "Decke Holz 240"), ("supported", "Balkonplatte Holz 160")]),
 }
 
 
@@ -255,12 +274,12 @@ def catalog():
     data = [{"path": CATALOG, "children": {code: u("type", code) for code in DETAIL_TYPES},
              "attributes": {"dokwood::catalog": {"name": "DOKwood Detailkatalog (example)",
                                                  "publisher": "DOKwood platform"}}}]
-    for code, (vers, _, _) in DETAIL_TYPES.items():
+    for code, (vers, _, _, _) in DETAIL_TYPES.items():
         data.append({"path": u("type", code), "children": {v: u("type", code, v) for v in vers}})
-    for code, (vers, name, roles) in DETAIL_TYPES.items():
+    for code, (vers, name, junction, roles) in DETAIL_TYPES.items():
         for ver in vers:
             data.append({"path": u("type", code, ver), "attributes": {"dokwood::detail::type": {
-                "code": code, "name": name, "version": ver, "junction": "slab-on-wall",
+                "code": code, "name": name, "version": ver, "junction": junction,
                 "roles": [{"role": r, "assembly": a} for r, a in roles],
                 "document": f"https://example.org/dokwood/details/{code}_{ver}.pdf",
             }}})
@@ -277,151 +296,242 @@ def catalog():
 
 # ---- derivation ----------------------------------------------------------
 ENGINE = {"engine": "detail-finder", "engineVersion": "1.4.0", "tolerance": 0.001}
+MEMBERS_SCHEMA = {"dokwood::detail::members": {"value": arr(obj({"ref": S_REF, "role": S_STR}))}}
+TOPOLOGY_SCHEMA = {"dokwood::detail::topology": {"value": obj({"junction": S_STR, "extent": obj({
+    "kind": enum("point", "line", "area"), "length": S_REAL, "start": S_POINT, "end": S_POINT},
+    optional=("length", "start", "end"))})}}
 
 
-def occ_path(wall_path, slab_path):
+def occ_path(kind, bearing, supported):
     # Name is a pure function of the inputs: junction kind plus sorted member paths.
-    return u("occurrence", "slab-on-wall", *sorted([wall_path, slab_path]))
+    return u("occurrence", kind, *sorted([bearing, supported]))
 
 
-def derivation(walls, version, source):
+def line(x0, x1, y, z):
+    return {"kind": "line", "length": round(x1 - x0, 4), "start": [x0, y, z], "end": [x1, y, z]}
+
+
+def junctions(version):
+    """(subject key, child name, kind, bearing path, supported path, extent) per occurrence."""
+    out = []
+    for e in MODELS[version]:
+        x0, y0, z0, x1, y1, z1 = e.box
+        if e.cls == "IfcWall":
+            # Along the wall axis, on top of the wall.
+            out.append((e.key, slug(e.name) + "__Decke", "slab-on-wall", path_of(e.gid), SLAB_P,
+                        line(x0, x1, round((y0 + y1) / 2, 4), WALL_HEIGHT)))
+        elif e is not SLAB:
+            # Along the edge where the balcony meets the floor slab, at its top.
+            out.append((e.key, "Decke__" + slug(e.name), "slab-to-slab", SLAB_P, path_of(e.gid),
+                        line(x0, x1, y0, z1)))
+    return out
+
+
+def derivation(version, source):
     data, children = [], {}
-    for _, gid, name, x0, y0, length, thick, _ in walls:
-        wp = path_of(gid)
-        op = occ_path(wp, SLAB_P)
-        children[slug(name) + "__Decke"] = op
-        yc = round(y0 + thick / 2, 4)
+    for _, name, kind, bearing, supported, extent in junctions(version):
+        op = occ_path(kind, bearing, supported)
+        children[name] = op
         data.append({"path": op, "attributes": {
-            "dokwood::detail::members": [{"ref": wp, "role": "bearing"}, {"ref": SLAB_P, "role": "supported"}],
-            "dokwood::detail::topology": {"junction": "slab-on-wall", "extent": {
-                "kind": "line", "length": length,
-                "start": [x0, yc, WALL_HEIGHT], "end": [x0 + length, yc, WALL_HEIGHT]}},
+            "dokwood::detail::members": [{"ref": bearing, "role": "bearing"}, {"ref": supported, "role": "supported"}],
+            "dokwood::detail::topology": {"junction": kind, "extent": extent},
             "dokwood::derivation": dict(ENGINE, operation="junction-detection",
-                                        sources=sorted([wp, SLAB_P]),
+                                        sources=sorted([bearing, supported]),
                                         sourceLayer=source["layer"],
                                         sourceSha256=source["sha256"]),
         }})
     data.insert(0, {"path": OCC_GROUP, "children": children,
                     "attributes": {"bsi::ifc::prop::Name": "Detail occurrences (derived)"}})
-    schemas = {
-        "dokwood::detail::members": {"value": arr(obj({"ref": S_REF, "role": S_STR}))},
-        "dokwood::detail::topology": {"value": obj({"junction": S_STR, "extent": obj({
-            "kind": enum("point", "line", "area"), "length": S_REAL, "start": S_POINT, "end": S_POINT},
-            optional=("length", "start", "end"))})},
-        "dokwood::derivation": {"value": obj({
-            "operation": S_STR, "engine": S_STR, "engineVersion": S_STR, "tolerance": S_REAL,
-            "sources": arr(S_REF), "sourceLayer": S_STR, "sourceSha256": S_STR})},
-    }
+    schemas = {**MEMBERS_SCHEMA, **TOPOLOGY_SCHEMA}
+    schemas["dokwood::derivation"] = {"value": obj({
+        "operation": S_STR, "engine": S_STR, "engineVersion": S_STR, "tolerance": S_REAL,
+        "sources": arr(S_REF), "sourceLayer": S_STR, "sourceSha256": S_STR})}
     return {"header": header(f"3-derivation-{version}.ifcx", "detail-finder 1.4.0 (derived, do not edit)"),
             "imports": [PROP_IMPORT], "schemas": schemas, "data": data}
+
+
+def derivation_shas(f):
+    return {d["path"]: record_sha(d["attributes"]["dokwood::derivation"])
+            for d in f["data"] if "dokwood::derivation" in d.get("attributes", {})}
 
 
 # ---- assignment + lineage ------------------------------------------------
 # ifc-lite LineageRelation; a rename or move is "identity" with a content-match reason.
 RELATIONS = ("identity", "split", "merge", "replaced")
-POLICIES = ("copy-to-all",)
+# copy-to-all: every successor gets the type. same-type-or-none: a merge gets the type only if
+# every predecessor had the same type and version.
+POLICIES = ("copy-to-all", "same-type-or-none")
 ASSIGN_SCHEMA = {"dokwood::detail::assignment": {"value": obj({
     "state": enum("proposed", "in-review", "approved", "to-confirm"),
-    "carriedFrom": obj({"occurrence": S_REF, "lineage": S_REF,
+    "reviewedSha256": S_STR,
+    "carriedFrom": obj({"occurrences": arr(S_REF), "lineage": S_REF,
                         "relation": enum(*RELATIONS), "policy": enum(*POLICIES)}),
-}, optional=("carriedFrom",))}}
+}, optional=("reviewedSha256", "carriedFrom"))}}
 
 
 def type_ref(code, ver):
     return f"{CATALOG}/{code}/{ver}"
 
 
-W = {k: path_of(g) for k, g, *_ in WALLS_V1 + WALLS_V2}
-KEY = {g: k for k, g, *_ in WALLS_V1 + WALLS_V2}
-OCC = {k: occ_path(p, SLAB_P) for k, p in W.items()}
+ELEMENTS = {e.key: e for m in MODELS.values() for e in m}
+W = {k: path_of(e.gid) for k, e in ELEMENTS.items()}
+KEY = {e.gid: k for k, e in ELEMENTS.items()}
+OCC = {j[0]: occ_path(*j[2:5]) for v in MODELS for j in junctions(v)}
 
-ASSIGN_V1 = [("W1", "D012", "v3", "approved"), ("W2", "D012", "v3", "in-review"), ("W3", "D021", "v1", "approved")]
+ASSIGN_V1 = [("W1", "D012", "v3", "approved"), ("W2", "D012", "v3", "in-review"), ("W3", "D021", "v1", "approved"),
+             ("BA", "D031", "v1", "approved"), ("BB", "D031", "v1", "in-review")]
 
 
-def assignment_v1():
-    data = [{"path": OCC[k], "inherits": {"detailType": type_ref(c, v)},
-             "attributes": {"dokwood::detail::assignment": {"state": s}}} for k, c, v, s in ASSIGN_V1]
+def assignment_node(occ, code, ver, state, reviewed=None, carried=None):
+    a = {"state": state}
+    if reviewed:
+        a["reviewedSha256"] = reviewed
+    if carried:
+        a["carriedFrom"] = carried
+    return {"path": occ, "inherits": {"detailType": type_ref(code, ver)},
+            "attributes": {"dokwood::detail::assignment": a}}
+
+
+def assignment_v1(shas):
+    # An approval records the hash of the derivation record it approved.
+    data = [assignment_node(OCC[k], c, v, s, shas[OCC[k]] if s == "approved" else None) for k, c, v, s in ASSIGN_V1]
     return {"header": header("4-assignment-v1.ifcx", "detail editor (DOKwood platform)"),
             "imports": [], "schemas": ASSIGN_SCHEMA, "data": data}
 
 
-LINEAGE = u("lineage", "v1", "v2")
+def lineage_path(head, source="ifc-lite"):
+    return u("lineage", "v1", head) if source == "ifc-lite" else u("lineage", "v1", head, source)
 
 
-def ifc_lite_lineage(step_v1, step_v2):
+def ifc_lite_lineage(head, step_v1, step_head):
     """The sidecar's file and hash, and (predecessor keys, successor keys, relation, reason, shares) per entry."""
-    if not SIDECAR.exists():
-        sys.exit(f"{SIDECAR} is missing. Create it with: {LINEAGE_CMD}")
-    raw = SIDECAR.read_bytes()
+    sidecar = sidecar_path(head)
+    if not sidecar.exists():
+        sys.exit(f"{sidecar} is missing. Create it with: {lineage_cmd(head)}")
+    raw = sidecar.read_bytes()
     side = json.loads(raw)
     if (side.get("format"), side.get("version")) != ("ifc-lite/lineage", 1):
-        sys.exit(f"{SIDECAR.name} is not an ifc-lite/lineage v1 sidecar")
-    for end, sha in (("base", step_v1), ("head", step_v2)):
+        sys.exit(f"{sidecar.name} is not an ifc-lite/lineage v1 sidecar")
+    for end, sha in (("base", step_v1), ("head", step_head)):
         if side[end]["hash"] != "sha256:" + sha:
-            sys.exit(f"{SIDECAR.name} {end} is not bound to the STEP twin written now. Rerun: {LINEAGE_CMD}")
+            sys.exit(f"{sidecar.name} {end} is not bound to the STEP twin written now. Rerun: {lineage_cmd(head)}")
     if side["deleted"]:
-        sys.exit(f"{SIDECAR.name} lists deleted elements, which this example does not model")
+        sys.exit(f"{sidecar.name} lists deleted elements, which this example does not model")
     for e in side["entries"]:
         if e["relation"] not in RELATIONS or any(g not in KEY for g in e["base"] + e["head"]):
-            sys.exit(f"{SIDECAR.name} has an entry this example does not model: {e}")
+            sys.exit(f"{sidecar.name} has an entry this example does not model: {e}")
     # Also into OUT, so an output folder holds what the lineage points at.
-    ref = {"file": f"{STEP_DIR}/{SIDECAR.name}", "sha256": write_bytes(OUT / STEP_DIR / SIDECAR.name, raw)}
+    ref = {"file": f"{STEP_DIR}/{sidecar.name}", "sha256": write_bytes(OUT / STEP_DIR / sidecar.name, raw)}
     return ref, [([KEY[g] for g in e["base"]], [KEY[g] for g in e["head"]], e["relation"], e["reason"], e.get("shares"))
             for e in side["entries"]]
 
 
-def lineage(base, head, sidecar, lineage_entries):
-    entries = []
-    for pre, suc, rel, ev, shares in lineage_entries:
+LINEAGE_SCHEMA = {"dokwood::lineage": {"value": obj({
+    "producer": S_STR, "sidecar": obj({"file": S_STR, "sha256": S_STR}),
+    "base": obj({"layer": S_STR, "sha256": S_STR}), "head": obj({"layer": S_STR, "sha256": S_STR}),
+    "entries": arr(obj({"predecessors": arr(S_REF), "successors": arr(S_REF),
+                        "relation": enum(*RELATIONS), "evidence": S_STR, "shares": arr(S_REAL),
+                        "source": enum("ifc-lite", "manual"), "author": S_STR, "timestamp": S_STR},
+                       optional=("shares", "author", "timestamp"))),
+    "deleted": arr(S_REF)}, optional=("sidecar",))}}
+
+
+def lineage(head, base_ref, head_ref, sidecar, entries):
+    out = []
+    for pre, suc, rel, ev, shares in entries:
         e = {"predecessors": [W[k] for k in pre], "successors": [W[k] for k in suc],
-             "relation": rel, "evidence": ev}
+             "relation": rel, "evidence": ev, "source": "ifc-lite"}
         if shares is not None:
             e["shares"] = shares
-        entries.append(e)
-    data = [{"path": LINEAGE, "attributes": {"dokwood::lineage": {
+        out.append(e)
+    data = [{"path": lineage_path(head), "attributes": {"dokwood::lineage": {
         "producer": f"{IFC_LITE} diff {DIFF_FLAGS}, run on the STEP twins in {STEP_DIR}/",
-        "sidecar": sidecar,
-        "base": base,
-        "head": head,
-        "entries": entries, "deleted": []}}}]
-    model_ref = obj({"layer": S_STR, "sha256": S_STR})
-    schemas = {"dokwood::lineage": {"value": obj({
-        "producer": S_STR, "sidecar": obj({"file": S_STR, "sha256": S_STR}),
-        "base": model_ref, "head": model_ref,
-        "entries": arr(obj({"predecessors": arr(S_REF), "successors": arr(S_REF),
-                            "relation": enum(*RELATIONS),
-                            "evidence": S_STR, "shares": arr(S_REAL)}, optional=("shares",))),
-        "deleted": arr(S_REF)})}}
-    return {"header": header("4-lineage-v1-v2.ifcx", "model comparison (@ifc-lite/diff)"),
-            "imports": [], "schemas": schemas, "data": data}
+        "sidecar": sidecar, "base": base_ref, "head": head_ref, "entries": out, "deleted": []}}}]
+    return {"header": header(f"4-lineage-v1-{head}.ifcx", "model comparison (@ifc-lite/diff)"),
+            "imports": [], "schemas": LINEAGE_SCHEMA, "data": data}
 
 
-def assignment_v2(lineage_entries):
-    # copy-to-all: every successor of an assigned occurrence gets the type, but must be re-confirmed.
+MANUAL_AUTHOR = "planner (manual review in detail editor)"
+MANUAL_TIME = DATE + "T10:30:00Z"
+
+
+def manual_lineage(head, base_ref, head_ref):
+    # ifc-lite took the larger piece for a reshaped Wand 1 and missed the split; a person states it.
+    entry = {"predecessors": [W["W1"]], "successors": [W["W1a"], W["W1b"]], "relation": "split",
+             "evidence": "manual:checked-against-plan", "source": "manual",
+             "author": MANUAL_AUTHOR, "timestamp": MANUAL_TIME}
+    data = [{"path": lineage_path(head, "manual"), "attributes": {"dokwood::lineage": {
+        "producer": MANUAL_AUTHOR, "base": base_ref, "head": head_ref, "entries": [entry], "deleted": []}}}]
+    return {"header": header(f"4-lineage-v1-{head}-manual.ifcx", MANUAL_AUTHOR),
+            "imports": [], "schemas": LINEAGE_SCHEMA, "data": data}
+
+
+def carried_state(state, reviewed, current):
+    # An approval holds only for the derivation it reviewed.
+    return "to-confirm" if reviewed and reviewed != current else state
+
+
+def assignment_v2(entries, shas_v1, shas_v2):
+    old = {k: (c, v, s, shas_v1[OCC[k]] if s == "approved" else None) for k, c, v, s in ASSIGN_V1}
     data = []
-    by_old = {k: (c, v, s) for k, c, v, s in ASSIGN_V1}
-    for pre, suc, rel, _, _ in lineage_entries:
-        if len(pre) != 1:
-            raise ValueError("only single-predecessor relations are carried")
-        if pre[0] not in by_old:
+    # Same path in v2: the derivation was redone, so a stale approval drops to to-confirm.
+    for k, (c, v, s, rev) in old.items():
+        if OCC[k] in shas_v2 and carried_state(s, rev, shas_v2[OCC[k]]) != s:
+            data.append(assignment_node(OCC[k], c, v, "to-confirm", rev))
+    for pre, suc, rel, _, _ in entries:
+        if not any(k in old for k in pre):
             continue
-        c, v, s = by_old[pre[0]]
+        carried = {"occurrences": [OCC[k] for k in pre], "lineage": lineage_path("v2"), "relation": rel}
+        if rel == "merge":
+            types = {old[k][:2] if k in old else None for k in pre}
+            if len(types) != 1 or None in types:
+                continue
+            (c, v), = types
+            data.append(assignment_node(OCC[suc[0]], c, v, "to-confirm",
+                                        carried=dict(carried, policy="same-type-or-none")))
+            continue
+        if len(pre) != 1:
+            raise ValueError(f"{rel} with several predecessors is not carried")
+        c, v, s, rev = old[pre[0]]
         for k in suc:
-            data.append({"path": OCC[k], "inherits": {"detailType": type_ref(c, v)},
-                         "attributes": {"dokwood::detail::assignment": {
-                             "state": "to-confirm" if rel == "split" else s,
-                             "carriedFrom": {"occurrence": OCC[pre[0]], "lineage": LINEAGE,
-                                             "relation": rel, "policy": "copy-to-all"}}}})
+            state = "to-confirm" if rel == "split" else carried_state(s, rev, shas_v2[OCC[k]])
+            data.append(assignment_node(OCC[k], c, v, state, rev, dict(carried, policy="copy-to-all")))
     return {"header": header("4-assignment-v2.ifcx", "detail editor (DOKwood platform)"),
             "imports": [], "schemas": ASSIGN_SCHEMA, "data": data}
 
 
-sidecar, lineage_entries = ifc_lite_lineage(write_step(WALLS_V1, "v1"), write_step(WALLS_V2, "v2"))
-m1 = write(model(WALLS_V1, "v1"))
-m2 = write(model(WALLS_V2, "v2"))
+# ---- manual split ----------------------------------------------------------
+SPLIT_SCHEMA = {"dokwood::detail::manualSplit": {"value": obj({"reason": S_STR, "author": S_STR, "timestamp": S_STR})}}
+
+
+def manual_split():
+    # A person splits the Wand 2 occurrence at the balcony door, x 2.50 to 3.50, written against v1.
+    occ = OCC["W2"]
+    (_, _, kind, bearing, supported, ext), = [j for j in junctions("v1") if j[0] == "W2"]
+    parts = {"Teil_1": (0.0, 2.5), "Teil_2": (3.5, 6.0)}
+    data = [{"path": occ, "children": {n: u("manual-part", occ, n) for n in parts},
+             "attributes": {"dokwood::detail::manualSplit": {
+                 "reason": "balcony door from x 2.50 to 3.50", "author": MANUAL_AUTHOR, "timestamp": MANUAL_TIME}}}]
+    for n, (x0, x1) in parts.items():
+        data.append({"path": u("manual-part", occ, n), "attributes": {
+            "dokwood::detail::members": [{"ref": bearing, "role": "bearing"}, {"ref": supported, "role": "supported"}],
+            "dokwood::detail::topology": {"junction": kind, "extent": line(x0, x1, ext["start"][1], ext["start"][2])},
+        }})
+    return {"header": header("4-manual-split.ifcx", MANUAL_AUTHOR),
+            "imports": [], "schemas": {**SPLIT_SCHEMA, **MEMBERS_SCHEMA, **TOPOLOGY_SCHEMA}, "data": data}
+
+
+steps = {v: write_step(v) for v in MODELS}
+side_v2, entries_v2 = ifc_lite_lineage("v2", steps["v1"], steps["v2"])
+side_same, entries_same = ifc_lite_lineage("v2-samename", steps["v1"], steps["v2-samename"])
+m = {v: write(model(v)) for v in MODELS}
 write(catalog())
-write(derivation(WALLS_V1, "v1", m1))
-write(derivation(WALLS_V2, "v2", m2))
-write(assignment_v1())
-write(lineage(m1, m2, sidecar, lineage_entries))
-write(assignment_v2(lineage_entries))
+d1, d2 = derivation("v1", m["v1"]), derivation("v2", m["v2"])
+write(d1)
+write(d2)
+write(assignment_v1(derivation_shas(d1)))
+write(manual_split())
+write(lineage("v2", m["v1"], m["v2"], side_v2, entries_v2))
+write(assignment_v2(entries_v2, derivation_shas(d1), derivation_shas(d2)))
+write(lineage("v2-samename", m["v1"], m["v2-samename"], side_same, entries_same))
+write(manual_lineage("v2-samename", m["v1"], m["v2-samename"]))

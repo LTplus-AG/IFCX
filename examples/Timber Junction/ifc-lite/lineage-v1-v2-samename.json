@@ -1,0 +1,60 @@
+{
+  "format": "ifc-lite/lineage",
+  "version": 1,
+  "base": {
+    "hash": "sha256:aa35ba9fa01c2297c7b1ff849550b4708fe08efada63d2798e0033118713c123",
+    "path": "model-v1.ifc"
+  },
+  "head": {
+    "hash": "sha256:0ddb83b587516bb6b9b456c49d120ac7e7663ac1292aa5c8d512eec4eec7a5b9",
+    "path": "model-v2-samename.ifc"
+  },
+  "entries": [
+    {
+      "base": [
+        "1BalkonplatteTeilA0001",
+        "1BalkonplatteTeilB0001"
+      ],
+      "head": [
+        "2BalkonplatteGanz00001"
+      ],
+      "relation": "merge",
+      "reason": "merge:verified",
+      "shares": [
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "base": [
+        "1WandW1altAussenwand01"
+      ],
+      "head": [
+        "2WandW1aNeuTeilstueckA"
+      ],
+      "relation": "identity",
+      "reason": "content-match:reshaped"
+    },
+    {
+      "base": [
+        "1WandW2altAussenwand02"
+      ],
+      "head": [
+        "2WandW2NeuNurNeueGuid2"
+      ],
+      "relation": "identity",
+      "reason": "content-match:renamed"
+    },
+    {
+      "base": [
+        "1WandW4altInnenwand004"
+      ],
+      "head": [
+        "2WandW4NeuVerschoben04"
+      ],
+      "relation": "identity",
+      "reason": "content-match:moved"
+    }
+  ],
+  "deleted": []
+}

@@ -126,7 +126,9 @@
         "Wand_1__Decke": "c876b170-0f9d-5bb0-bf7e-0eb96a3ff346",
         "Wand_2__Decke": "d5a65e9f-e257-582a-9a83-fccc4a6ff50c",
         "Wand_3__Decke": "68b553da-3631-54b8-a33a-6b1a8a0338a6",
-        "Wand_4__Decke": "667ddcaf-88b6-5dad-b708-035df3720612"
+        "Wand_4__Decke": "667ddcaf-88b6-5dad-b708-035df3720612",
+        "Decke__Balkonplatte_A": "29fc8807-491f-5793-ac69-d164f12a1cfb",
+        "Decke__Balkonplatte_B": "efea72a9-920a-555d-95eb-856acc0778c0"
       },
       "attributes": {
         "bsi::ifc::prop::Name": "Detail occurrences (derived)"
@@ -172,7 +174,7 @@
             "3897f691-029a-59f9-8b78-441618b20751"
           ],
           "sourceLayer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v1.ifcx",
-          "sourceSha256": "476b523e845cd5af0009b56b6ea06a78160c3cacea673d5cfe99be48f9de2834"
+          "sourceSha256": "7a3e9751cb49ae30fb25ead9976dace14c55fa07ee78009ba457388cd9a8e0cd"
         }
       }
     },
@@ -216,7 +218,7 @@
             "f67f61de-119a-546b-8d06-35b2b83bb491"
           ],
           "sourceLayer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v1.ifcx",
-          "sourceSha256": "476b523e845cd5af0009b56b6ea06a78160c3cacea673d5cfe99be48f9de2834"
+          "sourceSha256": "7a3e9751cb49ae30fb25ead9976dace14c55fa07ee78009ba457388cd9a8e0cd"
         }
       }
     },
@@ -260,7 +262,7 @@
             "14669707-9740-549f-959e-d51ba3f1ccd4"
           ],
           "sourceLayer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v1.ifcx",
-          "sourceSha256": "476b523e845cd5af0009b56b6ea06a78160c3cacea673d5cfe99be48f9de2834"
+          "sourceSha256": "7a3e9751cb49ae30fb25ead9976dace14c55fa07ee78009ba457388cd9a8e0cd"
         }
       }
     },
@@ -304,7 +306,95 @@
             "5504f316-d63c-5efc-828c-11bf228e6ce5"
           ],
           "sourceLayer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v1.ifcx",
-          "sourceSha256": "476b523e845cd5af0009b56b6ea06a78160c3cacea673d5cfe99be48f9de2834"
+          "sourceSha256": "7a3e9751cb49ae30fb25ead9976dace14c55fa07ee78009ba457388cd9a8e0cd"
+        }
+      }
+    },
+    {
+      "path": "29fc8807-491f-5793-ac69-d164f12a1cfb",
+      "attributes": {
+        "dokwood::detail::members": [
+          {
+            "ref": "05b23ede-6634-5544-af86-10c324c07c06",
+            "role": "bearing"
+          },
+          {
+            "ref": "e9f11d11-e391-5112-a5da-33c607555fc3",
+            "role": "supported"
+          }
+        ],
+        "dokwood::detail::topology": {
+          "junction": "slab-to-slab",
+          "extent": {
+            "kind": "line",
+            "length": 3.0,
+            "start": [
+              0.0,
+              5.24,
+              2.84
+            ],
+            "end": [
+              3.0,
+              5.24,
+              2.84
+            ]
+          }
+        },
+        "dokwood::derivation": {
+          "engine": "detail-finder",
+          "engineVersion": "1.4.0",
+          "tolerance": 0.001,
+          "operation": "junction-detection",
+          "sources": [
+            "05b23ede-6634-5544-af86-10c324c07c06",
+            "e9f11d11-e391-5112-a5da-33c607555fc3"
+          ],
+          "sourceLayer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v1.ifcx",
+          "sourceSha256": "7a3e9751cb49ae30fb25ead9976dace14c55fa07ee78009ba457388cd9a8e0cd"
+        }
+      }
+    },
+    {
+      "path": "efea72a9-920a-555d-95eb-856acc0778c0",
+      "attributes": {
+        "dokwood::detail::members": [
+          {
+            "ref": "05b23ede-6634-5544-af86-10c324c07c06",
+            "role": "bearing"
+          },
+          {
+            "ref": "e84753a2-92b0-5906-a89d-9214ba6f3d40",
+            "role": "supported"
+          }
+        ],
+        "dokwood::detail::topology": {
+          "junction": "slab-to-slab",
+          "extent": {
+            "kind": "line",
+            "length": 3.0,
+            "start": [
+              3.0,
+              5.24,
+              2.84
+            ],
+            "end": [
+              6.0,
+              5.24,
+              2.84
+            ]
+          }
+        },
+        "dokwood::derivation": {
+          "engine": "detail-finder",
+          "engineVersion": "1.4.0",
+          "tolerance": 0.001,
+          "operation": "junction-detection",
+          "sources": [
+            "05b23ede-6634-5544-af86-10c324c07c06",
+            "e84753a2-92b0-5906-a89d-9214ba6f3d40"
+          ],
+          "sourceLayer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v1.ifcx",
+          "sourceSha256": "7a3e9751cb49ae30fb25ead9976dace14c55fa07ee78009ba457388cd9a8e0cd"
         }
       }
     }

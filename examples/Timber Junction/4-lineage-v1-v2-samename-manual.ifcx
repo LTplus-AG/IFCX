@@ -1,0 +1,175 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/4-lineage-v1-v2-samename-manual.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "planner (manual review in detail editor)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [],
+  "schemas": {
+    "dokwood::lineage": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "producer": {
+              "dataType": "String"
+            },
+            "sidecar": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "file": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  }
+                }
+              },
+              "optional": true
+            },
+            "base": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  }
+                }
+              }
+            },
+            "head": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  }
+                }
+              }
+            },
+            "entries": {
+              "dataType": "Array",
+              "arrayRestrictions": {
+                "value": {
+                  "dataType": "Object",
+                  "objectRestrictions": {
+                    "values": {
+                      "predecessors": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Reference"
+                          }
+                        }
+                      },
+                      "successors": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Reference"
+                          }
+                        }
+                      },
+                      "relation": {
+                        "dataType": "Enum",
+                        "enumRestrictions": {
+                          "options": [
+                            "identity",
+                            "split",
+                            "merge",
+                            "replaced"
+                          ]
+                        }
+                      },
+                      "evidence": {
+                        "dataType": "String"
+                      },
+                      "shares": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Real"
+                          }
+                        },
+                        "optional": true
+                      },
+                      "source": {
+                        "dataType": "Enum",
+                        "enumRestrictions": {
+                          "options": [
+                            "ifc-lite",
+                            "manual"
+                          ]
+                        }
+                      },
+                      "author": {
+                        "dataType": "String",
+                        "optional": true
+                      },
+                      "timestamp": {
+                        "dataType": "String",
+                        "optional": true
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "deleted": {
+              "dataType": "Array",
+              "arrayRestrictions": {
+                "value": {
+                  "dataType": "Reference"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "4c5d50b3-db48-590e-94d6-40ede0e8b8e2",
+      "attributes": {
+        "dokwood::lineage": {
+          "producer": "planner (manual review in detail editor)",
+          "base": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v1.ifcx",
+            "sha256": "7a3e9751cb49ae30fb25ead9976dace14c55fa07ee78009ba457388cd9a8e0cd"
+          },
+          "head": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v2-samename.ifcx",
+            "sha256": "d7731a9820dca5282b56ddae3bfbc5614eadb12b34292b78237e4a69e41b11d5"
+          },
+          "entries": [
+            {
+              "predecessors": [
+                "3897f691-029a-59f9-8b78-441618b20751"
+              ],
+              "successors": [
+                "90330d74-e5fa-54b0-bc79-8b23da540c26",
+                "c9fbf9f4-7c07-569b-9cd2-4ea05b82b645"
+              ],
+              "relation": "split",
+              "evidence": "manual:checked-against-plan",
+              "source": "manual",
+              "author": "planner (manual review in detail editor)",
+              "timestamp": "2026-11-13T10:30:00Z"
+            }
+          ],
+          "deleted": []
+        }
+      }
+    }
+  ]
+}

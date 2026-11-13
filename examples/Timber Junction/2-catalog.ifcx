@@ -71,7 +71,8 @@
       "path": "7fba7fc8-d5fd-546b-99b7-56fd912629f3",
       "children": {
         "D012": "7766f60a-25e7-5663-af57-f1515e3c49e4",
-        "D021": "7c7ca018-8b80-5d9e-b93f-765a870a3926"
+        "D021": "7c7ca018-8b80-5d9e-b93f-765a870a3926",
+        "D031": "bea0b4b8-7677-581f-a05e-29af8d57f8f5"
       },
       "attributes": {
         "dokwood::catalog": {
@@ -91,6 +92,12 @@
       "path": "7c7ca018-8b80-5d9e-b93f-765a870a3926",
       "children": {
         "v1": "1b8ea740-d0b3-5897-98ca-374f622e4f06"
+      }
+    },
+    {
+      "path": "bea0b4b8-7677-581f-a05e-29af8d57f8f5",
+      "children": {
+        "v1": "e941adf0-1e85-5c56-983f-79b167448eca"
       }
     },
     {
@@ -156,6 +163,28 @@
             }
           ],
           "document": "https://example.org/dokwood/details/D021_v1.pdf"
+        }
+      }
+    },
+    {
+      "path": "e941adf0-1e85-5c56-983f-79b167448eca",
+      "attributes": {
+        "dokwood::detail::type": {
+          "code": "D031",
+          "name": "Balkonanschluss",
+          "version": "v1",
+          "junction": "slab-to-slab",
+          "roles": [
+            {
+              "role": "bearing",
+              "assembly": "Decke Holz 240"
+            },
+            {
+              "role": "supported",
+              "assembly": "Balkonplatte Holz 160"
+            }
+          ],
+          "document": "https://example.org/dokwood/details/D031_v1.pdf"
         }
       }
     }

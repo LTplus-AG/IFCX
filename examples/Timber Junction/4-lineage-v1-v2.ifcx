@@ -27,7 +27,8 @@
                     "dataType": "String"
                   }
                 }
-              }
+              },
+              "optional": true
             },
             "base": {
               "dataType": "Object",
@@ -100,6 +101,23 @@
                           }
                         },
                         "optional": true
+                      },
+                      "source": {
+                        "dataType": "Enum",
+                        "enumRestrictions": {
+                          "options": [
+                            "ifc-lite",
+                            "manual"
+                          ]
+                        }
+                      },
+                      "author": {
+                        "dataType": "String",
+                        "optional": true
+                      },
+                      "timestamp": {
+                        "dataType": "String",
+                        "optional": true
                       }
                     }
                   }
@@ -127,17 +145,33 @@
           "producer": "@ifc-lite/cli@0.45.1 diff --geometry --split-merge, run on the STEP twins in ifc-lite/",
           "sidecar": {
             "file": "ifc-lite/lineage-v1-v2.json",
-            "sha256": "34b24c9e9b02450870a3d70b765a0ea2ea176477178de57fb8c28134445da953"
+            "sha256": "8ced582d8f205de0388e2b1ccda26a57e8e9ef0feebaf20878c31d4866a7bb9e"
           },
           "base": {
             "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v1.ifcx",
-            "sha256": "476b523e845cd5af0009b56b6ea06a78160c3cacea673d5cfe99be48f9de2834"
+            "sha256": "7a3e9751cb49ae30fb25ead9976dace14c55fa07ee78009ba457388cd9a8e0cd"
           },
           "head": {
             "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v2.ifcx",
-            "sha256": "e79c7a1e72071759b0ecfb97aca378794c3aba97e96ab941073cff4e1e779eb6"
+            "sha256": "4d106680dc6897b650a4457a1b8d507d3767e12b8ec26aed7bcb89d4386473cf"
           },
           "entries": [
+            {
+              "predecessors": [
+                "e9f11d11-e391-5112-a5da-33c607555fc3",
+                "e84753a2-92b0-5906-a89d-9214ba6f3d40"
+              ],
+              "successors": [
+                "5778caf1-56ae-59f5-a513-526426d6fd7f"
+              ],
+              "relation": "merge",
+              "evidence": "merge:verified",
+              "source": "ifc-lite",
+              "shares": [
+                0.5,
+                0.5
+              ]
+            },
             {
               "predecessors": [
                 "3897f691-029a-59f9-8b78-441618b20751"
@@ -148,6 +182,7 @@
               ],
               "relation": "split",
               "evidence": "split:verified",
+              "source": "ifc-lite",
               "shares": [
                 0.6666666666666666,
                 0.3333333333333333
@@ -161,7 +196,8 @@
                 "cd3ec012-1541-5c56-8cad-a962328d922f"
               ],
               "relation": "identity",
-              "evidence": "content-match:renamed"
+              "evidence": "content-match:renamed",
+              "source": "ifc-lite"
             },
             {
               "predecessors": [
@@ -171,7 +207,8 @@
                 "3ad8f0f9-f71c-5dc3-8e82-c5b981b8905f"
               ],
               "relation": "identity",
-              "evidence": "content-match:moved"
+              "evidence": "content-match:moved",
+              "source": "ifc-lite"
             }
           ],
           "deleted": []
