@@ -119,6 +119,8 @@ describe("example file", () => {
             expect(lineage.entries.map((e: any) => [e.predecessors, e.successors, e.relation, e.evidence, e.shares, e.source]))
                 .to.deep.equal(sidecar.entries.map((e: any) => [e.base.map(base), e.head.map(tip), e.relation, e.reason, e.shares, "ifc-lite"]));
         }
+        const manual = LineageOf("4-lineage-v1-v2-samename-manual");
+        expect([manual.base, manual.head]).to.deep.equal([binding("v1"), binding("v2-samename")]);
         for (const v of ["v1", "v2"]) {
             const group = OccurrenceGroup(v);
             const occurrences = ReadTimberJunction(`3-derivation-${v}`).data.filter(d => d.path !== group.path);

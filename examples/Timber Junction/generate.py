@@ -47,11 +47,15 @@ def write_bytes(p, data):
     return hashlib.sha256(data).hexdigest()
 
 
+PENDING = []
+
+
 def write(f):
+    # Queued, so a check failing later leaves the .ifcx files as they were.
     data = (json.dumps(f, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
-    p = OUT / f["header"]["id"][len(ID_PREFIX):]
+    PENDING.append((OUT / f["header"]["id"][len(ID_PREFIX):], data))
     # What a derived layer records about the layer it was derived from.
-    return {"layer": f["header"]["id"], "sha256": write_bytes(p, data)}
+    return {"layer": f["header"]["id"], "sha256": hashlib.sha256(data).hexdigest()}
 
 
 def record_sha(record):
@@ -144,7 +148,10 @@ MODEL_IMPORTS = [
 
 def add_child(children, name, key, path):
     # Two pieces both named "Wand 1" need distinct child names.
-    children[name if name not in children else f"{name}_{key}"] = path
+    if name in children:
+        name = f"{name}_{key}"
+        assert name not in children, name
+    children[name] = path
 
 
 def model(version):
@@ -188,8 +195,8 @@ def ifc_guid(*parts):
 
 
 def step_str(s):
-    if any(ord(c) > 0xFFFF for c in s):
-        raise ValueError(f"{s!r}: characters above U+FFFF need \\X4\\, which this writer does not do")
+    if any(ord(c) < 0x20 or ord(c) == 0x7F or ord(c) > 0xFFFF for c in s):
+        raise ValueError(f"{s!r}: control characters and characters above U+FFFF are not written")
     s = s.replace("\\", "\\\\").replace("'", "''")
     return "'" + "".join(c if ord(c) < 128 else f"\\X2\\{ord(c):04X}\\X0\\" for c in s) + "'"
 
@@ -451,6 +458,7 @@ def ifc_lite_lineage(head, step_v1, step_head):
         sys.exit(f"{sidecar.name} lists deleted elements, which this example does not model")
     # Only elements with an occurrence (walls, balcony pieces), from the right model.
     in_model = {v: {e.gid for e in MODELS[v] if e.key in OCC} for v in ("v1", head)}
+    v1_gids, seen = {e.gid for e in MODELS["v1"]}, set()
     for e in side["entries"]:
         n_base, n_head = len(e["base"]), len(e["head"])
         shape = {"merge": n_base >= 2 and n_head == 1, "split": n_base == 1 and n_head >= 2}
@@ -461,11 +469,14 @@ def ifc_lite_lineage(head, step_v1, step_head):
             (set(e["base"]) <= in_model["v1"], "base is not an element with an occurrence in v1"),
             (set(e["head"]) <= in_model[head], f"head is not an element with an occurrence in {head}"),
             (shape.get(e["relation"], n_base == 1 and n_head == 1), f"{n_base}:{n_head} for {e['relation']}"),
+            (not set(e["head"]) & v1_gids, "head element is also in v1"),
+            (len(set(e["base"] + e["head"]) | seen) == len(seen) + n_base + n_head, "element named twice"),
             (shares is None or (len(shares) == max(n_base, n_head) and abs(sum(shares) - 1) <= 1e-9), "bad shares"),
         ]
         for ok, why in rules:
             if not ok:
                 sys.exit(f"{sidecar.name} has an entry this example does not model ({why}): {e}")
+        seen |= set(e["base"] + e["head"])
     # Also into OUT, so an output folder holds what the lineage points at.
     ref = {"file": f"{STEP_DIR}/{sidecar.name}", "sha256": write_bytes(OUT / STEP_DIR / sidecar.name, raw)}
     return ref, side["entries"]
@@ -490,7 +501,7 @@ def lineage(head, base_ref, head_ref, sidecar, entries):
     for side in entries:
         e = {"predecessors": [path_of(g) for g in side["base"]], "successors": [path_of(g) for g in side["head"]],
              "relation": side["relation"], "evidence": side["reason"], "source": "ifc-lite"}
-        if "shares" in side:
+        if side.get("shares") is not None:
             e["shares"] = side["shares"]
         out.append(e)
     return lineage_file(f"4-lineage-v1-{head}.ifcx", lineage_path(head), "model comparison (@ifc-lite/diff)", {
@@ -581,3 +592,5 @@ for h, (side, entries) in sidecars.items():
     write(lineage(h, m["v1"], m[h], side, entries))
 write(assignment_v2("v2", sidecars["v2"][1], shas_v1, shas_v2))
 write(manual_lineage("v2-samename", m["v1"], m["v2-samename"]))
+for p, data in PENDING:
+    write_bytes(p, data)
