@@ -231,6 +231,8 @@ def step_model(version):
     contained = []
     for e in MODELS[version]:
         x0, y0, z0, x1, y1, z1 = e.box
+        if any(abs(c * 1000 - round(c * 1000)) > 1e-6 for c in e.box):
+            raise ValueError(f"{e.name}: the STEP twin writes millimetres, {e.box} is finer")
         dx, dy, dz = x1 - x0, y1 - y0, z1 - z0
         origin = add(f"IFCCARTESIANPOINT(({x0:.3f},{y0:.3f},{z0:.3f}))")
         lp = add(f"IFCLOCALPLACEMENT(#35,{add(f'IFCAXIS2PLACEMENT3D({origin},#21,#22)')})")
@@ -399,6 +401,8 @@ def type_ref(code, ver):
 
 
 ELEMENTS = {e.key: e for m in MODELS.values() for e in m}
+# Scenarios share keys only for the same element, so one key means one GlobalId.
+assert all(ELEMENTS[e.key].gid == e.gid for m in MODELS.values() for e in m)
 W = {k: path_of(e.gid) for k, e in ELEMENTS.items()}
 KEY = {e.gid: k for k, e in ELEMENTS.items()}
 OCC = {j.key: occ_path(j.kind, j.bearing, j.supported) for v in MODELS for j in junctions(v)}
@@ -448,14 +452,17 @@ def ifc_lite_lineage(head, step_v1, step_head):
     # Only elements with an occurrence (walls, balcony pieces), from the right model.
     in_model = {v: {e.gid for e in MODELS[v] if e.key in OCC} for v in ("v1", head)}
     for e in side["entries"]:
-        shares = e.get("shares", [1.0])
+        n_base, n_head = len(e["base"]), len(e["head"])
+        shape = {"merge": n_base >= 2 and n_head == 1, "split": n_base == 1 and n_head >= 2}
+        shares = e.get("shares")
         rules = [
             (e["relation"] in RELATIONS, "unknown relation"),
             (isinstance(e.get("reason"), str), "no reason"),
             (set(e["base"]) <= in_model["v1"], "base is not an element with an occurrence in v1"),
             (set(e["head"]) <= in_model[head], f"head is not an element with an occurrence in {head}"),
-            (len(e["head"]) == 1 if e["relation"] == "merge" else len(e["base"]) == 1, "not 1:n or n:1"),
-            (len(shares) in (1, len(e["base"]), len(e["head"])) and abs(sum(shares) - 1) <= 1e-9, "bad shares"),
+            (shape.get(e["relation"], n_base == 1 and n_head == 1), f"{n_base}:{n_head} for {e['relation']}"),
+            (shares is None or (len(shares) == (n_base if e["relation"] == "merge" else n_head)
+                                and abs(sum(shares) - 1) <= 1e-9), "bad shares"),
         ]
         for ok, why in rules:
             if not ok:

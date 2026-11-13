@@ -198,7 +198,8 @@ into its path with uuid5 and requiring that path to be a node of the model)
 The STEP twins and the IFCX models agree per wall and slab: the same
 GlobalIds (as `uuid5` paths), names, class, `IsExternal` and boxes (origin
 plus extruded rectangle against the mesh's bounding box, to 6 decimals), for
-all three models. (proven by running: `timber junction STEP twins match the
+all three models. The twins write millimetres, and `generate.py` refuses a
+box that is finer. (proven by running: `timber junction STEP twins match the
 IFCX models`, which also fails if an element's origin in a twin is changed)
 The test reads each element's own origin, profile and depth only. The shared
 placement chain and axis directions (`#20` to `#35`) are assumed to be the
@@ -217,11 +218,11 @@ was reviewed. Here both are D031/v1, so the merged occurrence gets D031/v1
 `to-confirm`, with `carriedFrom.occurrences` listing both old occurrences.
 (proven by running: `timber junction carries merges by same-type-or-none`,
 which checks the rule for every merge entry) If they disagree, nothing is
-carried (pointed at `generate.py:528`; unproven, the example has no such case).
+carried (pointed at `generate.py:535`; unproven, the example has no such case).
 
 Every other relation uses `copy-to-all`: every successor gets the type. Only
 an `identity` successor keeps its state, unless the approval rule resets it;
-any other successor is `to-confirm` (pointed at `generate.py:536`; `replaced`
+any other successor is `to-confirm` (pointed at `generate.py:543`; `replaced`
 is unproven, the example has none).
 
 ### Pieces keep the old name

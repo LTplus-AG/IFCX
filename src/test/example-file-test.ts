@@ -252,11 +252,12 @@ function ModelElements(v: string)
     return ReadTimberJunction(`1-model-${v}`).data.filter(d => ["IfcWall", "IfcSlab"].includes(d.attributes?.["bsi::ifc::class"]?.code));
 }
 
+// Lineage entries name only elements with an occurrence, so not the floor slab.
 function ElementPathIn(v: string)
 {
-    const paths = new Set(ModelElements(v).map(d => d.path));
+    const paths = new Set(ModelElements(v).map(d => d.path).filter(p => p !== slabPath));
     return (gid: string) => {
-        expect(paths.has(PathOf(gid)), `${gid} in 1-model-${v}.ifcx`).to.be.true;
+        expect(paths.has(PathOf(gid)), `${gid} in 1-model-${v}.ifcx, other than the floor slab`).to.be.true;
         return PathOf(gid);
     };
 }
@@ -341,19 +342,20 @@ function StepElements(v: string)
         const profile = refs(solid)[0];
         const [dx, dy] = nums(profile), [dz] = nums(solid);
         // The profile is centred on its own half extents, so the solid spans origin to origin + size.
-        expect(nums(refs(refs(profile)[0])[0]), `${gid} profile centre`).to.deep.equal([dx / 2, dy / 2].map(n => Number(n.toFixed(3))));
+        const centre = nums(refs(refs(profile)[0])[0]);
+        expect(centre.map((c, i) => Math.abs(c - [dx, dy][i] / 2) <= 0.0005), `${gid} profile centre`).to.deep.equal([true, true]);
         out[PathOf(gid)] = [cls, name, external.get(id), Box(origin, [origin[0] + dx, origin[1] + dy, origin[2] + dz])];
     }
     return out;
 }
 
-// "<code>/<version> <state> <carried relation> <carried-from path prefixes>", with "-" in place of a missing type.
 function TypeOf(o: PostCompositionNode)
 {
     const type = o.attributes.get("dokwood::detail::type");
     return type ? `${type.code}/${type.version}` : "-";
 }
 
+// "<code>/<version> <state> <carried relation> <carried-from path prefixes>", with "-" in place of a missing type.
 function Summary(o: PostCompositionNode)
 {
     const assignment = o.attributes.get("dokwood::detail::assignment");
