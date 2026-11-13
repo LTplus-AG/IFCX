@@ -43,8 +43,8 @@ Model v2 is a full re-export, not a layer on top of v1. That is the hard case:
 new paths for every changed element.
 
 `generate.py` writes all twelve `.ifcx` files and the three STEP twins, and
-copies the two lineage sidecars it read into the output folder. It writes the
-`.ifcx` files last, after every check has passed. To
+copies the two lineage sidecars it read into the output folder. Everything
+except the STEP twins is written last, after every check has passed. To
 change the example, edit the script and run it in this folder (Python 3.8 or
 later, no packages):
 
@@ -221,11 +221,11 @@ was reviewed. Here both are D031/v1, so the merged occurrence gets D031/v1
 `to-confirm`, with `carriedFrom.occurrences` listing both old occurrences.
 (proven by running: `timber junction carries merges by same-type-or-none`,
 which checks the rule for every merge entry) If they disagree, nothing is
-carried (pointed at `generate.py:545`; unproven, the example has no such case).
+carried (pointed at `generate.py:549`; unproven, the example has no such case).
 
 Every other relation uses `copy-to-all`: every successor gets the type. Only
 an `identity` successor keeps its state, unless the approval rule resets it;
-any other successor is `to-confirm` (pointed at `generate.py:553`; `replaced`
+any other successor is `to-confirm` (pointed at `generate.py:557`; `replaced`
 is unproven, the example has none).
 
 ### Pieces keep the old name

@@ -50,8 +50,8 @@ def write_bytes(p, data):
 PENDING = []
 
 
-def write(f):
-    # Queued, so a check failing later leaves the .ifcx files as they were.
+def stage(f):
+    # Queued, so a check failing later leaves the files as they were.
     data = (json.dumps(f, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     PENDING.append((OUT / f["header"]["id"][len(ID_PREFIX):], data))
     # What a derived layer records about the layer it was derived from.
@@ -458,8 +458,11 @@ def ifc_lite_lineage(head, step_v1, step_head):
         sys.exit(f"{sidecar.name} lists deleted elements, which this example does not model")
     # Only elements with an occurrence (walls, balcony pieces), from the right model.
     in_model = {v: {e.gid for e in MODELS[v] if e.key in OCC} for v in ("v1", head)}
-    v1_gids, seen = {e.gid for e in MODELS["v1"]}, set()
+    seen = set()
     for e in side["entries"]:
+        if e.get("shares", 0) is None:
+            del e["shares"]
+        names = e["base"] + e["head"]
         n_base, n_head = len(e["base"]), len(e["head"])
         shape = {"merge": n_base >= 2 and n_head == 1, "split": n_base == 1 and n_head >= 2}
         shares = e.get("shares")
@@ -469,16 +472,17 @@ def ifc_lite_lineage(head, step_v1, step_head):
             (set(e["base"]) <= in_model["v1"], "base is not an element with an occurrence in v1"),
             (set(e["head"]) <= in_model[head], f"head is not an element with an occurrence in {head}"),
             (shape.get(e["relation"], n_base == 1 and n_head == 1), f"{n_base}:{n_head} for {e['relation']}"),
-            (not set(e["head"]) & v1_gids, "head element is also in v1"),
-            (len(set(e["base"] + e["head"]) | seen) == len(seen) + n_base + n_head, "element named twice"),
+            (not set(e["head"]) & in_model["v1"], "head element is also in v1"),
+            (len(set(names)) == len(names) and seen.isdisjoint(names), "element named twice"),
             (shares is None or (len(shares) == max(n_base, n_head) and abs(sum(shares) - 1) <= 1e-9), "bad shares"),
         ]
         for ok, why in rules:
             if not ok:
                 sys.exit(f"{sidecar.name} has an entry this example does not model ({why}): {e}")
-        seen |= set(e["base"] + e["head"])
+        seen.update(names)
     # Also into OUT, so an output folder holds what the lineage points at.
-    ref = {"file": f"{STEP_DIR}/{sidecar.name}", "sha256": write_bytes(OUT / STEP_DIR / sidecar.name, raw)}
+    PENDING.append((OUT / STEP_DIR / sidecar.name, raw))
+    ref = {"file": f"{STEP_DIR}/{sidecar.name}", "sha256": hashlib.sha256(raw).hexdigest()}
     return ref, side["entries"]
 
 
@@ -501,7 +505,7 @@ def lineage(head, base_ref, head_ref, sidecar, entries):
     for side in entries:
         e = {"predecessors": [path_of(g) for g in side["base"]], "successors": [path_of(g) for g in side["head"]],
              "relation": side["relation"], "evidence": side["reason"], "source": "ifc-lite"}
-        if side.get("shares") is not None:
+        if "shares" in side:
             e["shares"] = side["shares"]
         out.append(e)
     return lineage_file(f"4-lineage-v1-{head}.ifcx", lineage_path(head), "model comparison (@ifc-lite/diff)", {
@@ -580,17 +584,17 @@ def manual_split():
 
 steps = {v: write_step(v) for v in MODELS}
 sidecars = {h: ifc_lite_lineage(h, steps["v1"], steps[h]) for h in ("v2", "v2-samename")}
-m = {v: write(model(v)) for v in MODELS}
-write(catalog())
+m = {v: stage(model(v)) for v in MODELS}
+stage(catalog())
 d1, d2 = derivation("v1", m["v1"]), derivation("v2", m["v2"])
 shas_v1, shas_v2 = derivation_shas(d1), derivation_shas(d2)
-write(d1)
-write(d2)
-write(assignment_v1(shas_v1))
-write(manual_split())
+stage(d1)
+stage(d2)
+stage(assignment_v1(shas_v1))
+stage(manual_split())
 for h, (side, entries) in sidecars.items():
-    write(lineage(h, m["v1"], m[h], side, entries))
-write(assignment_v2("v2", sidecars["v2"][1], shas_v1, shas_v2))
-write(manual_lineage("v2-samename", m["v1"], m["v2-samename"]))
+    stage(lineage(h, m["v1"], m[h], side, entries))
+stage(assignment_v2("v2", sidecars["v2"][1], shas_v1, shas_v2))
+stage(manual_lineage("v2-samename", m["v1"], m["v2-samename"]))
 for p, data in PENDING:
-    write_bytes(p, data)
+    p.write_bytes(data)
