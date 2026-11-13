@@ -329,10 +329,11 @@ v2  Wand_1_1__Decke        D012/v3  to-confirm   carriedFrom c876b170 (split)
 ```
 
 The web viewer (`web/viewer`, built from `src/viewer` with the
-`build-viewer` esbuild command) loaded the earlier six-layer v2 stack and
-rendered the walls and the translucent slab (proven by running at the
-previous commit, headless Chrome). Not rerun for the current seven-layer
-stack with the balcony. (unproven)
+`build-viewer` esbuild command) loaded the seven-layer v2 stack without an
+error. Its model tree listed the five walls, the slab, the balcony slab, the
+catalog, the six occurrences and the orphan roots, and the canvas held
+opaque and translucent pixels. (proven by running at commit `48e4b6b`, in a
+browser; the canvas was read as pixel counts, nobody looked at the picture)
 
 ## Open gaps
 
