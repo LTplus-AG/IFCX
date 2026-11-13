@@ -58,6 +58,13 @@ describe("example file", () => {
         expect(orphans.map(Summary).sort()).to.deep.equal(["D012/v3 approved", "D012/v3 in-review", "D031/v1 approved", "D031/v1 in-review"]);
         const carriedFrom = ReadTimberJunction("4-assignment-v2").data.flatMap(d => d.attributes!["dokwood::detail::assignment"].carriedFrom?.occurrences ?? []);
         expect([...new Set(carriedFrom)].sort()).to.deep.equal(notRederived.sort());
+        // Each carried row names the v1 to v2 lineage node and the policy for its relation.
+        for (const d of ReadTimberJunction("4-assignment-v2").data) {
+            const carried = d.attributes!["dokwood::detail::assignment"].carriedFrom;
+            if (!carried) continue;
+            expect([carried.lineage, carried.policy], d.path).to.deep.equal([LineageNode("4-lineage-v1-v2").path,
+                carried.relation === "merge" ? "same-type-or-none" : "copy-to-all"]);
+        }
     });
     it("timber junction approvals hold only for the derivation they reviewed", async () => {
         // The rule, which IFCX does not enforce: approved needs reviewedSha256 equal to the hash of the
@@ -333,7 +340,9 @@ function StepElements(v: string)
     for (const r of rows.values()) {
         if (r.type !== "IFCRELDEFINESBYPROPERTIES") continue;
         const [, product, pset] = r.args.match(/#\d+/g)!;
-        external.set(product, rows.get(refs(pset)[1])!.args.includes("IFCBOOLEAN(.T.)"));
+        const value = rows.get(refs(pset)[1])!.args.match(/^'IsExternal',\$,IFCBOOLEAN\(\.([TF])\.\),\$$/);
+        expect(value, `IsExternal property of ${product}`).to.exist;
+        external.set(product, value![1] === "T");
     }
     const out: { [path: string]: any[] } = {};
     for (const [id, r] of rows) {

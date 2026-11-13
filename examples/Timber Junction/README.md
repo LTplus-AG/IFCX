@@ -57,7 +57,9 @@ the committed files byte for byte. (proven by running: `python3 generate.py
 <empty folder>` and `cmp` of every file) If a change touches an element's GlobalId,
 name, class, box or `IsExternal`, the STEP twins change too and the script
 stops until the lineage sidecars are rerun (Node 20 or later). Other model
-edits, such as colours or the storey name, do not reach the twins:
+edits, such as colours or the storey name, do not reach the twins (pointed at
+`generate.py:204`, `step_model`, and the fixed storey name at
+`generate.py:225`):
 
 ```sh
 cd ifc-lite
@@ -143,6 +145,7 @@ hash goes from `addfdad6...` to `5568cd08...`. The v1 approval reviewed
 `addfdad6...`, so `4-assignment-v2.ifcx` writes `to-confirm` on the same path
 and keeps `reviewedSha256` to show what was approved. (proven by running) The
 split successors of Wand 1 carry the stale hash too and are `to-confirm`.
+(proven by running, same test)
 
 This is a convention. IFCX composes an `approved` state with a stale
 `reviewedSha256` without complaint: the swapped order below does exactly
@@ -209,7 +212,8 @@ IFCX models`, which also fails if an element's origin in a twin is changed)
 The test reads each element's own origin, profile and depth only. The shared
 placement chain and axis directions (`#20` to `#35`) are assumed to be the
 identity, as `generate.py` writes them, and are not checked. Spatial
-containment and property set names are not compared either. (unproven)
+containment, property set names and products other than walls and slabs are
+not compared either. (unproven)
 
 ### Merge (n:1)
 
@@ -247,7 +251,7 @@ This matches the edge case noted in the WP9 identity demo. The human-confirmed
 path: `4-lineage-v1-v2-samename-manual.ifcx` is a separate layer, written by
 the planner, with one entry Wand 1 to both pieces, `relation: "split"`,
 `source: "manual"`, `author` and `timestamp`, and no shares. The ifc-lite
-layer stays as it was produced.
+layer stays as it was produced. (proven by running, test named below)
 
 Both lineage nodes compose side by side; IFCX cannot drop one entry from
 another layer's `entries` list. The rule that a manual entry replaces every
@@ -275,7 +279,7 @@ is re-derived`):
   which is no node of model v2.
 
 The split does not follow the lineage; nothing in this example carries manual
-edits. A split on an occurrence whose path survives (like Wand 3) would stay
+edits. (proven by running, same test) A split on an occurrence whose path survives (like Wand 3) would stay
 attached, with the same stale-derivation problem as an approval. (unproven,
 not in the example)
 
@@ -292,7 +296,7 @@ node ../../src/ifcx-cli.js compose 1-model-v2-samename.ifcx 4-lineage-v1-v2-same
 ```
 
 The composed JSON goes to a fresh temp folder, because `compose` refuses to
-overwrite an existing output file.
+overwrite an existing output file (pointed at `src/ifcx-cli/ifcx-cli.ts:84`).
 
 The model layers import `ifc`, `prop` and `usd`, which are fetched from
 ifcx.dev. Schema validation is on. `npm test` composes the same stacks
@@ -354,8 +358,8 @@ stack with the balcony. (unproven)
    and a member ref pointing at a missing node composes without error.
    (proven by running; the manual split parts in v2 are such a case)
    `sourceLayer` and `sourceSha256` are not checked either:
-   `3-derivation-v2.ifcx` and `4-assignment-v2.ifcx` stacked on
-   `1-model-v1.ifcx` compose with exit 0. (proven by running) `children`
+   `1-model-v1.ifcx`, `2-catalog.ifcx`, `3-derivation-v2.ifcx` and
+   `4-assignment-v2.ifcx` compose with exit 0. (proven by running) `children`
    would give resolution but means containment, and a node listed as child of
    two walls is copied into both (pointed at
    `src/ifcx-core/composition/compose.ts:160`).
@@ -421,7 +425,8 @@ running; the sidecar's base and head hashes are the two above):
 
 All three walls are named "Corpus partition wall". Unlike `v2-samename`, the
 pieces here are equal, so content matching abstains instead of picking one,
-and the geometry split check decides. The sidecar is not translated into an
+and the geometry split check decides. (proven by running: names read from the
+two files, `duplicated` and the split from `--json`) The sidecar is not translated into an
 IFCX layer, since the corpus has no IFCX model.
 
 ## What would be proposed under bsi::
