@@ -675,45 +675,55 @@ SCOPE_SCHEMA = {"dokwood::scope": {"value": obj({
     "junction": S_STR, "roles": arr(obj({"role": S_STR, "where": S_STR})),
     "quantity": obj({"length": S_REAL}), "basis": S_STR})}}
 EXTERIOR = [j for j in junctions("v2") if j.kind == "slab-on-wall" and ELEMENTS[j.key].external]
-SCOPE_ITEM = u("view", "cost", "scope", "slab-bearing-exterior")
+
+
+def view_path(view, *key):
+    # A view's node for one place: key is the place path, or "scope" and a scope key.
+    return u("view", view, *key)
+
+
+SCOPE_ITEM = view_path("cost", "scope", "slab-bearing-exterior")
 SCOPE_LENGTH = 12.5
 
 
-def view_occurrence(view, j, type_path, state, attrs=None):
-    # (child name, path, inherits, attributes) of one view's statement about one place.
-    return (j.name, u("view", view, OCC[j.key]), {"place": OCC[j.key], "type": type_path},
-            {"dokwood::assignment": {"view": view, "state": state}, **(attrs or {})})
+def view_occurrence(view, child, path, inherits, state, attrs=None):
+    # (child name, node) of one view's statement about a place, or about a scope with no place yet.
+    return child, {"path": path, "inherits": inherits,
+                   "attributes": {"dokwood::assignment": {"view": view, "state": state}, **(attrs or {})}}
+
+
+def place_occurrence(view, j, type_path, state, attrs=None):
+    place = OCC[j.key]
+    return view_occurrence(view, j.name, view_path(view, place), {"place": place, "type": type_path}, state, attrs)
 
 
 def view_layer(name, author, view, occurrences, schemas):
-    data = [{"path": u("view-group", view), "children": {n: p for n, p, _, _ in occurrences},
+    data = [{"path": u("view-group", view), "children": {n: d["path"] for n, d in occurrences},
              "attributes": {"bsi::ifc::prop::Name": f"View: {view}"}}]
-    data += [{"path": p, "inherits": i, "attributes": a} for _, p, i, a in occurrences]
-    return ifcx_file(name, author, data, {**VIEW_SCHEMA, **schemas}, [PROP_IMPORT])
+    return ifcx_file(name, author, data + [d for _, d in occurrences], {**VIEW_SCHEMA, **schemas}, [PROP_IMPORT])
 
 
 def detail_view_bp():
     def detail_type(j):
         return ("D012", "v3") if j in EXTERIOR else ("D031", "v1") if j.kind == "slab-to-slab" else ("D021", "v1")
-    occs = [view_occurrence("detail", j, type_ref(*detail_type(j)), "proposed") for j in junctions("v2")]
+    occs = [place_occurrence("detail", j, type_ref(*detail_type(j)), "proposed") for j in junctions("v2")]
     return view_layer("5-view-detail-bp.ifcx", "detail editor (phase BP)", "detail", occs, {})
 
 
 def cost_view_bp():
     line_item = {"dokwood::cost::line": {"unitPrice": 175.0, "currency": "CHF"}}
-    occs = [view_occurrence("cost", j, GENERIC, "proposed", line_item) for j in EXTERIOR]
+    occs = [place_occurrence("cost", j, GENERIC, "proposed", line_item) for j in EXTERIOR]
     return view_layer("5-view-cost-bp.ifcx", "cost planner (phase BP)", "cost", occs, COST_SCHEMA)
 
 
 def cost_view_vp():
     # A scope item: one coarse cost line for places nobody has derived yet, so no "place".
-    scope = {"dokwood::assignment": {"view": "cost", "state": "approved"},
-             "dokwood::scope": {"junction": "slab-on-wall",
+    scope = {"dokwood::scope": {"junction": "slab-on-wall",
                                 "roles": [{"role": "bearing", "where": "IfcWall, IsExternal = true"},
                                           {"role": "supported", "where": "IfcSlab"}],
                                 "quantity": {"length": SCOPE_LENGTH}, "basis": "estimate from VP floor plan"},
              "dokwood::cost::line": {"unitPrice": 180.0, "currency": "CHF"}}
-    occs = [("Deckenauflager_aussen", SCOPE_ITEM, {"type": GENERIC}, scope)]
+    occs = [view_occurrence("cost", "Deckenauflager_aussen", SCOPE_ITEM, {"type": GENERIC}, "approved", scope)]
     return view_layer("5-view-cost-vp.ifcx", "cost planner (phase VP)", "cost", occs, {**COST_SCHEMA, **SCOPE_SCHEMA})
 
 
@@ -727,27 +737,29 @@ AXIS_LINEAGE_SCHEMA = {"dokwood::lineage": {"value": obj({
     "base": LINEAGE_END, "head": LINEAGE_END}, optional=("axis",))}}
 
 
+def axis_lineage_file(name, path, author, axis, producer, base, head, entry):
+    value = {"axis": axis, "producer": producer, "base": base, "head": head, "entries": [entry], "deleted": []}
+    return ifcx_file(name, author, [{"path": path, "attributes": {"dokwood::lineage": value}}], AXIS_LINEAGE_SCHEMA)
+
+
 def phase_lineage(vp, bp):
     lengths = [j.extent["length"] for j in EXTERIOR]
-    entry = {"predecessors": [SCOPE_ITEM], "successors": [u("view", "cost", OCC[j.key]) for j in EXTERIOR],
-             "relation": "split", "evidence": f"{SCOPE_LENGTH} m estimated, {sum(lengths)} m derived",
-             "shares": [x / sum(lengths) for x in lengths], "source": "manual"}
-    return ifcx_file("6-lineage-vp-bp.ifcx", "cost planner (phase VP to BP)", [
-        {"path": u("lineage", "phase", "VP", "BP", "cost"), "attributes": {"dokwood::lineage": {
-            "axis": "phase", "producer": "cost planner, checked against 3-derivation-v2",
-            "base": dict(vp, phase="VP"), "head": dict(bp, phase="BP"), "entries": [entry], "deleted": []}}}],
-        AXIS_LINEAGE_SCHEMA)
+    total = sum(lengths)
+    entry = {"predecessors": [SCOPE_ITEM], "successors": [view_path("cost", OCC[j.key]) for j in EXTERIOR],
+             "relation": "split", "evidence": f"{SCOPE_LENGTH} m estimated, {total} m derived",
+             "shares": [x / total for x in lengths], "source": "manual"}
+    return axis_lineage_file("6-lineage-vp-bp.ifcx", u("lineage", "phase", "VP", "BP", "cost"),
+                             "cost planner (phase VP to BP)", "phase", "cost planner, checked against 3-derivation-v2",
+                             dict(vp, phase="VP"), dict(bp, phase="BP"), entry)
 
 
 def type_lineage(cat):
     # A revision replaces, it is no is-a: v3 does not inherit v2. Specialization is never a lineage entry.
     entry = {"predecessors": [type_ref("D012", "v2")], "successors": [type_ref("D012", "v3")],
              "relation": "replaced", "evidence": "v3 replaces v2", "source": "manual"}
-    return ifcx_file("6-lineage-type-d012.ifcx", "DOKwood platform (detail catalog)", [
-        {"path": u("lineage", "type", "D012", "v2", "v3"), "attributes": {"dokwood::lineage": {
-            "axis": "type", "producer": "DOKwood platform (detail catalog)",
-            "base": cat, "head": cat, "entries": [entry], "deleted": []}}}],
-        AXIS_LINEAGE_SCHEMA)
+    author = "DOKwood platform (detail catalog)"
+    return axis_lineage_file("6-lineage-type-d012.ifcx", u("lineage", "type", "D012", "v2", "v3"),
+                             author, "type", author, cat, cat, entry)
 
 
 fed = stage(federation([m["v2"], stage(mep_model())]))

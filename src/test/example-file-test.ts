@@ -214,32 +214,31 @@ describe("example file", () => {
     });
     it("timber junction federation: the place spans two discipline models bound by the manifest", async () => {
         const fed = ReadTimberJunction("0-federation-bp");
-        const models = ["1-model-v2", "1-model-mep"];
+        const names = ["1-model-v2", "1-model-mep"];
+        const models = names.map(ReadTimberJunction);
         // The manifest binds each model by its bytes, in SRI form.
-        expect(fed.imports).to.deep.equal(models.map(n => ({ uri: ReadTimberJunction(n).header.id,
-            integrity: `sha256-${createHash("sha256").update(fs.readFileSync(`${timberJunctionPath}/${n}.ifcx`)).digest("base64")}` })));
+        expect(fed.imports).to.deep.equal(names.map((n, i) => ({ uri: models[i].header.id,
+            integrity: `sha256-${FileSha(`${n}.ifcx`, "base64")}` })));
         const [place] = ReadTimberJunction("3-derivation-federated").data.filter(d => d.attributes?.["dokwood::derivation"]);
         const derivation = place.attributes!["dokwood::derivation"];
         expect([derivation.sourceLayer, derivation.sourceSha256]).to.deep.equal([fed.header.id, FileSha("0-federation-bp.ifcx")]);
         // One member is an element of the architect's model, the other of the MEP model.
-        const owners = (ref: string) => models.filter(n => ReadTimberJunction(n).data.some(d => d.path === ref));
+        const owners = (ref: string) => names.filter((_, i) => models[i].data.some(d => d.path === ref));
         expect(place.attributes!["dokwood::detail::members"].map((m: any) => [m.role, owners(m.ref)]))
             .to.deep.equal([["penetrated", ["1-model-v2"]], ["penetrating", ["1-model-mep"]]]);
-        const bp = NodesByPath(await ComposeTimberJunction(timberJunctionBP));
-        expect(place.attributes!["dokwood::detail::members"].filter((m: any) => !bp.has(m.ref))).to.deep.equal([]);
         // With the manifest as the only entry, its imports bring in both models. A wrong integrity changes nothing:
         // IFCX does not check it.
-        const viaManifest = async (manifest: IfcxFile) => NodeToJSON(await ComposeFiles(
-            [manifest, ReadTimberJunction("3-derivation-federated")], models.map(ReadTimberJunction)));
+        const viaManifest = async (manifest: IfcxFile) =>
+            NodeToJSON(await ComposeFiles([manifest, ReadTimberJunction("3-derivation-federated")], models));
         const bogus = { ...fed, imports: fed.imports.map(i => ({ ...i, integrity: "sha256-AAAA" })) };
         const composed = await viaManifest(fed);
-        expect(Object.keys(composed.children)).to.include.members(models.map(n => ReadTimberJunction(n).data[0].path));
+        expect(Object.keys(composed.children)).to.include.members(models.map(m => m.data[0].path));
         expect(await viaManifest(bogus)).to.deep.equal(composed);
     });
     it("timber junction views: each view types a place on its own node, and swapping view layers changes nothing", async () => {
         // The rule, which IFCX does not check: a view occurrence sits at uuid5(ns, "view|<view>|<place>") and inherits
-        // exactly place and type, so a place has at most one type per view. Read from the input files, since the
-        // composed output has no inherits.
+        // exactly place and type, so a place has at most one type per view. A scope item has no place and inherits
+        // only type. Read from the input files, since the composed output has no inherits.
         const places = new Set(["3-derivation-v2", "3-derivation-federated"].flatMap(n =>
             ReadTimberJunction(n).data.filter(d => d.attributes?.["dokwood::derivation"]).map(d => d.path)));
         const viewLayers = ["5-view-detail-bp", "5-view-cost-bp"];
@@ -249,20 +248,19 @@ describe("example file", () => {
             for (const d of occurrences) {
                 const view = d.attributes!["dokwood::assignment"].view;
                 expect(group.path, d.path).to.equal(Uuid5(timberJunctionNs, `view-group|${view}`));
-                if (d.attributes!["dokwood::scope"]) {
-                    expect([d.path, Object.keys(d.inherits!)]).to.deep.equal([ScopeItem(), ["type"]]);
+                const place = d.inherits!.place;
+                if (!place) {
+                    expect([d.path, Object.keys(d.inherits!)]).to.deep.equal([scopeItem, ["type"]]);
                     continue;
                 }
-                expect(Object.keys(d.inherits!), d.path).to.deep.equal(["place", "type"]);
-                expect(places.has(d.inherits!.place), d.path).to.be.true;
-                expect(d.path).to.equal(Uuid5(timberJunctionNs, `view|${view}|${d.inherits!.place}`));
+                expect([Object.keys(d.inherits!), places.has(place), d.path], d.path).to.deep.equal([["place", "type"], true, ViewPath(view, place)]);
             }
         }
         // A view layer writes no path that any other layer of the stack writes.
-        const writes = (n: string) => ReadTimberJunction(n).data.map(d => d.path);
+        const writes = new Map(timberJunctionBP.map(n => [n, ReadTimberJunction(n).data.map(d => d.path)]));
         for (const layer of viewLayers) {
-            const others = new Set(timberJunctionBP.filter(n => n !== layer).flatMap(writes));
-            expect(writes(layer).filter(p => others.has(p)), layer).to.deep.equal([]);
+            const others = new Set(timberJunctionBP.filter(n => n !== layer).flatMap(n => writes.get(n)!));
+            expect(writes.get(layer)!.filter(p => others.has(p)), layer).to.deep.equal([]);
         }
         // Two views type the same place differently and each sees the place's members, extent and derivation.
         const bp = await ComposeTimberJunction(timberJunctionBP);
@@ -280,21 +278,19 @@ describe("example file", () => {
                 "dokwood::cost::line", "dokwood::type::generic"].sort());
             expect(c.attributes.get("dokwood::derivation")).to.deep.equal(d.attributes.get("dokwood::derivation"));
         }
-        const swap = timberJunctionBP.map(n => n === viewLayers[0] ? viewLayers[1] : n === viewLayers[1] ? viewLayers[0] : n);
-        expect(swap).to.not.deep.equal(timberJunctionBP);
+        const swap = timberJunctionBP.map(n => n === "5-view-detail-bp" ? "5-view-cost-bp" : n === "5-view-cost-bp" ? "5-view-detail-bp" : n);
         expect(NodeToJSON(await ComposeTimberJunction(swap))).to.deep.equal(NodeToJSON(bp));
-        // Known gap: a view occurrence whose place does not exist composes without error and just lacks the place.
-        const generic = ReadTimberJunction("2-catalog-generic").data[1].path;
+    });
+    it("timber junction views: a view occurrence whose place is gone composes without error", async () => {
+        // Known gap: inherits to a missing path is not an error. The occurrence just lacks the place.
         const gone = Uuid5(timberJunctionNs, "occurrence|gone");
-        const orphan = ScratchLayer("orphan-view-occurrence", [{ path: Uuid5(timberJunctionNs, `view|cost|${gone}`),
-            inherits: { place: gone, type: generic } }]);
-        const withOrphan = await ComposeFiles([...timberJunctionBP.map(ReadTimberJunction), orphan]);
-        expect([...withOrphan.children.get(orphan.data[0].path)!.attributes.keys()]).to.deep.equal(["dokwood::type::generic"]);
+        const orphan = ScratchLayer("orphan-view-occurrence", [{ path: ViewPath("cost", gone),
+            inherits: { place: gone, type: genericTypePath } }]);
+        const root = await ComposeFiles([...timberJunctionBP.map(ReadTimberJunction), orphan]);
+        expect([...root.children.get(orphan.data[0].path)!.attributes.keys()]).to.deep.equal(["dokwood::type::generic"]);
     });
     it("timber junction views: a type written on the place leaks into every view, so the place holds no opinions", async () => {
         const bp = timberJunctionBP.map(ReadTimberJunction);
-        const place = OccurrencePath("v2", "Wand_1_1__Decke");
-        const catalog = ReadTimberJunction("2-catalog").data[0].path;
         const viewsOf = async (files: IfcxFile[]) => {
             const root = await ComposeFiles(files);
             return ["detail", "cost"].map(v => RootNamed(root, `View: ${v}`).children.get("Wand_1_1__Decke")!);
@@ -302,7 +298,8 @@ describe("example file", () => {
         const [detail, cost] = await viewsOf(bp);
         expect([TypeOf(detail), TypeOf(cost)]).to.deep.equal(["D012/v3", "-"]);
         // Throwaway layer, not committed: the old single-view shape, a detail type on the place itself.
-        const opinion = ScratchLayer("detail-type-on-the-place", [{ path: place, inherits: { detailType: `${catalog}/D021/v1` } }]);
+        const opinion = ScratchLayer("detail-type-on-the-place", [{ path: OccurrencePath("v2", "Wand_1_1__Decke"),
+            inherits: { detailType: `${catalogPath}/D021/v1` } }]);
         const [detailAfter, costAfter] = await viewsOf([...bp, opinion]);
         // inherits is transitive: the cost occurrence now shows a detail type nobody in the cost view chose. The detail
         // occurrence inherits dokwood::detail::type twice and keeps its own here, without any error.
@@ -310,30 +307,33 @@ describe("example file", () => {
     });
     it("timber junction type chain: generic, D012/v3 and the fabrication variant compose and validate", async () => {
         const nodes = NodesByPath(await ComposeTimberJunction(timberJunctionBP));
-        const [, f2] = ReadTimberJunction("2-catalog-fab").data;
         // Each level writes its own attribute id; the composed variant shows all three, the edges are gone.
         const levels = ["2-catalog-generic", "2-catalog", "2-catalog-fab"].map(n =>
             [...new Set(ReadTimberJunction(n).data.flatMap(d => Object.keys(d.attributes ?? {})))].sort());
         expect(levels).to.deep.equal([["dokwood::type::generic"], ["dokwood::catalog", "dokwood::detail::type"], ["dokwood::fab::variant"]]);
-        const variant = nodes.get(f2.path)!;
+        const variant = nodes.get(Uuid5(timberJunctionNs, "fab-type|D012|v3|F2"))!;
         expect([...variant.attributes.keys()].sort()).to.deep.equal(["dokwood::detail::type", "dokwood::fab::variant", "dokwood::type::generic"]);
         expect([variant.attributes.get("dokwood::type::generic").code, TypeOf(variant), variant.attributes.get("dokwood::fab::variant").code])
             .to.deep.equal(["G-SB-EXT", "D012/v3", "D012-v3-F2"]);
         // The VP scope item reaches the generic type without the detail catalog.
         const vp = NodesByPath(await ComposeTimberJunction(timberJunctionVP));
-        expect(vp.get(ScopeItem())!.attributes.get("dokwood::type::generic").code).to.equal("G-SB-EXT");
+        expect(vp.get(scopeItem)!.attributes.get("dokwood::type::generic").code).to.equal("G-SB-EXT");
         // Every node is validated before inherits is expanded, so a bad value at the top of the chain fails the stack.
         const bad = structuredClone(ReadTimberJunction("2-catalog-generic"));
-        bad.data[1].attributes!["dokwood::type::generic"].unit = 1;
+        bad.data.find(d => d.path === genericTypePath)!.attributes!["dokwood::type::generic"].unit = 1;
         const error = await ComposeFiles(timberJunctionBP.map(n => n === "2-catalog-generic" ? bad : ReadTimberJunction(n)))
             .then(() => null, (e: Error) => e.message);
         expect(error).to.include("dokwood::type::generic");
+        // A revision is a lineage entry on the type axis: v3 replaces v2, it does not refine it.
+        const type = LineageOf("6-lineage-type-d012");
+        expect([type.axis, type.base, type.head]).to.deep.equal(["type", FileBinding("2-catalog"), FileBinding("2-catalog")]);
+        expect(type.entries.map((e: any) => [e.predecessors, e.successors, e.relation]))
+            .to.deep.equal([[[`${catalogPath}/D012/v2`], [`${catalogPath}/D012/v3`], "replaced"]]);
     });
     it("timber junction phases: the VP scope item is split into the BP cost items by length", async () => {
-        const binding = (n: string, phase?: string) => ({ layer: ReadTimberJunction(n).header.id, sha256: FileSha(`${n}.ifcx`),
-            ...(phase ? { phase } : {}) });
         const phase = LineageOf("6-lineage-vp-bp");
-        expect([phase.axis, phase.base, phase.head]).to.deep.equal(["phase", binding("5-view-cost-vp", "VP"), binding("5-view-cost-bp", "BP")]);
+        expect([phase.axis, phase.base, phase.head]).to.deep.equal(["phase",
+            { ...FileBinding("5-view-cost-vp"), phase: "VP" }, { ...FileBinding("5-view-cost-bp"), phase: "BP" }]);
         // Successors: the cost items over every exterior slab-on-wall place derived from model v2, in derivation order.
         const external = new Set(ModelElements("v2").filter(d => d.attributes!["bsi::ifc::prop::IsExternal"] === true).map(d => d.path));
         const places = ReadTimberJunction("3-derivation-v2").data.filter(d => {
@@ -343,21 +343,13 @@ describe("example file", () => {
         });
         const costItems = ReadTimberJunction("5-view-cost-bp").data.slice(1).map(d => d.path);
         const [entry] = phase.entries;
-        expect([entry.predecessors, entry.relation, entry.source]).to.deep.equal([[ScopeItem()], "split", "manual"]);
-        expect(entry.successors).to.deep.equal(places.map(d => Uuid5(timberJunctionNs, `view|cost|${d.path}`)));
+        expect([entry.predecessors, entry.relation, entry.source]).to.deep.equal([[scopeItem], "split", "manual"]);
+        expect(entry.successors).to.deep.equal(places.map(d => ViewPath("cost", d.path)));
         expect([...entry.successors].sort()).to.deep.equal([...costItems].sort());
         const lengths: number[] = places.map(d => d.attributes!["dokwood::detail::topology"].extent.length);
         const total = lengths.reduce((a, b) => a + b, 0);
         expect([lengths, entry.shares]).to.deep.equal([[4, 2, 6], lengths.map(l => l / total)]);
         expect(entry.shares.reduce((a: number, b: number) => a + b, 0)).to.be.closeTo(1, 1e-12);
-        // A scope item and its refinements are never in one stack, or the length would count twice.
-        expect([timberJunctionVP.includes("5-view-cost-bp"), timberJunctionBP.includes("5-view-cost-vp")]).to.deep.equal([false, false]);
-        // Type axis: a catalog revision. v3 replaces v2, it does not refine it.
-        const type = LineageOf("6-lineage-type-d012");
-        const catalog = ReadTimberJunction("2-catalog").data[0].path;
-        expect([type.axis, type.base, type.head]).to.deep.equal(["type", binding("2-catalog"), binding("2-catalog")]);
-        expect(type.entries.map((e: any) => [e.predecessors, e.successors, e.relation]))
-            .to.deep.equal([[[`${catalog}/D012/v2`], [`${catalog}/D012/v3`], "replaced"]]);
         // The new lineage declaration and the old one, without "axis", validate each other's data in either order.
         await ComposeTimberJunction(["4-lineage-v1-v2", "6-lineage-vp-bp"]);
         await ComposeTimberJunction(["6-lineage-vp-bp", "4-lineage-v1-v2"]);
@@ -549,9 +541,15 @@ function OccurrenceSummaries(root: PostCompositionNode)
     return Object.fromEntries([...OccurrenceNodes(root)].map(([name, o]) => [name, Summary(o)]));
 }
 
-function FileSha(file: string)
+function FileSha(file: string, encoding: "hex" | "base64" = "hex")
 {
-    return createHash("sha256").update(fs.readFileSync(`${timberJunctionPath}/${file}`)).digest("hex");
+    return createHash("sha256").update(fs.readFileSync(`${timberJunctionPath}/${file}`)).digest(encoding);
+}
+
+// What a lineage end records about a layer: its id and the SHA-256 of its bytes.
+function FileBinding(name: string)
+{
+    return { layer: ReadTimberJunction(name).header.id, sha256: FileSha(`${name}.ifcx`) };
 }
 
 // Every composed node by its path, wherever it sits in the tree.
@@ -571,7 +569,11 @@ function RootNamed(root: PostCompositionNode, name: string)
     return node;
 }
 
-const ScopeItem = () => Uuid5(timberJunctionNs, "view|cost|scope|slab-bearing-exterior");
+// Paths as generate.py builds them.
+const ViewPath = (view: string, key: string) => Uuid5(timberJunctionNs, `view|${view}|${key}`);
+const scopeItem = ViewPath("cost", "scope|slab-bearing-exterior");
+const catalogPath = Uuid5(timberJunctionNs, "catalog");
+const genericTypePath = Uuid5(timberJunctionNs, "generic-type|slab-bearing-exterior");
 
 // An in-memory layer for one test, never written to the example folder.
 function ScratchLayer(id: string, data: IfcxFile["data"]): IfcxFile

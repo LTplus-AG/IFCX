@@ -406,8 +406,7 @@ The rules are conventions. IFCX checks none of them; `npm test` does:
    fabrication variant compose and validate`; pointed at
    `src/ifcx-cli/ifcx-cli.ts:135`, which writes node, children and attributes)
 5. **A scope item and its refinements are never in one stack**, or the length
-   would count twice. (unproven; the phases test only checks that its two
-   stacks keep them apart)
+   would count twice. (unproven)
 
 The penetration place has no view occurrence: the catalog has no type for
 penetrations.
@@ -443,8 +442,7 @@ Two different facts, two mechanisms:
   would copy v2's attributes onto v3 (pointed at
   `src/ifcx-core/composition/compose.ts:156`). So it is a lineage entry,
   `axis: "type"`, `relation: "replaced"`, in `6-lineage-type-d012.ifcx`.
-  (proven by running: `timber junction phases: the VP scope item is split
-  into the BP cost items by length`)
+  (proven by running, type chain test)
 
 `2-catalog-generic.ifcx` writes the `refines` edge on the D012 nodes of
 `2-catalog.ifcx`, because `2-catalog.ifcx` stays as it is. In a real catalog
@@ -609,13 +607,12 @@ Found with "Views and phases":
     `src/ifcx-core/schema/schema-validation.ts:124` and `schema/ifcx.tsp:17`)
 11. **`inherits` to a missing path composes.** A view occurrence whose place
     is gone composes without error and shows only its type. (proven by
-    running: `timber junction views: each view types a place on its own
-    node, and swapping view layers changes nothing`)
+    running: `timber junction views: a view occurrence whose place is gone
+    composes without error`)
 12. **A schema id has one declaration per stack, the last.** Two layers that
     declare the same id differently: the first layer's data is validated
     against the second declaration and fails. (proven by running, with
-    throwaway layers; pointed at `src/ifcx-core/workflows.ts:169`) This is why
-    the new `dokwood::lineage` keeps `axis` optional.
+    throwaway layers; pointed at `src/ifcx-core/workflows.ts:169`)
 13. **No path ownership.** Two models that write the same storey path: the
     children are merged and the later layer's name wins. (proven by running,
     with throwaway layers) The MEP model here avoids it with its own root.
@@ -634,8 +631,8 @@ Found with "Views and phases":
     is text in `dokwood::scope`. (unproven that no construct exists; none in
     `schema/ifcx.tsp`)
 18. **`inherits` is transitive**, so an opinion on a place reaches every view
-    occurrence of it. (proven by running: leak test) Handled here by rule 1,
-    not an IFCX change.
+    occurrence of it. Handled by rule 1 of "Views and phases", not an IFCX
+    change.
 19. **Lineage needs an axis** (version, phase, type). The shape composes and
     validates. (proven by running: phases test) Belongs to the `bsi::lineage`
     proposal below.
