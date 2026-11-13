@@ -179,12 +179,12 @@
           "producer": "cost planner, checked against 3-derivation-v2",
           "base": {
             "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-cost-vp.ifcx",
-            "sha256": "264245ccfde7121b47e5c45f99a3d240b0724f086937622d70283f15667785fb",
+            "sha256": "21deb3751200b158193d9b744aca31f8eed0fc862ae97bdfc92789dcacd166e2",
             "phase": "VP"
           },
           "head": {
             "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-cost-bp.ifcx",
-            "sha256": "0c24f98c8ffcfd83ee3993d46df9c0bd9b26bae471accfabb8444d94f350d3ec",
+            "sha256": "f68183ca4b126a08008d50a7246a90292c2c1526e8335117bc463b4bb8ca77d7",
             "phase": "BP"
           },
           "entries": [

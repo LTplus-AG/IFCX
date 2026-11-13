@@ -34,7 +34,10 @@
     {
       "path": "87d19e28-7c05-536e-9e65-45268b50e676",
       "children": {
-        "Deckenauflager_aussen": "9be709e9-821e-5da5-bc83-3c73698b47e9"
+        "Deckenauflager_Aussenwand": "9be709e9-821e-5da5-bc83-3c73698b47e9",
+        "Deckenauflager_Innenwand": "1edb720c-8a1e-5951-83f8-4fd6cba69174",
+        "Balkonanschluss": "4fca3fb5-6d5e-5267-bb35-5c32bdbb3f79",
+        "Balkonanschluss_thermisch_getrennt": "0758d062-abe7-5c33-baca-457f5892fa96"
       }
     },
     {
@@ -44,6 +47,39 @@
           "code": "G-SB-EXT",
           "name": "Deckenauflager Aussenwand",
           "junction": "slab-on-wall",
+          "unit": "m"
+        }
+      }
+    },
+    {
+      "path": "1edb720c-8a1e-5951-83f8-4fd6cba69174",
+      "attributes": {
+        "dokwood::type::generic": {
+          "code": "G-SB-INT",
+          "name": "Deckenauflager Innenwand",
+          "junction": "slab-on-wall",
+          "unit": "m"
+        }
+      }
+    },
+    {
+      "path": "4fca3fb5-6d5e-5267-bb35-5c32bdbb3f79",
+      "attributes": {
+        "dokwood::type::generic": {
+          "code": "G-BALC",
+          "name": "Balkonanschluss",
+          "junction": "slab-to-slab",
+          "unit": "m"
+        }
+      }
+    },
+    {
+      "path": "0758d062-abe7-5c33-baca-457f5892fa96",
+      "attributes": {
+        "dokwood::type::generic": {
+          "code": "G-BALC-TB",
+          "name": "Balkonanschluss thermisch getrennt",
+          "junction": "slab-to-slab",
           "unit": "m"
         }
       }

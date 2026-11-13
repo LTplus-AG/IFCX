@@ -39,6 +39,56 @@
                   "to-confirm"
                 ]
               }
+            },
+            "reviewedSha256": {
+              "dataType": "String",
+              "optional": true
+            },
+            "carriedFrom": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  },
+                  "occurrences": {
+                    "dataType": "Array",
+                    "arrayRestrictions": {
+                      "value": {
+                        "dataType": "Reference"
+                      }
+                    }
+                  },
+                  "lineage": {
+                    "dataType": "Reference",
+                    "optional": true
+                  },
+                  "relation": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "identity",
+                        "split",
+                        "merge",
+                        "replaced"
+                      ]
+                    }
+                  },
+                  "policy": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "copy-to-all",
+                        "same-type-or-none"
+                      ]
+                    }
+                  }
+                }
+              },
+              "optional": true
             }
           }
         }
@@ -69,7 +119,18 @@
       "attributes": {
         "dokwood::assignment": {
           "view": "detail",
-          "state": "proposed"
+          "state": "to-confirm",
+          "reviewedSha256": "4930549de1ef8594292b27883ddff6cd9c62cce7a40148fa783136d85e742899",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-detail-v1.ifcx",
+            "sha256": "9b812209cb013dc6e98441e981df2cf42939385a9769466d1074c68b06aed84e",
+            "occurrences": [
+              "46e751db-0ba3-56f3-8f29-7e59b96fcde1"
+            ],
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "split",
+            "policy": "copy-to-all"
+          }
         }
       }
     },
@@ -82,7 +143,18 @@
       "attributes": {
         "dokwood::assignment": {
           "view": "detail",
-          "state": "proposed"
+          "state": "to-confirm",
+          "reviewedSha256": "4930549de1ef8594292b27883ddff6cd9c62cce7a40148fa783136d85e742899",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-detail-v1.ifcx",
+            "sha256": "9b812209cb013dc6e98441e981df2cf42939385a9769466d1074c68b06aed84e",
+            "occurrences": [
+              "46e751db-0ba3-56f3-8f29-7e59b96fcde1"
+            ],
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "split",
+            "policy": "copy-to-all"
+          }
         }
       }
     },
@@ -95,7 +167,17 @@
       "attributes": {
         "dokwood::assignment": {
           "view": "detail",
-          "state": "proposed"
+          "state": "in-review",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-detail-v1.ifcx",
+            "sha256": "9b812209cb013dc6e98441e981df2cf42939385a9769466d1074c68b06aed84e",
+            "occurrences": [
+              "ab1fb1d9-69b0-5895-a138-cb40c2f17dfd"
+            ],
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "identity",
+            "policy": "copy-to-all"
+          }
         }
       }
     },
@@ -108,7 +190,17 @@
       "attributes": {
         "dokwood::assignment": {
           "view": "detail",
-          "state": "proposed"
+          "state": "to-confirm",
+          "reviewedSha256": "addfdad6adcf2b046755dc73b886cb6d4d016647e6790125b88769332d51cd6a",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-detail-v1.ifcx",
+            "sha256": "9b812209cb013dc6e98441e981df2cf42939385a9769466d1074c68b06aed84e",
+            "occurrences": [
+              "ce4ab638-e32d-5618-adc6-c2923f2f9b93"
+            ],
+            "relation": "identity",
+            "policy": "copy-to-all"
+          }
         }
       }
     },
@@ -134,7 +226,18 @@
       "attributes": {
         "dokwood::assignment": {
           "view": "detail",
-          "state": "proposed"
+          "state": "to-confirm",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-detail-v1.ifcx",
+            "sha256": "9b812209cb013dc6e98441e981df2cf42939385a9769466d1074c68b06aed84e",
+            "occurrences": [
+              "005097ee-4acb-5045-a77f-53c8e3591d6e",
+              "2326108c-fb65-5141-950e-135b96368e12"
+            ],
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "merge",
+            "policy": "same-type-or-none"
+          }
         }
       }
     }

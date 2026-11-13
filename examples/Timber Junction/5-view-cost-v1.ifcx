@@ -1,0 +1,215 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-cost-v1.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "cost planner (model v1)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [
+    {
+      "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/prop@v5a.ifcx"
+    }
+  ],
+  "schemas": {
+    "dokwood::assignment": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "view": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "detail",
+                  "cost",
+                  "physics",
+                  "structure",
+                  "fabrication"
+                ]
+              }
+            },
+            "state": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "proposed",
+                  "in-review",
+                  "approved",
+                  "to-confirm"
+                ]
+              }
+            },
+            "reviewedSha256": {
+              "dataType": "String",
+              "optional": true
+            },
+            "carriedFrom": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  },
+                  "occurrences": {
+                    "dataType": "Array",
+                    "arrayRestrictions": {
+                      "value": {
+                        "dataType": "Reference"
+                      }
+                    }
+                  },
+                  "lineage": {
+                    "dataType": "Reference",
+                    "optional": true
+                  },
+                  "relation": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "identity",
+                        "split",
+                        "merge",
+                        "replaced"
+                      ]
+                    }
+                  },
+                  "policy": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "copy-to-all",
+                        "same-type-or-none"
+                      ]
+                    }
+                  }
+                }
+              },
+              "optional": true
+            }
+          }
+        }
+      }
+    },
+    "dokwood::cost::line": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "unitPrice": {
+              "dataType": "Real"
+            },
+            "currency": {
+              "dataType": "String"
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "93f734b9-9511-5235-9840-efe1aece7a5a",
+      "children": {
+        "Wand_1__Decke": "2d7a9b36-adfa-56ce-b6bb-d7f6fb18e30f",
+        "Wand_2__Decke": "44277314-7c10-5ce2-aa13-9498c133cb4d",
+        "Wand_3__Decke": "0cf9cec9-0d2d-5bc1-abdf-e5db3f6925a8",
+        "Decke__Balkonplatte_A": "96593665-03fc-5d91-8693-1b93023c9cde",
+        "Decke__Balkonplatte_B": "3a3a0934-5a64-5c69-9c57-450516a41854"
+      },
+      "attributes": {
+        "bsi::ifc::prop::Name": "View: cost"
+      }
+    },
+    {
+      "path": "2d7a9b36-adfa-56ce-b6bb-d7f6fb18e30f",
+      "inherits": {
+        "place": "c876b170-0f9d-5bb0-bf7e-0eb96a3ff346",
+        "type": "9be709e9-821e-5da5-bc83-3c73698b47e9"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "cost",
+          "state": "approved",
+          "reviewedSha256": "4930549de1ef8594292b27883ddff6cd9c62cce7a40148fa783136d85e742899"
+        },
+        "dokwood::cost::line": {
+          "unitPrice": 175.0,
+          "currency": "CHF"
+        }
+      }
+    },
+    {
+      "path": "44277314-7c10-5ce2-aa13-9498c133cb4d",
+      "inherits": {
+        "place": "d5a65e9f-e257-582a-9a83-fccc4a6ff50c",
+        "type": "9be709e9-821e-5da5-bc83-3c73698b47e9"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "cost",
+          "state": "approved",
+          "reviewedSha256": "245db126ebc77b88e0f8ef319cfe0caa92af4b38f547bf774499e14ad5739f12"
+        },
+        "dokwood::cost::line": {
+          "unitPrice": 168.0,
+          "currency": "CHF"
+        }
+      }
+    },
+    {
+      "path": "0cf9cec9-0d2d-5bc1-abdf-e5db3f6925a8",
+      "inherits": {
+        "place": "68b553da-3631-54b8-a33a-6b1a8a0338a6",
+        "type": "1edb720c-8a1e-5951-83f8-4fd6cba69174"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "cost",
+          "state": "in-review"
+        },
+        "dokwood::cost::line": {
+          "unitPrice": 95.0,
+          "currency": "CHF"
+        }
+      }
+    },
+    {
+      "path": "96593665-03fc-5d91-8693-1b93023c9cde",
+      "inherits": {
+        "place": "29fc8807-491f-5793-ac69-d164f12a1cfb",
+        "type": "4fca3fb5-6d5e-5267-bb35-5c32bdbb3f79"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "cost",
+          "state": "proposed"
+        },
+        "dokwood::cost::line": {
+          "unitPrice": 320.0,
+          "currency": "CHF"
+        }
+      }
+    },
+    {
+      "path": "3a3a0934-5a64-5c69-9c57-450516a41854",
+      "inherits": {
+        "place": "efea72a9-920a-555d-95eb-856acc0778c0",
+        "type": "0758d062-abe7-5c33-baca-457f5892fa96"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "cost",
+          "state": "proposed"
+        },
+        "dokwood::cost::line": {
+          "unitPrice": 410.0,
+          "currency": "CHF"
+        }
+      }
+    }
+  ]
+}

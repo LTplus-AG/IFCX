@@ -1,0 +1,181 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-detail-v1.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "detail editor (model v1)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [
+    {
+      "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/prop@v5a.ifcx"
+    }
+  ],
+  "schemas": {
+    "dokwood::assignment": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "view": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "detail",
+                  "cost",
+                  "physics",
+                  "structure",
+                  "fabrication"
+                ]
+              }
+            },
+            "state": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "proposed",
+                  "in-review",
+                  "approved",
+                  "to-confirm"
+                ]
+              }
+            },
+            "reviewedSha256": {
+              "dataType": "String",
+              "optional": true
+            },
+            "carriedFrom": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  },
+                  "occurrences": {
+                    "dataType": "Array",
+                    "arrayRestrictions": {
+                      "value": {
+                        "dataType": "Reference"
+                      }
+                    }
+                  },
+                  "lineage": {
+                    "dataType": "Reference",
+                    "optional": true
+                  },
+                  "relation": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "identity",
+                        "split",
+                        "merge",
+                        "replaced"
+                      ]
+                    }
+                  },
+                  "policy": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "copy-to-all",
+                        "same-type-or-none"
+                      ]
+                    }
+                  }
+                }
+              },
+              "optional": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "169fb9ab-bff3-50af-b76c-771ebbaa2551",
+      "children": {
+        "Wand_1__Decke": "46e751db-0ba3-56f3-8f29-7e59b96fcde1",
+        "Wand_2__Decke": "ab1fb1d9-69b0-5895-a138-cb40c2f17dfd",
+        "Wand_3__Decke": "ce4ab638-e32d-5618-adc6-c2923f2f9b93",
+        "Decke__Balkonplatte_A": "005097ee-4acb-5045-a77f-53c8e3591d6e",
+        "Decke__Balkonplatte_B": "2326108c-fb65-5141-950e-135b96368e12"
+      },
+      "attributes": {
+        "bsi::ifc::prop::Name": "View: detail"
+      }
+    },
+    {
+      "path": "46e751db-0ba3-56f3-8f29-7e59b96fcde1",
+      "inherits": {
+        "place": "c876b170-0f9d-5bb0-bf7e-0eb96a3ff346",
+        "type": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D012/v3"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "detail",
+          "state": "approved",
+          "reviewedSha256": "4930549de1ef8594292b27883ddff6cd9c62cce7a40148fa783136d85e742899"
+        }
+      }
+    },
+    {
+      "path": "ab1fb1d9-69b0-5895-a138-cb40c2f17dfd",
+      "inherits": {
+        "place": "d5a65e9f-e257-582a-9a83-fccc4a6ff50c",
+        "type": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D012/v3"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "detail",
+          "state": "in-review"
+        }
+      }
+    },
+    {
+      "path": "ce4ab638-e32d-5618-adc6-c2923f2f9b93",
+      "inherits": {
+        "place": "68b553da-3631-54b8-a33a-6b1a8a0338a6",
+        "type": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D021/v1"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "detail",
+          "state": "approved",
+          "reviewedSha256": "addfdad6adcf2b046755dc73b886cb6d4d016647e6790125b88769332d51cd6a"
+        }
+      }
+    },
+    {
+      "path": "005097ee-4acb-5045-a77f-53c8e3591d6e",
+      "inherits": {
+        "place": "29fc8807-491f-5793-ac69-d164f12a1cfb",
+        "type": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D031/v1"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "detail",
+          "state": "approved",
+          "reviewedSha256": "24eaf1877ee6fcac3d8d0ea3d9bf8ab4ce6968f7379bc13ce6fc7f7c3aaf44da"
+        }
+      }
+    },
+    {
+      "path": "2326108c-fb65-5141-950e-135b96368e12",
+      "inherits": {
+        "place": "efea72a9-920a-555d-95eb-856acc0778c0",
+        "type": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D031/v1"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "detail",
+          "state": "in-review"
+        }
+      }
+    }
+  ]
+}

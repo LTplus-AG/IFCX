@@ -39,6 +39,56 @@
                   "to-confirm"
                 ]
               }
+            },
+            "reviewedSha256": {
+              "dataType": "String",
+              "optional": true
+            },
+            "carriedFrom": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  },
+                  "occurrences": {
+                    "dataType": "Array",
+                    "arrayRestrictions": {
+                      "value": {
+                        "dataType": "Reference"
+                      }
+                    }
+                  },
+                  "lineage": {
+                    "dataType": "Reference",
+                    "optional": true
+                  },
+                  "relation": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "identity",
+                        "split",
+                        "merge",
+                        "replaced"
+                      ]
+                    }
+                  },
+                  "policy": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "copy-to-all",
+                        "same-type-or-none"
+                      ]
+                    }
+                  }
+                }
+              },
+              "optional": true
             }
           }
         }
