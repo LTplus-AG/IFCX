@@ -119,7 +119,8 @@ What is not from ifc-lite: the IFCX paths, `sidecar` (file and SHA-256 of
 the ifc-lite output), and `base` and `head`, which hold the SHA-256 of
 `1-model-v1.ifcx` and `1-model-v2.ifcx` rather than of the twins. (proven by
 running: a test recomputes all of them and the twin hashes in the sidecar,
-and compares relation, evidence and shares with the sidecar entries)
+and compares the entries with the sidecar, resolving each GlobalId to a path
+by wall name)
 The twins and the IFCX models take their boxes from the same function in
 `generate.py`, but nothing compares the two.
 

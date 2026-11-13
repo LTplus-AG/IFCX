@@ -78,9 +78,17 @@ describe("example file", () => {
         expect(lineage.sidecar.sha256).to.equal(sha(lineage.sidecar.file));
         const sidecar = JSON.parse(fs.readFileSync(`${timberJunctionPath}/${lineage.sidecar.file}`).toString());
         expect([sidecar.base.hash, sidecar.head.hash]).to.deep.equal(["v1", "v2"].map(v => `sha256:${sha(`ifc-lite/model-${v}.ifc`)}`));
-        // Copied verbatim, apart from GlobalIds becoming paths.
-        expect(lineage.entries.map((e: any) => [e.predecessors.length, e.successors.length, e.relation, e.evidence, e.shares]))
-            .to.deep.equal(sidecar.entries.map((e: any) => [e.base.length, e.head.length, e.relation, e.reason, e.shares]));
+        // Copied verbatim, with each GlobalId turned into the path of the wall with the same name.
+        const pathOf = (v: string) => {
+            const byName = new Map(ReadTimberJunction(`1-model-${v}`).data
+                .filter(d => d.attributes?.["bsi::ifc::class"]?.code === "IfcWall")
+                .map(d => [d.attributes!["bsi::ifc::prop::Name"], d.path]));
+            const step = fs.readFileSync(`${timberJunctionPath}/ifc-lite/model-${v}.ifc`).toString();
+            return (gid: string) => byName.get(step.match(new RegExp(`IFCWALL\\('${gid}',#\\d+,'([^']*)'`))?.[1]);
+        };
+        const [base, head] = [pathOf("v1"), pathOf("v2")];
+        expect(lineage.entries.map((e: any) => [e.predecessors, e.successors, e.relation, e.evidence, e.shares]))
+            .to.deep.equal(sidecar.entries.map((e: any) => [e.base.map(base), e.head.map(head), e.relation, e.reason, e.shares]));
         for (const v of ["v1", "v2"]) {
             const data = ReadTimberJunction(`3-derivation-${v}`).data;
             const group = data.find(d => d.children);
