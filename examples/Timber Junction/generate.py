@@ -466,24 +466,12 @@ def lineage_path(head, *extra):
     return u("lineage", "v1", head, *extra)
 
 
-def ifc_lite_lineage(head, step_v1, step_head):
-    """The sidecar's file and hash, and its entries as ifc-lite wrote them."""
-    sidecar = sidecar_path(head)
-    if not sidecar.exists():
-        sys.exit(f"{sidecar} is missing. Create it with: {lineage_cmd(head)}")
-    raw = sidecar.read_bytes()
-    side = json.loads(raw)
-    if (side.get("format"), side.get("version")) != ("ifc-lite/lineage", 1):
-        sys.exit(f"{sidecar.name} is not an ifc-lite/lineage v1 sidecar")
-    for end, sha in (("base", step_v1), ("head", step_head)):
-        if side[end]["hash"] != "sha256:" + sha:
-            sys.exit(f"{sidecar.name} {end} is not bound to the STEP twin written now. Rerun: {lineage_cmd(head)}")
-    if side["deleted"]:
-        sys.exit(f"{sidecar.name} lists deleted elements, which this example does not model")
+def check_entries(name, head, entries):
+    """Stop unless carry() can apply every entry. entries name GlobalIds under base and head, as a sidecar does."""
     # Only elements with an occurrence (walls, balcony pieces), from the right model.
     in_model = {v: {e.gid for e in MODELS[v] if e.key in OCC} for v in ("v1", head)}
     seen = set()
-    for e in side["entries"]:
+    for e in entries:
         names = e["base"] + e["head"]
         n_base, n_head = len(e["base"]), len(e["head"])
         shape = {"merge": n_base >= 2 and n_head == 1, "split": n_base == 1 and n_head >= 2}
@@ -502,8 +490,25 @@ def ifc_lite_lineage(head, step_v1, step_head):
         ]
         for ok, why in rules:
             if not ok:
-                sys.exit(f"{sidecar.name} has an entry this example does not model ({why}): {e}")
+                sys.exit(f"{name} has an entry this example does not model ({why}): {e}")
         seen.update(names)
+
+
+def ifc_lite_lineage(head, step_v1, step_head):
+    """The sidecar's file and hash, and its entries as ifc-lite wrote them."""
+    sidecar = sidecar_path(head)
+    if not sidecar.exists():
+        sys.exit(f"{sidecar} is missing. Create it with: {lineage_cmd(head)}")
+    raw = sidecar.read_bytes()
+    side = json.loads(raw)
+    if (side.get("format"), side.get("version")) != ("ifc-lite/lineage", 1):
+        sys.exit(f"{sidecar.name} is not an ifc-lite/lineage v1 sidecar")
+    for end, sha in (("base", step_v1), ("head", step_head)):
+        if side[end]["hash"] != "sha256:" + sha:
+            sys.exit(f"{sidecar.name} {end} is not bound to the STEP twin written now. Rerun: {lineage_cmd(head)}")
+    if side["deleted"]:
+        sys.exit(f"{sidecar.name} lists deleted elements, which this example does not model")
+    check_entries(sidecar.name, head, side["entries"])
     # Also into OUT, so an output folder holds what the lineage points at.
     PENDING.append((OUT / STEP_DIR / sidecar.name, raw))
     ref = {"file": f"{STEP_DIR}/{sidecar.name}", "sha256": hashlib.sha256(raw).hexdigest()}
@@ -524,14 +529,17 @@ def lineage_file(name, path, author, value):
     return ifcx_file(name, author, [{"path": path, "attributes": {"dokwood::lineage": value}}], LINEAGE_SCHEMA)
 
 
+def lineage_entry(side, source, **extra):
+    # One checked entry in IFCX form: each GlobalId turned into its path.
+    e = {"predecessors": [path_of(g) for g in side["base"]], "successors": [path_of(g) for g in side["head"]],
+         "relation": side["relation"], "evidence": side["reason"], "source": source}
+    if "shares" in side:
+        e["shares"] = side["shares"]
+    return dict(e, **extra)
+
+
 def lineage(head, base_ref, head_ref, sidecar, entries):
-    out = []
-    for side in entries:
-        e = {"predecessors": [path_of(g) for g in side["base"]], "successors": [path_of(g) for g in side["head"]],
-             "relation": side["relation"], "evidence": side["reason"], "source": "ifc-lite"}
-        if "shares" in side:
-            e["shares"] = side["shares"]
-        out.append(e)
+    out = [lineage_entry(side, "ifc-lite") for side in entries]
     return lineage_file(f"4-lineage-v1-{head}.ifcx", lineage_path(head), "model comparison (@ifc-lite/diff)", {
         "producer": f"{IFC_LITE} diff {DIFF_FLAGS}, run on the STEP twins in {STEP_DIR}/",
         "sidecar": sidecar, "base": base_ref, "head": head_ref, "entries": out, "deleted": []})
@@ -543,15 +551,18 @@ MANUAL_TIME = DATE + "T10:30:00Z"
 
 def manual_lineage(head, base_ref, head_ref):
     # ifc-lite took the larger piece for a reshaped Wand 1 and missed the split; a person states it.
-    entry = {"predecessors": [W["W1"]], "successors": [W["W1a"], W["W1b"]], "relation": "split",
-             "evidence": "manual:checked-against-plan", "source": "manual",
-             "author": MANUAL_AUTHOR, "timestamp": MANUAL_TIME}
-    return lineage_file(f"4-lineage-v1-{head}-manual.ifcx", lineage_path(head, "manual"), MANUAL_AUTHOR, {
+    name = f"4-lineage-v1-{head}-manual.ifcx"
+    side = {"base": [ELEMENTS["W1"].gid], "head": [ELEMENTS["W1a"].gid, ELEMENTS["W1b"].gid], "relation": "split",
+            "reason": "manual:checked-against-plan"}
+    # The same rules as for a sidecar entry: carry() applies both alike.
+    check_entries(name, head, [side])
+    entry = lineage_entry(side, "manual", author=MANUAL_AUTHOR, timestamp=MANUAL_TIME)
+    return lineage_file(name, lineage_path(head, "manual"), MANUAL_AUTHOR, {
         "producer": MANUAL_AUTHOR, "base": base_ref, "head": head_ref, "entries": [entry], "deleted": []})
 
 
 def carried_state(state, reviewed, current):
-    # An approval holds only for the derivation it reviewed.
+    # An approval holds only for the derivation it reviewed. carry() refuses an approval without a reviewed hash.
     return "to-confirm" if reviewed and reviewed != current else state
 
 
@@ -585,6 +596,9 @@ def carry(old, links, shas_head):
 
     lineage is None where the place path is unchanged. type is None for a merge whose predecessors disagree.
     """
+    unbound = sorted(k for k, o in old.items() if o.state == "approved" and not o.reviewed)
+    if unbound:
+        sys.exit(f"the approval of {unbound} has no reviewed hash, so a carry could not tell whether it is stale")
     out = []
     # Same path in the head: the derivation was redone, so a stale approval drops to to-confirm.
     for k, o in old.items():
@@ -605,8 +619,11 @@ def carry(old, links, shas_head):
                 # Only an identity keeps its state; anything else is a new occurrence to confirm.
                 state = carried_state(o.state, o.reviewed, shas_head[OCC[k]]) if rel == "identity" else "to-confirm"
                 out.append(Carried(k, o.type, state, o.reviewed, o.data, pre, rel, l["lineage"]))
-    # The sidecar rules (heads are new, no element twice) leave one carried opinion per place.
-    assert len({r.key for r in out}) == len(out)
+    # The entry rules (heads are new, no element twice) leave one carried opinion per place.
+    keys = [r.key for r in out]
+    twice = sorted({k for k in keys if keys.count(k) > 1})
+    if twice:
+        sys.exit(f"more than one opinion is carried to the place of {twice}, which this example does not model")
     return out
 
 
@@ -780,6 +797,9 @@ def place_view(name, label, view, version, opinions, carried=None):
     An occurrence without a type (a merge whose predecessors disagreed) inherits the place only.
     """
     spec, names, occs = VIEWS[view], place_names(version), []
+    no_place = sorted(set(opinions) - {j.key for j in junctions(version)})
+    if no_place:
+        sys.exit(f"{name}: {no_place} have an opinion and no junction in model {version}, so no place to write it on")
     for j in junctions(version):
         o = opinions.get(j.key)
         if not o:
@@ -806,6 +826,9 @@ def carried_view(name, label, view, version, base, old, links, shas_head, new=No
         if r.lineage:
             c["lineage"] = r.lineage
         carried[r.key] = dict(c, relation=r.relation, policy=policy_of(r.relation))
+    both = sorted(set(new or {}) & set(carried))
+    if both:
+        sys.exit(f"{name}: {both} have a new statement and a carried one on the same place; state one of them")
     return place_view(name, label, view, version, {**(new or {}), **{r.key: r for r in rows}}, carried)
 
 
@@ -866,10 +889,17 @@ def axis_lineage_file(name, path, author, axis, producer, base, head, entry):
     return ifcx_file(name, author, [{"path": path, "attributes": {"dokwood::lineage": value}}], AXIS_LINEAGE_SCHEMA)
 
 
-def phase_lineage(vp, bp):
+def phase_lineage(vp, bp, cost_bp):
+    """bp is the binding of cost_bp, the BP cost view as written: every successor is an occurrence in it."""
     lengths = [j.extent["length"] for j in EXTERIOR]
     total = sum(lengths)
-    entry = {"predecessors": [SCOPE_ITEM], "successors": [view_path("cost", OCC[j.key]) for j in EXTERIOR],
+    successors = [view_path("cost", OCC[j.key]) for j in EXTERIOR]
+    written = {d["path"] for d in cost_bp["data"]}
+    missing = [j.key for j, p in zip(EXTERIOR, successors) if p not in written]
+    if missing:
+        sys.exit(f"6-lineage-vp-bp.ifcx: the exterior place of {missing} has no occurrence in the BP cost view, "
+                 "so the scope item cannot be split onto it")
+    entry = {"predecessors": [SCOPE_ITEM], "successors": successors,
              "relation": "split", "evidence": f"{SCOPE_LENGTH} m estimated, {total} m derived",
              "shares": [x / total for x in lengths], "source": "manual"}
     return axis_lineage_file("6-lineage-vp-bp.ifcx", u("lineage", "phase", "VP", "BP", "cost"),
@@ -894,9 +924,10 @@ stage(catalog_fab())
 old_views = views_v1(shas_v1)
 base = {view: stage(place_view(f"5-view-{view}-v1.ifcx", "model v1", view, "v1", old))
         for view, old in old_views.items()}
-bp = {view: stage(carried_view(f"5-view-{view}-bp.ifcx", "phase BP", view, "v2", base[view], old, links_v2, shas_v2,
-                               VIEWS[view].new_bp)) for view, old in old_views.items()}
-stage(phase_lineage(stage(cost_view_vp()), bp["cost"]))
+bp_views = {view: carried_view(f"5-view-{view}-bp.ifcx", "phase BP", view, "v2", base[view], old, links_v2, shas_v2,
+                               VIEWS[view].new_bp) for view, old in old_views.items()}
+bp = {view: stage(f) for view, f in bp_views.items()}
+stage(phase_lineage(stage(cost_view_vp()), bp["cost"], bp_views["cost"]))
 stage(type_lineage(cat))
 # v2-samename: the detail view carried twice, by the ifc-lite lineage alone and with the manual entry.
 d2s = derivation("v2-samename", m["v2-samename"])

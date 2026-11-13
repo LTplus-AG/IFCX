@@ -69,26 +69,8 @@ describe("example file", () => {
     it("timber junction approvals hold only for the derivation they reviewed", async () => {
         // The rule, which IFCX does not enforce: approved needs reviewedSha256 equal to the hash of the
         // occurrence's derivation record, and a different reviewedSha256 needs to-confirm.
-        const check = async (stack: string[]) => {
-            const approved: string[] = [], stale: string[] = [];
-            for (const [name, o] of OccurrenceNodes(await ComposeTimberJunction(stack))) {
-                const a = o.attributes.get("dokwood::detail::assignment");
-                if (!a) continue;
-                expect(o.attributes.has("dokwood::derivation"), `${name} derivation`).to.be.true;
-                // Only an approval sets a reviewed hash; to-confirm may keep it.
-                if (["proposed", "in-review"].includes(a.state)) expect(a, name).to.not.have.property("reviewedSha256");
-                const current = RecordSha(o.attributes.get("dokwood::derivation"));
-                if (a.state === "approved") {
-                    expect(a.reviewedSha256, name).to.equal(current);
-                    approved.push(name);
-                }
-                if (a.reviewedSha256 && a.reviewedSha256 !== current) {
-                    expect(a.state, name).to.equal("to-confirm");
-                    stale.push(name);
-                }
-            }
-            return { approved, stale };
-        };
+        const check = async (stack: string[]) =>
+            CheckApprovals(OccurrenceNodes(await ComposeTimberJunction(stack)), "dokwood::detail::assignment");
         expect(await check(timberJunctionV1)).to.deep.equal({ approved: ["Wand_1__Decke", "Wand_3__Decke", "Decke__Balkonplatte_A"], stale: [] });
         // Wand 3 kept its path, but its derivation record names model v2 now, so its v1 approval is stale.
         expect(await check(timberJunctionV2)).to.deep.equal({ approved: [], stale: ["Wand_1_1__Decke", "Wand_1_2__Decke", "Wand_3__Decke"] });
@@ -114,16 +96,15 @@ describe("example file", () => {
         expect(NodeToJSON(swapped)).to.deep.equal(NodeToJSON(forward));
     });
     it("timber junction lineages and derivations are bound to the model files", () => {
-        const sha = (file: string) => createHash("sha256").update(fs.readFileSync(`${timberJunctionPath}/${file}`)).digest("hex");
-        const binding = (v: string) => ({ layer: ReadTimberJunction(`1-model-${v}`).header.id, sha256: sha(`1-model-${v}.ifcx`) });
+        const binding = (v: string) => FileBinding(`1-model-${v}`);
         for (const head of ["v2", "v2-samename"]) {
             const lineage = LineageOf(`4-lineage-v1-${head}`);
             expect(lineage.base).to.deep.equal(binding("v1"));
             expect(lineage.head).to.deep.equal(binding(head));
             // The entries come from an ifc-lite sidecar, itself bound to the STEP twins it diffed.
-            expect(lineage.sidecar).to.deep.equal({ file: `ifc-lite/lineage-v1-${head}.json`, sha256: sha(lineage.sidecar.file) });
+            expect(lineage.sidecar).to.deep.equal({ file: `ifc-lite/lineage-v1-${head}.json`, sha256: FileSha(lineage.sidecar.file) });
             const sidecar = JSON.parse(fs.readFileSync(`${timberJunctionPath}/${lineage.sidecar.file}`).toString());
-            expect([sidecar.base.hash, sidecar.head.hash]).to.deep.equal(["v1", head].map(v => `sha256:${sha(`ifc-lite/model-${v}.ifc`)}`));
+            expect([sidecar.base.hash, sidecar.head.hash]).to.deep.equal(["v1", head].map(v => `sha256:${FileSha(`ifc-lite/model-${v}.ifc`)}`));
             // Copied verbatim, with each GlobalId turned into its IFCX path, which is a node of that model.
             const [base, tip] = [ElementPathIn("v1"), ElementPathIn(head)];
             expect(lineage.entries.map((e: any) => [e.predecessors, e.successors, e.relation, e.evidence, e.shares, e.source]))
@@ -131,7 +112,8 @@ describe("example file", () => {
         }
         const manual = LineageOf("4-lineage-v1-v2-samename-manual");
         expect([manual.base, manual.head]).to.deep.equal([binding("v1"), binding("v2-samename")]);
-        for (const v of ["v1", "v2"]) {
+        // Every derivation of one model: the group lists exactly its places, and each record names that model's bytes.
+        for (const v of ["v1", "v2", "v2-samename"]) {
             const group = OccurrenceGroup(v);
             const occurrences = ReadTimberJunction(`3-derivation-${v}`).data.filter(d => d.path !== group.path);
             expect(occurrences.map(d => d.path).sort()).to.deep.equal(Object.values(group.children!).sort());
@@ -289,6 +271,9 @@ describe("example file", () => {
             expect(placeKeys.map(k => c.attributes.get(k))).to.deep.equal(placeKeys.map(k => d.attributes.get(k)));
             expect(placeKeys.every(k => c.attributes.has(k)), name).to.be.true;
         }
+        // The place across disciplines is the one BP place no view types. The cost view also says nothing about Wand 4.
+        expect(timberJunctionViewNames.map(v => PlacesWithoutOccurrence(timberJunctionBP, v)))
+            .to.deep.equal([["Wand_2__Zuluft_1"], ["Wand_4__Decke", "Wand_2__Zuluft_1"]]);
         const swap = timberJunctionBP.map(n => n === "5-view-detail-bp" ? "5-view-cost-bp" : n === "5-view-cost-bp" ? "5-view-detail-bp" : n);
         expect(NodeToJSON(await ComposeTimberJunction(swap))).to.deep.equal(NodeToJSON(bp));
     });
@@ -359,24 +344,8 @@ describe("example file", () => {
         // A composed view occurrence shows its place's derivation record, so the rule is checked on the node itself.
         const check = async (stack: string[]) => {
             const root = await ComposeTimberJunction(stack);
-            const approved: string[] = [], stale: string[] = [];
-            for (const view of timberJunctionViewNames) {
-                for (const [child, o] of RootNamed(root, `View: ${view}`).children) {
-                    const name = `${view} ${child}`;
-                    const a = o.attributes.get("dokwood::assignment");
-                    if (["proposed", "in-review"].includes(a.state)) expect(a, name).to.not.have.property("reviewedSha256");
-                    const current = RecordSha(o.attributes.get("dokwood::derivation"));
-                    if (a.state === "approved") {
-                        expect(a.reviewedSha256, name).to.equal(current);
-                        approved.push(name);
-                    }
-                    if (a.reviewedSha256 && a.reviewedSha256 !== current) {
-                        expect(a.state, name).to.equal("to-confirm");
-                        stale.push(name);
-                    }
-                }
-            }
-            return { approved, stale };
+            return CheckApprovals(timberJunctionViewNames.flatMap(view => [...RootNamed(root, `View: ${view}`).children]
+                .map(([child, o]): [string, PostCompositionNode] => [`${view} ${child}`, o])), "dokwood::assignment");
         };
         expect(await check(timberJunctionV1Views)).to.deep.equal({ stale: [], approved: ["detail Wand_1__Decke", "detail Wand_3__Decke",
             "detail Decke__Balkonplatte_A", "cost Wand_1__Decke", "cost Wand_2__Decke"] });
@@ -439,6 +408,9 @@ describe("example file", () => {
         // The VP scope item reaches the generic type without the detail catalog.
         const vp = NodesByPath(await ComposeTimberJunction(timberJunctionVP));
         expect(vp.get(scopeItem)!.attributes.get("dokwood::type::generic").code).to.equal("G-SB-EXT");
+        // It has no place, so no derivation record: its approval names no reviewed hash and the approval rule does not apply.
+        const scope = vp.get(scopeItem)!.attributes;
+        expect([scope.get("dokwood::assignment"), scope.has("dokwood::derivation")]).to.deep.equal([{ view: "cost", state: "approved" }, false]);
         // Every node is validated before inherits is expanded, so a bad value at the top of the chain fails the stack.
         const bad = structuredClone(ReadTimberJunction("2-catalog-generic"));
         bad.data.find(d => d.path === genericTypePath)!.attributes!["dokwood::type::generic"].unit = 1;
@@ -474,6 +446,19 @@ describe("example file", () => {
         // The new lineage declaration and the old one, without "axis", validate each other's data in either order.
         await ComposeTimberJunction(["4-lineage-v1-v2", "6-lineage-vp-bp"]);
         await ComposeTimberJunction(["6-lineage-vp-bp", "4-lineage-v1-v2"]);
+        // Only the last declaration validates, so the order decides what is checked. The old one does not know "axis":
+        // with it last a wrong axis value composes, with the new one last it fails.
+        const [old, phaseFile] = ["4-lineage-v1-v2", "6-lineage-vp-bp"].map(ReadTimberJunction);
+        const failure = (files: IfcxFile[]) => ComposeFiles(files).then(() => "", (e: Error) => e.message);
+        const badAxis = structuredClone(phaseFile);
+        badAxis.data[0].attributes!["dokwood::lineage"].axis = "sideways";
+        expect(await failure([badAxis, old])).to.equal("");
+        expect(await failure([old, badAxis])).to.include("sideways");
+        // "axis" is optional for the old layers' sake: required, the old data fails when the new declaration is last.
+        const required: any = structuredClone(phaseFile);
+        delete required.schemas["dokwood::lineage"].value.objectRestrictions.values.axis.optional;
+        expect(await failure([required, old])).to.equal("");
+        expect(await failure([old, required])).to.include("to have key axis");
     });
 });
 
@@ -651,6 +636,31 @@ function TypeOf(o: PostCompositionNode)
     return type ? `${type.code}/${type.version}` : "-";
 }
 
+// The approval rule on composed nodes that hold an assignment under the given attribute id: each shows a derivation
+// record, only an approval sets a reviewed hash, approved needs that hash to be the record's, a different hash needs
+// to-confirm. Returns the names of the approved and of the stale ones.
+function CheckApprovals(nodes: Iterable<[string, PostCompositionNode]>, assignmentId: string)
+{
+    const approved: string[] = [], stale: string[] = [];
+    for (const [name, o] of nodes) {
+        const a = o.attributes.get(assignmentId);
+        if (!a) continue;
+        expect(o.attributes.has("dokwood::derivation"), `${name} derivation`).to.be.true;
+        // Only an approval sets a reviewed hash; to-confirm may keep it.
+        if (["proposed", "in-review"].includes(a.state)) expect(a, name).to.not.have.property("reviewedSha256");
+        const current = RecordSha(o.attributes.get("dokwood::derivation"));
+        if (a.state === "approved") {
+            expect(a.reviewedSha256, name).to.equal(current);
+            approved.push(name);
+        }
+        if (a.reviewedSha256 && a.reviewedSha256 !== current) {
+            expect(a.state, name).to.equal("to-confirm");
+            stale.push(name);
+        }
+    }
+    return { approved, stale };
+}
+
 // "<code>/<version> <state> <carried relation> <carried-from path prefixes>", with "-" in place of a missing type.
 function Summary(o: PostCompositionNode)
 {
@@ -764,8 +774,11 @@ function OrphanViewOccurrences(files: IfcxFile[])
 function PlacesWithoutOccurrence(stack: string[], view: string)
 {
     const typed = new Set(stack.filter(n => n.startsWith(`5-view-${view}-`)).flatMap(n => ViewOccurrences(n)).map(o => o.place));
-    return stack.filter(n => n.startsWith("3-derivation-")).flatMap(n => Object.entries(OccurrenceGroup(n.slice("3-derivation-".length)).children!))
-        .filter(([, path]) => !typed.has(path)).map(([name]) => name);
+    return stack.filter(n => n.startsWith("3-derivation-")).map(ReadTimberJunction).flatMap(file => {
+        // A place is named by whichever node of its layer lists it as a child; the group name differs per layer.
+        const names = new Map(file.data.flatMap(d => Object.entries(d.children ?? {})).map(([name, path]) => [path, name]));
+        return PlacesOf(file).filter(d => !typed.has(d.path)).map(d => names.get(d.path)!);
+    });
 }
 
 // The carry rules, checked on every carried occurrence of a head view layer against the base view layer, the lineage
