@@ -8,6 +8,7 @@ import { InMemoryLayerProvider, StackedLayerProvider } from "../ifcx-core/layers
 import { FetchLayerProvider } from "../ifcx-core/layers/fetch-layer-provider";
 import { IfcxLayerStackBuilder } from "../ifcx-core/layers/layer-stack";
 import { PostCompositionNode } from "../ifcx-core/composition/node";
+import { NodeToJSON } from "./util/node2json";
 
 let examplesFolderPath = "../examples"
 
@@ -97,11 +98,13 @@ describe("example file", () => {
         // Every other repeated write has the value of the first, so only the assignment can differ by order.
         expect(twice.filter(w => !w[0].endsWith("assignment") && w[1] !== writes[keys.indexOf(w[0])][1])).to.deep.equal([]);
         // The later layer wins: as committed 4-assignment-v2 comes last and says to-confirm.
-        const forward = OccurrenceSummaries(await ComposeTimberJunction(timberJunctionV2));
-        const swapped = OccurrenceSummaries(await ComposeTimberJunction(
-            [...timberJunctionV2.filter(n => n !== "4-assignment-v1"), "4-assignment-v1"]));
-        expect([forward.Wand_3__Decke, swapped.Wand_3__Decke]).to.deep.equal(["D021/v1 to-confirm", "D021/v1 approved"]);
-        expect({ ...swapped, Wand_3__Decke: forward.Wand_3__Decke }).to.deep.equal(forward);
+        const forward = await ComposeTimberJunction(timberJunctionV2);
+        const swapped = await ComposeTimberJunction([...timberJunctionV2.filter(n => n !== "4-assignment-v1"), "4-assignment-v1"]);
+        const wand3Of = (root: PostCompositionNode) => OccurrenceNodes(root).get("Wand_3__Decke")!;
+        expect([wand3Of(forward), wand3Of(swapped)].map(Summary)).to.deep.equal(["D021/v1 to-confirm", "D021/v1 approved"]);
+        // With that one attribute put back, the whole composed tree is the same, orphan roots included.
+        wand3Of(swapped).attributes.set("dokwood::detail::assignment", wand3Of(forward).attributes.get("dokwood::detail::assignment"));
+        expect(NodeToJSON(swapped)).to.deep.equal(NodeToJSON(forward));
     });
     it("timber junction lineages and derivations are bound to the model files", () => {
         const sha = (file: string) => createHash("sha256").update(fs.readFileSync(`${timberJunctionPath}/${file}`)).digest("hex");

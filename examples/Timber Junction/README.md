@@ -54,9 +54,10 @@ python3 generate.py
 
 It writes next to itself and is deterministic, so an unchanged script gives
 the committed files byte for byte. (proven by running: `python3 generate.py
-<empty folder>` and `cmp` of every file) If a change touches a model, the STEP
-twins change too and the script stops until the lineage sidecars are rerun
-(Node 20 or later):
+<empty folder>` and `cmp` of every file) If a change touches an element's GlobalId,
+name, class, box or `IsExternal`, the STEP twins change too and the script
+stops until the lineage sidecars are rerun (Node 20 or later). Other model
+edits, such as colours or the storey name, do not reach the twins:
 
 ```sh
 cd ifc-lite
@@ -161,7 +162,8 @@ by order. (proven by running) The later layer wins:
 | as committed, `4-assignment-v2` after `4-assignment-v1` | `D021/v1 to-confirm` |
 | `4-assignment-v1` moved to the end | `D021/v1 approved` |
 
-All other occurrences compose the same in both orders. (proven by running:
+With that one attribute put back, the whole composed tree is the same in both
+orders, orphan roots included. (proven by running:
 `timber junction layer order decides the Wand 3 review state`) So the stack
 order is part of the meaning: whoever builds the stack decides whether a
 stale approval shows.
