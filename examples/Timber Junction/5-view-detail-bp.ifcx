@@ -1,0 +1,245 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-detail-bp.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "detail editor (phase BP)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [
+    {
+      "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/prop@v5a.ifcx"
+    }
+  ],
+  "schemas": {
+    "dokwood::assignment": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "view": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "detail",
+                  "cost",
+                  "physics",
+                  "structure",
+                  "fabrication"
+                ]
+              }
+            },
+            "state": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "proposed",
+                  "in-review",
+                  "approved",
+                  "to-confirm"
+                ]
+              }
+            },
+            "reviewedSha256": {
+              "dataType": "String",
+              "optional": true
+            },
+            "carriedFrom": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  },
+                  "occurrences": {
+                    "dataType": "Array",
+                    "arrayRestrictions": {
+                      "value": {
+                        "dataType": "Reference"
+                      }
+                    }
+                  },
+                  "lineage": {
+                    "dataType": "Reference",
+                    "optional": true
+                  },
+                  "relation": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "identity",
+                        "split",
+                        "merge",
+                        "replaced"
+                      ]
+                    }
+                  },
+                  "policy": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "copy-to-all",
+                        "same-type-or-none"
+                      ]
+                    }
+                  }
+                }
+              },
+              "optional": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "169fb9ab-bff3-50af-b76c-771ebbaa2551",
+      "children": {
+        "Wand_1_1__Decke": "84403786-68e9-54a8-b927-903ad6a16465",
+        "Wand_1_2__Decke": "fc1f2710-c5b7-56d9-ad53-9af39eacd9fe",
+        "Wand_2__Decke": "fd408920-a71c-5be8-9370-b132f2d90c25",
+        "Wand_3__Decke": "ce4ab638-e32d-5618-adc6-c2923f2f9b93",
+        "Wand_4__Decke": "c7415095-ee14-5c94-8da6-b973fead5d50",
+        "Decke__Balkonplatte": "7bde2694-ad10-5ab5-9411-adb344af42ac"
+      },
+      "attributes": {
+        "bsi::ifc::prop::Name": "View: detail"
+      }
+    },
+    {
+      "path": "84403786-68e9-54a8-b927-903ad6a16465",
+      "inherits": {
+        "place": "3de3f167-ded9-5d58-a746-bea12098d9c8",
+        "type": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D012/v3"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "detail",
+          "state": "to-confirm",
+          "reviewedSha256": "4930549de1ef8594292b27883ddff6cd9c62cce7a40148fa783136d85e742899",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-detail-v1.ifcx",
+            "sha256": "9b812209cb013dc6e98441e981df2cf42939385a9769466d1074c68b06aed84e",
+            "occurrences": [
+              "46e751db-0ba3-56f3-8f29-7e59b96fcde1"
+            ],
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "split",
+            "policy": "copy-to-all"
+          }
+        }
+      }
+    },
+    {
+      "path": "fc1f2710-c5b7-56d9-ad53-9af39eacd9fe",
+      "inherits": {
+        "place": "d5fc1958-9c80-5cf6-8572-59cbbee4498c",
+        "type": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D012/v3"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "detail",
+          "state": "to-confirm",
+          "reviewedSha256": "4930549de1ef8594292b27883ddff6cd9c62cce7a40148fa783136d85e742899",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-detail-v1.ifcx",
+            "sha256": "9b812209cb013dc6e98441e981df2cf42939385a9769466d1074c68b06aed84e",
+            "occurrences": [
+              "46e751db-0ba3-56f3-8f29-7e59b96fcde1"
+            ],
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "split",
+            "policy": "copy-to-all"
+          }
+        }
+      }
+    },
+    {
+      "path": "fd408920-a71c-5be8-9370-b132f2d90c25",
+      "inherits": {
+        "place": "c186e4d2-29e5-5d6f-adac-639450400670",
+        "type": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D012/v3"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "detail",
+          "state": "in-review",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-detail-v1.ifcx",
+            "sha256": "9b812209cb013dc6e98441e981df2cf42939385a9769466d1074c68b06aed84e",
+            "occurrences": [
+              "ab1fb1d9-69b0-5895-a138-cb40c2f17dfd"
+            ],
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "identity",
+            "policy": "copy-to-all"
+          }
+        }
+      }
+    },
+    {
+      "path": "ce4ab638-e32d-5618-adc6-c2923f2f9b93",
+      "inherits": {
+        "place": "68b553da-3631-54b8-a33a-6b1a8a0338a6",
+        "type": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D021/v1"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "detail",
+          "state": "to-confirm",
+          "reviewedSha256": "addfdad6adcf2b046755dc73b886cb6d4d016647e6790125b88769332d51cd6a",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-detail-v1.ifcx",
+            "sha256": "9b812209cb013dc6e98441e981df2cf42939385a9769466d1074c68b06aed84e",
+            "occurrences": [
+              "ce4ab638-e32d-5618-adc6-c2923f2f9b93"
+            ],
+            "relation": "identity",
+            "policy": "copy-to-all"
+          }
+        }
+      }
+    },
+    {
+      "path": "c7415095-ee14-5c94-8da6-b973fead5d50",
+      "inherits": {
+        "place": "e3d22add-9154-5f57-bbfa-4320b09dfb0e",
+        "type": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D021/v1"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "detail",
+          "state": "proposed"
+        }
+      }
+    },
+    {
+      "path": "7bde2694-ad10-5ab5-9411-adb344af42ac",
+      "inherits": {
+        "place": "09b72938-013d-5a33-87e4-f3023890725b",
+        "type": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D031/v1"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "detail",
+          "state": "to-confirm",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-detail-v1.ifcx",
+            "sha256": "9b812209cb013dc6e98441e981df2cf42939385a9769466d1074c68b06aed84e",
+            "occurrences": [
+              "005097ee-4acb-5045-a77f-53c8e3591d6e",
+              "2326108c-fb65-5141-950e-135b96368e12"
+            ],
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "merge",
+            "policy": "same-type-or-none"
+          }
+        }
+      }
+    }
+  ]
+}

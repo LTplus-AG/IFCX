@@ -35,14 +35,28 @@ See "What would be proposed under bsi::" below.
 | 4 assignment | `4-assignment-v2.ifcx` | detail editor | v1 assignments carried to v2 occurrences, stale approvals reset |
 | 4 provenance | `4-lineage-v1-v2-samename.ifcx` | model comparison | Lineage from v1 to v2-samename, as ifc-lite found it |
 | 4 provenance | `4-lineage-v1-v2-samename-manual.ifcx` | planner | The split ifc-lite missed, `source: manual` |
+| 0 federation | `0-federation-bp.ifcx` | BIM coordinator | No data; imports both BP models with `integrity` |
+| 1 model | `1-model-mep.ifcx` | MEP engineer | Own root, one supply duct Zuluft 1 through Wand 2, box mesh |
+| 2 catalog | `2-catalog-generic.ifcx` | classification | Generic types G-SB-EXT, G-SB-INT, G-BALC, G-BALC-TB, and `refines` on D012 v2 and v3 |
+| 2 catalog | `2-catalog-fab.ifcx` | fabricator | Variant D012-v3-F2, refining D012/v3 |
+| 3 derivation | `3-derivation-federated.ifcx` | detail finder | One place across disciplines: Wand 2 and Zuluft 1 |
+| 5 view | `5-view-cost-vp.ifcx` | cost planner | VP: one scope item for the exterior slab bearings |
+| 5 view | `5-view-detail-v1.ifcx`, `5-view-cost-v1.ifcx` | detail editor, cost planner | The two views on the v1 places, written by hand |
+| 5 view | `5-view-detail-bp.ifcx`, `5-view-cost-bp.ifcx` | detail editor, cost planner (carry step) | BP, on the v2 places: the v1 views carried by `4-lineage-v1-v2.ifcx`, plus one new detail statement (Wand 4) |
+| 3 derivation | `3-derivation-v2-samename.ifcx` | detail finder | The places of v2-samename |
+| 5 view | `5-view-detail-v2-samename-auto.ifcx` | detail editor (carry step) | v1 detail view carried by the ifc-lite lineage alone |
+| 5 view | `5-view-detail-v2-samename.ifcx` | detail editor (carry step) | The same with the manual lineage entry |
+| 6 provenance | `6-lineage-vp-bp.ifcx` | cost planner | Phase lineage: the VP scope item split into the BP cost items |
+| 6 provenance | `6-lineage-type-d012.ifcx` | detail catalog | Type lineage: D012 v3 replaces v2 |
 | (not a layer) | `ifc-lite/model-*.ifc` | `generate.py` | IFC STEP twins of the three models, for ifc-lite |
 | (not a layer) | `ifc-lite/lineage-v1-*.json` | ifc-lite 0.45.1 | Lineage sidecars from diffing the twins |
 | (not a layer) | `ifc-lite/lineage-corpus-r09-r10.json` | ifc-lite 0.45.1 | Lineage sidecar of a real corpus pair, see the last section |
 
 Model v2 is a full re-export, not a layer on top of v1. That is the hard case:
-new paths for every changed element.
+new paths for every changed element. The rows from `0-federation-bp.ifcx` on
+belong to "Views and phases" below.
 
-`generate.py` writes all twelve `.ifcx` files and the three STEP twins, and
+`generate.py` writes all twenty-seven `.ifcx` files and the three STEP twins, and
 copies the two lineage sidecars it read into the output folder. Everything
 except the STEP twins is written last, after every check has passed. To
 change the example, edit the script and run it in this folder (Python 3.8 or
@@ -197,9 +211,10 @@ What is not from ifc-lite: the IFCX paths, `source`, `sidecar` (file and
 SHA-256 of the ifc-lite output), and `base` and `head`, which hold the SHA-256
 of the IFCX models rather than of the twins. (proven by running: `timber
 junction lineages and derivations are bound to the model files` recomputes
-the hashes in all three lineage layers and both derivations, and compares the
-entries with the sidecars, turning each GlobalId
-into its path with uuid5 and requiring that path to be a node of the model)
+the hashes in all three lineage layers and in the derivations of v1, v2 and
+v2-samename, and compares the entries with the sidecars, turning each
+GlobalId into its path with uuid5 and requiring that path to be a node of the
+model)
 
 ### Twin check
 
@@ -228,11 +243,13 @@ was reviewed. Here both are D031/v1, so the merged occurrence gets D031/v1
 `to-confirm`, with `carriedFrom.occurrences` listing both old occurrences.
 (proven by running: `timber junction carries merges by same-type-or-none`,
 which checks the rule for every merge entry) If they disagree, nothing is
-carried (pointed at `generate.py:549`; unproven, the example has no such case).
+carried in this shape (pointed at `generate.py:638`; unproven, these layers
+have no such case). The view shape has one, see "Carrying views across a
+model revision".
 
 Every other relation uses `copy-to-all`: every successor gets the type. Only
 an `identity` successor keeps its state, unless the approval rule resets it;
-any other successor is `to-confirm` (pointed at `generate.py:557`; `replaced`
+any other successor is `to-confirm` (pointed at `generate.py:619`; `replaced`
 is unproven, the example has none).
 
 ### Pieces keep the old name
@@ -258,13 +275,20 @@ layer stays as it was produced. (proven by running, test named below)
 
 Both lineage nodes compose side by side; IFCX cannot drop one entry from
 another layer's `entries` list. The rule that a manual entry replaces every
-ifc-lite entry naming one of its elements is a convention, applied in the test
-(`EffectiveLineage` in `src/test/example-file-test.ts`). With it, every
+ifc-lite entry naming one of its elements is a convention. `generate.py`
+applies it (`effective`) when it carries the detail view to v2-samename, and
+the test applies it again (`EffectiveLineage` in
+`src/test/example-file-test.ts`). `generate.py` checks the manual entry by
+the same rules as a sidecar entry (`check_entries`) and stops if it fails
+one. (proven by running by hand: with the floor slab as a successor it exits
+with "head is not an element with an occurrence in v2-samename") With the
+convention, every
 element new in v2-samename has a predecessor; without it, the smaller piece
 (`2WandW1bNeuTeilstueckB`) has none.
 (proven by running: `timber junction: ifc-lite misses a split whose pieces
-keep the old name, a manual entry states it`) The example does not carry
-assignments for v2-samename.
+keep the old name, a manual entry states it`) `4-assignment-*` is not
+carried for v2-samename; the detail view is, see "Carrying views across a
+model revision".
 
 ### Manual split and re-derivation
 
@@ -337,6 +361,298 @@ not by a test: repo root served over HTTP, `web/viewer/index.html` opened in
 a browser, the seven files passed in stack order to `addModel` of
 `render.mjs`; nobody looked at the picture)
 
+## Views and phases
+
+The files above answer one question per place: which detail type goes here.
+The files in this section add three axes around the same place:
+
+- **who**: which discipline wrote an element. Each discipline has its own
+  model layer. A federation manifest names the models of one phase.
+- **view**: which discipline types the place: detail and cost here
+  (physics, structure and fabrication would work the same way). A view never
+  writes on the place. It writes its own node for each place it types.
+- **time**: which phase: VP (Vorprojekt), BP (Bauprojekt), AP. Each phase has
+  its own layer stack. A coarse item of an early phase is refined into finer
+  items of a later one, recorded as lineage.
+
+### Node shapes
+
+```
+place            uuid5(ns, "occurrence|<kind>|" + sorted member paths)
+                 members, topology, derivation record; nothing else
+view occurrence  uuid5(ns, "view|<view>|<place>")
+                 inherits {place: <place>, type: <type>}
+                 dokwood::assignment {view, state} and dokwood::<view>::*
+scope item       uuid5(ns, "view|<view>|scope|<key>")
+                 inherits {type: <type>}, dokwood::scope, dokwood::<view>::*
+type level       inherits {refines: <the more generic type>}, own attribute id
+```
+
+Composed, a view occurrence shows the place's members, extent and derivation
+record, the attributes of every level of its type, and its own data. Places
+are the BP places of `3-derivation-v2.ifcx` plus one new place across
+disciplines: Wand 2 penetrated by the duct Zuluft 1 of `1-model-mep.ifcx`.
+
+The rules are conventions. IFCX checks none of them; `npm test` does:
+
+1. **A place carries derivation data only.** `inherits` is transitive, so a
+   type on the place shows on every view occurrence of it. With a throwaway
+   layer (not committed) that puts D021/v1 on the Wand 1.1 place, the cost
+   occurrence of Wand 1.1 composes with `dokwood::detail::type` D021/v1, a
+   detail type nobody in the cost view chose. (proven by running: `timber
+   junction views: a type written on the place leaks into every view, so the
+   place holds no opinions`)
+2. **A view writes only its group node and its own paths.** Then "at most one
+   type per place and view" is a path collision, decided by layer order inside
+   the view. No path is written by two view layers or by a view layer and any
+   other layer of the BP stack, so the order of views does not matter: the BP
+   stack with the detail and cost layers swapped composes to the same tree.
+   The detail view types the exterior bearings D012/v3, the cost view types
+   the same places G-SB-EXT, and neither carries the other's attributes.
+   (proven by running: `timber junction views: each view types a place on its
+   own node, and swapping view layers changes nothing`)
+3. **A view occurrence inherits exactly `place` and `type`**, a scope item
+   only `type`, a carried merge without an agreed type only `place`. (proven
+   by running, same test, read from the input files of all five stacks with
+   view layers)
+4. **Each type level writes its own attribute id.** Composition drops the
+   `inherits` edges, so these attributes are the only trace of the chain.
+   (proven by running: `timber junction type chain: generic, D012/v3 and the
+   fabrication variant compose and validate`; pointed at
+   `src/ifcx-cli/ifcx-cli.ts:135`, which writes node, children and attributes)
+5. **A scope item and its refinements are never in one stack**, or the length
+   would count twice. (unproven)
+
+The penetration place has no view occurrence: the catalog has no type for
+penetrations. It is the only BP place the detail view does not type; the
+cost view also leaves out Wand 4. (proven by running, views test of rule 2)
+
+### Federation
+
+`0-federation-bp.ifcx` has no data. It imports `1-model-v2.ifcx` and
+`1-model-mep.ifcx`, each with `integrity`, the SHA-256 of the file in the
+form `sha256-<base64>`. The derivation record of the federated place names
+the manifest as `sourceLayer`, with its SHA-256, and through it both models.
+The test compares every `integrity` with the file bytes and finds one member
+of the place in each model. IFCX does not compare: with the manifest as the
+only entry layer, its imports bring in both models, and a manifest with
+`integrity: "sha256-AAAA"` composes to the same tree. (proven by running:
+`timber junction federation: the place spans two discipline models bound by
+the manifest`)
+
+The MEP model has its own root node. On the architect's storey path its
+storey name would replace the architect's, see gap 13.
+
+### Type chain and revision
+
+Two different facts, two mechanisms:
+
+- **Specialization** (is-a, stays true): D012 is a generic exterior slab
+  bearing, and the fabrication variant D012-v3-F2 is a D012/v3. Each is an
+  `inherits.refines` on the more specific type. The composed variant shows
+  `dokwood::type::generic`, `dokwood::detail::type` and
+  `dokwood::fab::variant`. Every node is validated before `inherits` is
+  expanded, so a wrong value at the generic level fails the whole BP stack.
+  (proven by running, type chain test)
+- **Revision** (replaces): D012 v3 replaces v2. v3 is no v2, and inheriting
+  would copy v2's attributes onto v3 (pointed at
+  `src/ifcx-core/composition/compose.ts:156`). So it is a lineage entry,
+  `axis: "type"`, `relation: "replaced"`, in `6-lineage-type-d012.ifcx`.
+  (proven by running, type chain test)
+
+`2-catalog-generic.ifcx` writes the `refines` edge on the D012 nodes of
+`2-catalog.ifcx`, because `2-catalog.ifcx` stays as it is. In a real catalog
+the edge would sit in the catalog itself. One effect: in the VP stack, which
+has no detail catalog, the two D012 paths compose as root nodes that carry
+only the generic type. (proven by running: VP compose below)
+
+### Phases
+
+`6-lineage-vp-bp.ifcx` holds one entry with `axis: "phase"`: the VP scope
+item (exterior slab bearings, 12.5 m estimated) is split into the three BP
+cost items of Wand 1.1, Wand 1.2 and Wand 2, with shares by derived length,
+4/12, 2/12 and 6/12. `base` and `head` hold the SHA-256 of
+`5-view-cost-vp.ifcx` and `5-view-cost-bp.ifcx` and the phase. The test
+derives the successors again from model v2 (every exterior slab-on-wall
+place), and checks the shares, their sum and both hashes. (proven by running:
+`timber junction phases: the VP scope item is split into the BP cost items by
+length`) The BP cost view also has items for Wand 3 and the balcony, which
+the scope item does not cover.
+
+The scope item is `approved` and has no `reviewedSha256`. It has no place and
+no derivation record, so its approval is bound to nothing, and the approval
+rule is not checked on the VP stack: there is nothing to compare with, see
+gap 25. (proven by running, type chain test; pointed at
+`5-view-cost-vp.ifcx`)
+
+`dokwood::lineage` gets a field `axis` (`version`, `phase`, `type`) and an
+optional `phase` in `base` and `head`. The new layers declare that schema
+under the same id. A schema id has one declaration per stack, the last one
+(gap 12), so `axis` is optional and absent means `version`: the existing
+lineage layers stay unchanged and `4-lineage-v1-v2.ifcx` with
+`6-lineage-vp-bp.ifcx` composes in either order. With `axis` required in a
+copy of the new layer, the order with that declaration last fails on the old
+layer's data. (both proven by running, same test) The price is that the id
+has two declarations in the BP stack and the order decides what is checked,
+see gap 12.
+
+### Continuity
+
+Inside BP the place links the views: the detail and the cost occurrence of
+Wand 1.1 inherit the same place. From VP to BP, the phase lineage leads from
+the scope item to the cost items, and through their places to the detail
+occurrences. Along types, the VP scope item, the BP cost items of Wand 1.1,
+Wand 1.2 and Wand 2, the detail occurrences of the same three places and the
+variant all show `dokwood::type::generic` G-SB-EXT. The cost item of Wand 3
+shows G-SB-INT and the balcony's has no generic type. (proven by running:
+views and type chain tests) A place path
+depends on its member paths, so it is stable within one model version only;
+across versions, places follow element lineage as in the sections above.
+
+The example has two shapes side by side: the single-view shape of the v1
+and v2 stacks (`inherits.detailType` on the place, `4-assignment-*`) and the
+view shape. `4-assignment-*` and `4-manual-split` stay out of the view
+stacks, since they write on the places (rule 1). The detail view says the
+same as `4-assignment-*`, in v1 and after the carry. (proven by running,
+carry test below)
+
+### Carrying views across a model revision
+
+A view occurrence path is `uuid5(view|place)` and a place path depends on
+its member paths. So when the model is exported again, a view occurrence
+keeps its path only where every member kept its GlobalId (Wand 3). All
+others would be orphaned. They survive because a carry step writes them
+again on the new places, from three inputs: the views on the v1 places
+(`5-view-detail-v1.ifcx`, `5-view-cost-v1.ifcx`), the element lineage
+(`4-lineage-v1-v2.ifcx`) and the places derived from v2.
+
+The carry step is `carry` in `generate.py`, the same function that writes
+`4-assignment-v2.ifcx`: `4-assignment-v2.ifcx` is byte for byte what it was
+before the function was shared. (proven by running: `generate.py` into an
+empty folder and `diff -rq`) It runs once per view. `5-view-detail-bp.ifcx`
+and `5-view-cost-bp.ifcx` are its output, so the BP stack has one set of
+view layers. A statement that is new in BP sits in the same layer without
+`carriedFrom`; there is one, D021/v1 `proposed` for Wand 4.
+
+Each carried occurrence says where it came from, in `carriedFrom` of
+`dokwood::assignment`: `layer` and `sha256` of the v1 view layer, the v1
+`occurrences`, the element `lineage` node, `relation` and `policy`. Where the
+place path is unchanged there is no `lineage`. It is a field and not a
+lineage layer of its own: the lineage stays a fact about elements, stated
+once, and the carry is what follows from it.
+
+| Case | Place | Detail view | Cost view |
+|---|---|---|---|
+| split | Wand 1 to Wand 1.1, Wand 1.2 | both D012/v3 `to-confirm` | both G-SB-EXT `to-confirm`, 175 CHF/m |
+| identity, new GlobalId | Wand 2 | D012/v3 `in-review`, kept | G-SB-EXT, `approved` to `to-confirm`, 168 CHF/m |
+| same path | Wand 3 | D021/v1, `approved` to `to-confirm` | G-SB-INT `in-review`, kept, 95 CHF/m |
+| merge | Balkonplatte A, B to Balkonplatte | both D031/v1: D031/v1 `to-confirm` | G-BALC and G-BALC-TB: no type, no cost line, `to-confirm` |
+| new in BP | Wand 4 | D021/v1 `proposed`, not carried | none |
+
+(proven by running: `timber junction views carry: the v1 views arrive on the
+v2 places by element lineage, each view on its own`. It compares the
+composed rows, then checks every carried occurrence against the v1 view, the
+lineage entry that leads to its place and the derivation hash, and finds no
+v1 occurrence without a successor.)
+
+- **State.** A state is kept on an identity or an unchanged path, except an
+  approval whose `reviewedSha256` no longer matches. Every v2 derivation
+  record names model v2, so no v1 approval survives this revision, on any
+  place. Wand 2 shows the views apart: the cost view had approved it and
+  drops to `to-confirm`, the detail view keeps `in-review`. (proven by
+  running: `timber junction views carry: an approval holds only for the
+  derivation it reviewed, per view`) An approval that survives because the
+  place's own inputs did not change would need a hash over less than the
+  whole model file. (unproven, not built)
+- **View data.** The cost line travels with its occurrence: copied to every
+  successor of a split or identity, and on a merge only if all predecessors
+  have the same. A price per metre can be copied; a lump sum would have to
+  be divided by `shares`. (copy and the differing merge proven by running,
+  carry test; a merge with equal cost lines and a lump sum are unproven, the
+  example has neither)
+- **Merge with different types.** One occurrence with `carriedFrom` naming
+  both predecessors, `inherits` only `place`, `to-confirm`. The person
+  confirming sees what was there. (proven by running, carry test)
+- **Pieces keep the old name.** `5-view-detail-v2-samename-auto.ifcx` is the
+  carry with the ifc-lite lineage alone: the larger Wand 1 piece is carried
+  as `identity`, the place of the smaller piece gets no occurrence. That
+  stack composes and passes every carry rule. Only a count of places
+  without an occurrence shows it, and it cannot tell this from a place
+  nobody typed yet (Wand 4). `5-view-detail-v2-samename.ifcx` is the carry
+  with the manual entry in place of the ifc-lite one: both pieces
+  `to-confirm`, `relation: "split"`, `lineage` naming the manual node.
+  (proven by running: `timber junction views carry: with the ifc-lite
+  lineage alone the smaller Wand 1 piece gets nothing, the manual entry
+  fixes it`)
+- **A place that is gone.** The carry step stops when a v1 occurrence has
+  neither its path nor a lineage entry. (proven by running: `generate.py`
+  with the balcony merge entry removed exits with "the place of ['BA',
+  'BB'] is gone") A view occurrence that is in a stack without its place
+  composes without error. A check on the input files finds it: every
+  `inherits.place` must be a node with a derivation record in the stack.
+  With the v1 view layers left in the BP stack it finds the eight v1
+  occurrences on places that were not derived again, and each is named in a
+  `carriedFrom`. A hand-made occurrence on a place nothing names is found
+  the same way and is named by nothing. The example models have no place
+  that goes without lineage, so that occurrence is a throwaway layer in the
+  test. (proven by running: `timber junction views: a view occurrence whose
+  place is gone composes without error, a check on the files finds it`)
+
+Not carried: the manual split (gap 5) and the federated place, which has no
+view occurrence and no v1.
+
+### Stack order
+
+Federation, models, catalogs, places, views, lineage. Inside one view, oldest
+first.
+
+| VP | v1 views | BP | v2-samename views |
+|---|---|---|---|
+| `2-catalog-generic` | `1-model-v1` | `0-federation-bp` | `1-model-v2-samename` |
+| `5-view-cost-vp` | `2-catalog-generic` | `1-model-v2` (architecture) | `2-catalog-generic` |
+| | `2-catalog` | `1-model-mep` | `2-catalog` |
+| | `3-derivation-v1` | `2-catalog-generic` | `3-derivation-v2-samename` |
+| | `5-view-detail-v1` | `2-catalog` | `5-view-detail-v2-samename` |
+| | `5-view-cost-v1` | `2-catalog-fab` | `4-lineage-v1-v2-samename` |
+| | | `3-derivation-v2` | `4-lineage-v1-v2-samename-manual` |
+| | | `3-derivation-federated` | |
+| | | `5-view-detail-bp` | |
+| | | `5-view-cost-bp` | |
+| | | `4-lineage-v1-v2` | |
+| | | `6-lineage-vp-bp` | |
+| | | `6-lineage-type-d012` | |
+
+"v1 views" is the BP work one model revision earlier. The BP stack holds
+`4-lineage-v1-v2`, which its carried occurrences name. The fifth stack,
+"v2-samename views, auto", has `5-view-detail-v2-samename-auto` and no
+manual lineage layer.
+
+A real VP stack would start with a VP architecture model. The scope item does
+not need one, so the example leaves it out. In the BP stack the manifest's
+imports are already listed, so it adds no layer (pointed at
+`src/ifcx-core/layers/layer-stack.ts:92`).
+
+After the block in "Compose it", with the same `$out`:
+
+```sh
+node ../../src/ifcx-cli.js compose 2-catalog-generic.ifcx 5-view-cost-vp.ifcx "$out/vp.json"
+node ../../src/ifcx-cli.js compose 1-model-v1.ifcx 2-catalog-generic.ifcx 2-catalog.ifcx 3-derivation-v1.ifcx 5-view-detail-v1.ifcx 5-view-cost-v1.ifcx "$out/v1-views.json"
+node ../../src/ifcx-cli.js compose 0-federation-bp.ifcx 1-model-v2.ifcx 1-model-mep.ifcx 2-catalog-generic.ifcx 2-catalog.ifcx 2-catalog-fab.ifcx 3-derivation-v2.ifcx 3-derivation-federated.ifcx 5-view-detail-bp.ifcx 5-view-cost-bp.ifcx 4-lineage-v1-v2.ifcx 6-lineage-vp-bp.ifcx 6-lineage-type-d012.ifcx "$out/bp.json"
+node ../../src/ifcx-cli.js compose 1-model-v2-samename.ifcx 2-catalog-generic.ifcx 2-catalog.ifcx 3-derivation-v2-samename.ifcx 5-view-detail-v2-samename.ifcx 4-lineage-v1-v2-samename.ifcx 4-lineage-v1-v2-samename-manual.ifcx "$out/samename-views.json"
+node ../../src/ifcx-cli.js compose 1-model-v2-samename.ifcx 2-catalog-generic.ifcx 2-catalog.ifcx 3-derivation-v2-samename.ifcx 5-view-detail-v2-samename-auto.ifcx 4-lineage-v1-v2-samename.ifcx "$out/samename-views-auto.json"
+```
+
+All five exit 0 with validation and fetch on. Composed nodes below the root,
+and root nodes: VP 9 and 4, v1 views 47 and 6, BP 58 and 12, v2-samename
+views 43 and 7, auto 41 and 6. (proven by running)
+
+The web viewer, built with the `build-viewer` esbuild command into a scratch
+folder, loaded the BP stack as it was before the carry (twelve layers,
+hand-written view layers) and rendered the walls, the slab and the duct
+through Wand 2, which has a box mesh; the model tree listed both view groups.
+(proven by running before the carry step was added, headless Chrome) Not
+rerun for the stacks above. (unproven)
+
 ## Open gaps
 
 1. **Orphaned opinions after re-derivation.** `4-assignment-v1.ifcx` still
@@ -346,13 +662,10 @@ a browser, the seven files passed in stack order to `addModel` of
    state, or a split, but no members. IFCX has no rule to flag or drop such a
    node, and a later layer cannot delete a node. (proven by running; root
    detection at `src/ifcx-core/composition/cycles.ts:50`) Nulling the
-   orphan's `inherits` entry composes, but the root stays, with its state and
-   no type. Nulling its `dokwood::detail::assignment` attribute crashes
-   validation with a TypeError at
-   `src/ifcx-core/schema/schema-validation.ts:93`: the Object check passes
-   because `typeof null` is `"object"`, then `Object.hasOwn(null, ...)` throws.
-   (both proven by running) That validator bug is a separate fix, not part of
-   this example.
+   orphan's `inherits` entry and its `dokwood::detail::assignment` attribute
+   composes and validates. The type is gone, the assignment attribute stays
+   as a key with value null, and the root and its split stay. (proven by running: `timber junction manual split of the Wand 2
+   occurrence is orphaned when Wand 2 is re-derived`)
 2. **A section along an edge as reference target.** The extent is a line given
    by coordinates inside an attribute. A path can name a node (a wall, or a
    Brep edge on the geometry-tiers branch) but not a stretch of it, such as
@@ -397,6 +710,97 @@ a browser, the seven files passed in stack order to `addModel` of
    error. (proven by running) Combined with
    the layer-order case above, the stack order is part of the meaning and
    nothing checks it.
+
+Found with "Views and phases":
+
+8. **Two inherited types writing one attribute: one wins without notice.**
+   The winner follows the order in which each `inherits` key was first
+   inserted across all layers, not layer order: setting the first key again
+   in the last layer does not make it win. (proven by running, with
+   throwaway layers not in this repo; pointed at
+   `src/ifcx-core/composition/compose.ts:40` and `:143`) In this example the
+   leak test is such a case: the Wand 1.1 detail occurrence inherits
+   `dokwood::detail::type` from its place and from its type and keeps its
+   own, without error. (proven by running)
+9. **Composed output drops `inherits`.** Which type a view gave a place
+   survives only as attribute content. (proven by running: the composed BP
+   stack has no `inherits`; pointed at `src/ifcx-cli/ifcx-cli.ts:135` and
+   `src/ifcx-core/composition/node.ts:19`)
+10. **No rules on nodes.** "Exactly `place` and `type`" cannot be declared;
+    validation covers attribute values only. (pointed at
+    `src/ifcx-core/schema/schema-validation.ts:124` and `schema/ifcx.tsp:17`)
+11. **`inherits` to a missing path composes.** A view occurrence whose place
+    is gone composes without error and shows only its type and its own
+    data. (proven by running: `timber junction views: a view occurrence
+    whose place is gone composes without error, a check on the files finds
+    it`)
+12. **A schema id has one declaration per stack, the last.** Two layers that
+    declare the same id differently: the first layer's data is validated
+    against the second declaration and fails. (proven by running, with
+    throwaway layers; pointed at `src/ifcx-core/workflows.ts:169`) This
+    example has the case: the `4-lineage-*` layers declare `dokwood::lineage`
+    without `axis` and `phase`, the `6-lineage-*` layers with them. Keys a
+    declaration does not name are not checked, so which fields are validated
+    depends on the layer order: with the old declaration last, an `axis` of
+    `"sideways"` composes; with the new one last, as in the BP stack, it
+    fails. (proven by running: phases test) One declaration for all lineage
+    layers would change the three `4-lineage-*` files and is left for later.
+13. **No path ownership.** Two models that write the same storey path: the
+    children are merged and the later layer's name wins. (proven by running,
+    with throwaway layers) The MEP model here avoids it with its own root.
+14. **Import `integrity` is not checked**, so the federation manifest binds
+    nothing until it is. (proven by running: federation test; pointed at
+    `src/ifcx-core/layers/fetch-layer-provider.ts:39`) `schema/ifcx.tsp:82`
+    only declares the field. (unproven that the spec says what a mismatch
+    does)
+15. **Imported layers are placed after the importer.** A view layer that
+    imported its derivation would end up below it in the stack. Here no view
+    layer imports another. (pointed at
+    `src/ifcx-core/layers/layer-stack.ts:105`; not run)
+16. **The header has no writer role, view or phase.** A view layer is known
+    by its file name only. (pointed at `schema/ifcx.tsp:21`)
+17. **No selector reference.** A scope such as "all exterior slab bearings"
+    is text in `dokwood::scope`. (unproven that no construct exists; none in
+    `schema/ifcx.tsp`)
+18. **`inherits` is transitive**, so an opinion on a place reaches every view
+    occurrence of it. Handled by rule 1 of "Views and phases", not an IFCX
+    change.
+19. **Lineage needs an axis** (version, phase, type). The shape composes and
+    validates. (proven by running: phases test) Belongs to the `bsi::lineage`
+    proposal below.
+
+Found with "Carrying views across a model revision":
+
+20. **A view occurrence does not survive a re-export by itself.** Its path
+    follows the place path, which follows the GlobalIds. Without the carry
+    step it is orphaned, and gap 11 hides that. (proven by running: orphan
+    test, v1 view layers in the BP stack)
+21. **A wrong lineage carries wrongly and validates.** The carry by the
+    ifc-lite lineage alone passes every rule the tests have. A place left
+    without an occurrence looks like a place not typed yet. (proven by
+    running: samename carry test)
+22. **An approval is bound to the whole model file.** The derivation record
+    holds the model's SHA-256, so every re-export makes every approval stale,
+    also on places whose members did not change. (proven by running: views
+    approval test, no approval left in BP)
+23. **`carriedFrom` is not checked by IFCX.** Its `occurrences`, `lineage`,
+    `layer` and `sha256` are strings; the v1 view layers they name are not in
+    the BP stack. The test checks them against the files. (proven by
+    running, carry test)
+24. **The carry is a tool outside IFCX**, as in gap 5, now once per view. It
+    has to run after every re-export and before anyone reads the views.
+    Nothing in a stack says whether it ran. (pointed at `generate.py:594`,
+    `carry`)
+
+Found in code review:
+
+25. **A scope item's approval is bound to nothing.** The VP scope item is
+    `approved` without `reviewedSha256`: it has no place, so there is no
+    derivation record to hash. The approval rule covers places only, and no
+    test checks it on the VP stack. What a scope approval should name (the
+    floor plan it was estimated from, say) is open. (pointed at
+    `5-view-cost-vp.ifcx`; that it composes so is proven by running, type
+    chain test)
 
 ## Real corpus case: r09 to r10 partition-wall split
 
@@ -448,7 +852,7 @@ IFCX layer, since the corpus has no IFCX model.
   relation (identity, split, merge, replaced, as in ifc-lite), evidence,
   shares, source (tool or person), bound to content hashes of both versions.
   Entries as separate nodes would let a manual entry replace a tool entry by
-  layer order. (unproven)
+  layer order. (unproven) With an axis: version, phase or type.
 - A review binding: an opinion that names the hash of the record it judged,
   and a rule that it lapses when that record changes.
 - A composition rule for opinions about nodes that no longer exist.

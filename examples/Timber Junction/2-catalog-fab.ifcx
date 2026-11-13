@@ -1,0 +1,51 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/2-catalog-fab.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "timber fabricator (variant catalog)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [],
+  "schemas": {
+    "dokwood::fab::variant": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "code": {
+              "dataType": "String"
+            },
+            "fastener": {
+              "dataType": "String"
+            },
+            "cnc": {
+              "dataType": "String"
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "28eb6a93-494b-5a06-af45-48137bd6880c",
+      "children": {
+        "D012_v3_F2": "f6c974c0-1791-5e39-b61b-30cadffa2c75"
+      }
+    },
+    {
+      "path": "f6c974c0-1791-5e39-b61b-30cadffa2c75",
+      "inherits": {
+        "refines": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D012/v3"
+      },
+      "attributes": {
+        "dokwood::fab::variant": {
+          "code": "D012-v3-F2",
+          "fastener": "VG 8x300, a = 250 mm",
+          "cnc": "BTLx"
+        }
+      }
+    }
+  ]
+}

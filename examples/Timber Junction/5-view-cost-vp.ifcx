@@ -1,0 +1,200 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-cost-vp.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "cost planner (phase VP)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [
+    {
+      "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/prop@v5a.ifcx"
+    }
+  ],
+  "schemas": {
+    "dokwood::assignment": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "view": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "detail",
+                  "cost",
+                  "physics",
+                  "structure",
+                  "fabrication"
+                ]
+              }
+            },
+            "state": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "proposed",
+                  "in-review",
+                  "approved",
+                  "to-confirm"
+                ]
+              }
+            },
+            "reviewedSha256": {
+              "dataType": "String",
+              "optional": true
+            },
+            "carriedFrom": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  },
+                  "occurrences": {
+                    "dataType": "Array",
+                    "arrayRestrictions": {
+                      "value": {
+                        "dataType": "Reference"
+                      }
+                    }
+                  },
+                  "lineage": {
+                    "dataType": "Reference",
+                    "optional": true
+                  },
+                  "relation": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "identity",
+                        "split",
+                        "merge",
+                        "replaced"
+                      ]
+                    }
+                  },
+                  "policy": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "copy-to-all",
+                        "same-type-or-none"
+                      ]
+                    }
+                  }
+                }
+              },
+              "optional": true
+            }
+          }
+        }
+      }
+    },
+    "dokwood::cost::line": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "unitPrice": {
+              "dataType": "Real"
+            },
+            "currency": {
+              "dataType": "String"
+            }
+          }
+        }
+      }
+    },
+    "dokwood::scope": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "junction": {
+              "dataType": "String"
+            },
+            "roles": {
+              "dataType": "Array",
+              "arrayRestrictions": {
+                "value": {
+                  "dataType": "Object",
+                  "objectRestrictions": {
+                    "values": {
+                      "role": {
+                        "dataType": "String"
+                      },
+                      "where": {
+                        "dataType": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "quantity": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "length": {
+                    "dataType": "Real"
+                  }
+                }
+              }
+            },
+            "basis": {
+              "dataType": "String"
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "93f734b9-9511-5235-9840-efe1aece7a5a",
+      "children": {
+        "Deckenauflager_aussen": "4c84adbf-a1f8-5d1a-b6a3-233219261300"
+      },
+      "attributes": {
+        "bsi::ifc::prop::Name": "View: cost"
+      }
+    },
+    {
+      "path": "4c84adbf-a1f8-5d1a-b6a3-233219261300",
+      "inherits": {
+        "type": "9be709e9-821e-5da5-bc83-3c73698b47e9"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "cost",
+          "state": "approved"
+        },
+        "dokwood::scope": {
+          "junction": "slab-on-wall",
+          "roles": [
+            {
+              "role": "bearing",
+              "where": "IfcWall, IsExternal = true"
+            },
+            {
+              "role": "supported",
+              "where": "IfcSlab"
+            }
+          ],
+          "quantity": {
+            "length": 12.5
+          },
+          "basis": "estimate from VP floor plan"
+        },
+        "dokwood::cost::line": {
+          "unitPrice": 180.0,
+          "currency": "CHF"
+        }
+      }
+    }
+  ]
+}

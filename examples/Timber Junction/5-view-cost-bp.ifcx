@@ -1,0 +1,261 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-cost-bp.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "cost planner (phase BP)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [
+    {
+      "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/prop@v5a.ifcx"
+    }
+  ],
+  "schemas": {
+    "dokwood::assignment": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "view": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "detail",
+                  "cost",
+                  "physics",
+                  "structure",
+                  "fabrication"
+                ]
+              }
+            },
+            "state": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "proposed",
+                  "in-review",
+                  "approved",
+                  "to-confirm"
+                ]
+              }
+            },
+            "reviewedSha256": {
+              "dataType": "String",
+              "optional": true
+            },
+            "carriedFrom": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  },
+                  "occurrences": {
+                    "dataType": "Array",
+                    "arrayRestrictions": {
+                      "value": {
+                        "dataType": "Reference"
+                      }
+                    }
+                  },
+                  "lineage": {
+                    "dataType": "Reference",
+                    "optional": true
+                  },
+                  "relation": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "identity",
+                        "split",
+                        "merge",
+                        "replaced"
+                      ]
+                    }
+                  },
+                  "policy": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "copy-to-all",
+                        "same-type-or-none"
+                      ]
+                    }
+                  }
+                }
+              },
+              "optional": true
+            }
+          }
+        }
+      }
+    },
+    "dokwood::cost::line": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "unitPrice": {
+              "dataType": "Real"
+            },
+            "currency": {
+              "dataType": "String"
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "93f734b9-9511-5235-9840-efe1aece7a5a",
+      "children": {
+        "Wand_1_1__Decke": "d865fb7c-2f28-5243-b4e4-e38dce6c5f5a",
+        "Wand_1_2__Decke": "bcb4946e-a018-5e69-929e-8c59810a5e07",
+        "Wand_2__Decke": "e3577aa9-3efd-5a1c-98c4-240bca274081",
+        "Wand_3__Decke": "0cf9cec9-0d2d-5bc1-abdf-e5db3f6925a8",
+        "Decke__Balkonplatte": "38ed37ac-911c-5ba6-9540-f4c073b7dc86"
+      },
+      "attributes": {
+        "bsi::ifc::prop::Name": "View: cost"
+      }
+    },
+    {
+      "path": "d865fb7c-2f28-5243-b4e4-e38dce6c5f5a",
+      "inherits": {
+        "place": "3de3f167-ded9-5d58-a746-bea12098d9c8",
+        "type": "9be709e9-821e-5da5-bc83-3c73698b47e9"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "cost",
+          "state": "to-confirm",
+          "reviewedSha256": "4930549de1ef8594292b27883ddff6cd9c62cce7a40148fa783136d85e742899",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-cost-v1.ifcx",
+            "sha256": "84312b6205fefa673be8502ba5ce503d0ec48633398236fbf645cbd3b17e419f",
+            "occurrences": [
+              "2d7a9b36-adfa-56ce-b6bb-d7f6fb18e30f"
+            ],
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "split",
+            "policy": "copy-to-all"
+          }
+        },
+        "dokwood::cost::line": {
+          "unitPrice": 175.0,
+          "currency": "CHF"
+        }
+      }
+    },
+    {
+      "path": "bcb4946e-a018-5e69-929e-8c59810a5e07",
+      "inherits": {
+        "place": "d5fc1958-9c80-5cf6-8572-59cbbee4498c",
+        "type": "9be709e9-821e-5da5-bc83-3c73698b47e9"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "cost",
+          "state": "to-confirm",
+          "reviewedSha256": "4930549de1ef8594292b27883ddff6cd9c62cce7a40148fa783136d85e742899",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-cost-v1.ifcx",
+            "sha256": "84312b6205fefa673be8502ba5ce503d0ec48633398236fbf645cbd3b17e419f",
+            "occurrences": [
+              "2d7a9b36-adfa-56ce-b6bb-d7f6fb18e30f"
+            ],
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "split",
+            "policy": "copy-to-all"
+          }
+        },
+        "dokwood::cost::line": {
+          "unitPrice": 175.0,
+          "currency": "CHF"
+        }
+      }
+    },
+    {
+      "path": "e3577aa9-3efd-5a1c-98c4-240bca274081",
+      "inherits": {
+        "place": "c186e4d2-29e5-5d6f-adac-639450400670",
+        "type": "9be709e9-821e-5da5-bc83-3c73698b47e9"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "cost",
+          "state": "to-confirm",
+          "reviewedSha256": "245db126ebc77b88e0f8ef319cfe0caa92af4b38f547bf774499e14ad5739f12",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-cost-v1.ifcx",
+            "sha256": "84312b6205fefa673be8502ba5ce503d0ec48633398236fbf645cbd3b17e419f",
+            "occurrences": [
+              "44277314-7c10-5ce2-aa13-9498c133cb4d"
+            ],
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "identity",
+            "policy": "copy-to-all"
+          }
+        },
+        "dokwood::cost::line": {
+          "unitPrice": 168.0,
+          "currency": "CHF"
+        }
+      }
+    },
+    {
+      "path": "0cf9cec9-0d2d-5bc1-abdf-e5db3f6925a8",
+      "inherits": {
+        "place": "68b553da-3631-54b8-a33a-6b1a8a0338a6",
+        "type": "1edb720c-8a1e-5951-83f8-4fd6cba69174"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "cost",
+          "state": "in-review",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-cost-v1.ifcx",
+            "sha256": "84312b6205fefa673be8502ba5ce503d0ec48633398236fbf645cbd3b17e419f",
+            "occurrences": [
+              "0cf9cec9-0d2d-5bc1-abdf-e5db3f6925a8"
+            ],
+            "relation": "identity",
+            "policy": "copy-to-all"
+          }
+        },
+        "dokwood::cost::line": {
+          "unitPrice": 95.0,
+          "currency": "CHF"
+        }
+      }
+    },
+    {
+      "path": "38ed37ac-911c-5ba6-9540-f4c073b7dc86",
+      "inherits": {
+        "place": "09b72938-013d-5a33-87e4-f3023890725b"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "cost",
+          "state": "to-confirm",
+          "carriedFrom": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-cost-v1.ifcx",
+            "sha256": "84312b6205fefa673be8502ba5ce503d0ec48633398236fbf645cbd3b17e419f",
+            "occurrences": [
+              "96593665-03fc-5d91-8693-1b93023c9cde",
+              "3a3a0934-5a64-5c69-9c57-450516a41854"
+            ],
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "merge",
+            "policy": "same-type-or-none"
+          }
+        }
+      }
+    }
+  ]
+}

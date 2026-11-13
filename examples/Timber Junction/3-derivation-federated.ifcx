@@ -1,0 +1,171 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/3-derivation-federated.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "detail-finder 1.4.0 (derived, do not edit)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [
+    {
+      "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/prop@v5a.ifcx"
+    }
+  ],
+  "schemas": {
+    "dokwood::detail::members": {
+      "value": {
+        "dataType": "Array",
+        "arrayRestrictions": {
+          "value": {
+            "dataType": "Object",
+            "objectRestrictions": {
+              "values": {
+                "ref": {
+                  "dataType": "Reference"
+                },
+                "role": {
+                  "dataType": "String"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "dokwood::detail::topology": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "junction": {
+              "dataType": "String"
+            },
+            "extent": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "kind": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "point",
+                        "line",
+                        "area"
+                      ]
+                    }
+                  },
+                  "length": {
+                    "dataType": "Real",
+                    "optional": true
+                  },
+                  "start": {
+                    "dataType": "Array",
+                    "arrayRestrictions": {
+                      "value": {
+                        "dataType": "Real"
+                      }
+                    },
+                    "optional": true
+                  },
+                  "end": {
+                    "dataType": "Array",
+                    "arrayRestrictions": {
+                      "value": {
+                        "dataType": "Real"
+                      }
+                    },
+                    "optional": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "dokwood::derivation": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "operation": {
+              "dataType": "String"
+            },
+            "engine": {
+              "dataType": "String"
+            },
+            "engineVersion": {
+              "dataType": "String"
+            },
+            "tolerance": {
+              "dataType": "Real"
+            },
+            "sources": {
+              "dataType": "Array",
+              "arrayRestrictions": {
+                "value": {
+                  "dataType": "Reference"
+                }
+              }
+            },
+            "sourceLayer": {
+              "dataType": "String"
+            },
+            "sourceSha256": {
+              "dataType": "String"
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "0473a97b-f348-5594-8964-08cfd8aa332f",
+      "children": {
+        "Wand_2__Zuluft_1": "dc3ede20-f6f2-57c5-9a57-0946f14b3535"
+      },
+      "attributes": {
+        "bsi::ifc::prop::Name": "Detail occurrences across disciplines (derived)"
+      }
+    },
+    {
+      "path": "dc3ede20-f6f2-57c5-9a57-0946f14b3535",
+      "attributes": {
+        "dokwood::detail::members": [
+          {
+            "ref": "cd3ec012-1541-5c56-8cad-a962328d922f",
+            "role": "penetrated"
+          },
+          {
+            "ref": "ba92b28c-71f5-513f-8b1c-855ffc5aca17",
+            "role": "penetrating"
+          }
+        ],
+        "dokwood::detail::topology": {
+          "junction": "penetration",
+          "extent": {
+            "kind": "point",
+            "start": [
+              1.5,
+              5.12,
+              2.3
+            ]
+          }
+        },
+        "dokwood::derivation": {
+          "engine": "detail-finder",
+          "engineVersion": "1.4.0",
+          "tolerance": 0.001,
+          "operation": "junction-detection",
+          "sources": [
+            "ba92b28c-71f5-513f-8b1c-855ffc5aca17",
+            "cd3ec012-1541-5c56-8cad-a962328d922f"
+          ],
+          "sourceLayer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/0-federation-bp.ifcx",
+          "sourceSha256": "ca9e7aee6591aa55c3f196837dbdca8e0963a7f802d3cc744fa31f2534d8d814"
+        }
+      }
+    }
+  ]
+}

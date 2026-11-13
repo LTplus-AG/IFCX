@@ -12,7 +12,7 @@ It also writes IFC STEP twins of the models to ifc-lite/, because ifc-lite
 reads STEP and not IFCX. The lineage layers are translated from what ifc-lite
 wrote when diffing those twins (ifc-lite/lineage-*.json, see lineage_cmd).
 """
-import hashlib, itertools, json, sys, uuid
+import base64, hashlib, itertools, json, sys, uuid
 from collections import namedtuple
 from pathlib import Path
 
@@ -362,10 +362,18 @@ def junctions(version):
     return out
 
 
-def derivation(version, source):
-    data, children = [], {}
+def place_names(version):
+    # key -> child name of its place; two pieces with one name get distinct child names.
+    children = {}
     for j in junctions(version):
-        add_child(children, j.name, j.key, OCC[j.key])
+        add_child(children, j.name, j.key, j.key)
+    return {k: n for n, k in children.items()}
+
+
+def derivation(version, source):
+    data, names = [], place_names(version)
+    children = {names[j.key]: OCC[j.key] for j in junctions(version)}
+    for j in junctions(version):
         data.append({"path": OCC[j.key], "attributes": {
             "dokwood::detail::members": members(j.bearing, j.supported),
             "dokwood::detail::topology": {"junction": j.kind, "extent": j.extent},
@@ -395,6 +403,12 @@ RELATIONS = ("identity", "split", "merge", "replaced")
 # copy-to-all: every successor gets the type. same-type-or-none: a merge gets the type only if
 # every predecessor had the same type and version.
 POLICIES = ("copy-to-all", "same-type-or-none")
+
+
+def policy_of(relation):
+    return "same-type-or-none" if relation == "merge" else "copy-to-all"
+
+
 ASSIGN_SCHEMA = {"dokwood::detail::assignment": {"value": obj({
     "state": enum("proposed", "in-review", "approved", "to-confirm"),
     "reviewedSha256": S_STR,
@@ -411,26 +425,36 @@ ELEMENTS = {e.key: e for m in MODELS.values() for e in m}
 # Scenarios share keys only for the same element, so one key means one GlobalId.
 assert all(ELEMENTS[e.key].gid == e.gid for m in MODELS.values() for e in m)
 W = {k: path_of(e.gid) for k, e in ELEMENTS.items()}
-KEY = {e.gid: k for k, e in ELEMENTS.items()}
+PKEY = {p: k for k, p in W.items()}
 OCC = {j.key: occ_path(j.kind, j.bearing, j.supported) for v in MODELS for j in junctions(v)}
 
 ASSIGN_V1 = [("W1", "D012", "v3", "approved"), ("W2", "D012", "v3", "in-review"), ("W3", "D021", "v1", "approved"),
              ("BA", "D031", "v1", "approved"), ("BB", "D031", "v1", "in-review")]
 
 
-def assignment_node(occ, code, ver, state, reviewed=None, carried=None):
+def review(state, reviewed=None, carried=None):
+    # The review part of an assignment; reviewedSha256 and carriedFrom only where there is one.
     a = {"state": state}
     if reviewed:
         a["reviewedSha256"] = reviewed
     if carried:
         a["carriedFrom"] = carried
+    return a
+
+
+def assignment_node(occ, code, ver, state, reviewed=None, carried=None):
     return {"path": occ, "inherits": {"detailType": type_ref(code, ver)},
-            "attributes": {"dokwood::detail::assignment": a}}
+            "attributes": {"dokwood::detail::assignment": review(state, reviewed, carried)}}
+
+
+def reviewed_sha(shas, key, state):
+    # An approval records the hash of the derivation it approved.
+    return shas[OCC[key]] if state == "approved" else None
 
 
 def reviewed_v1(shas):
-    """key -> (code, version, state, reviewedSha256). An approval records the hash of the derivation it approved."""
-    return {k: (c, v, s, shas[OCC[k]] if s == "approved" else None) for k, c, v, s in ASSIGN_V1}
+    """key -> (code, version, state, reviewedSha256)."""
+    return {k: (c, v, s, reviewed_sha(shas, k, s)) for k, c, v, s in ASSIGN_V1}
 
 
 def assignment_v1(shas):
@@ -442,24 +466,12 @@ def lineage_path(head, *extra):
     return u("lineage", "v1", head, *extra)
 
 
-def ifc_lite_lineage(head, step_v1, step_head):
-    """The sidecar's file and hash, and its entries as ifc-lite wrote them."""
-    sidecar = sidecar_path(head)
-    if not sidecar.exists():
-        sys.exit(f"{sidecar} is missing. Create it with: {lineage_cmd(head)}")
-    raw = sidecar.read_bytes()
-    side = json.loads(raw)
-    if (side.get("format"), side.get("version")) != ("ifc-lite/lineage", 1):
-        sys.exit(f"{sidecar.name} is not an ifc-lite/lineage v1 sidecar")
-    for end, sha in (("base", step_v1), ("head", step_head)):
-        if side[end]["hash"] != "sha256:" + sha:
-            sys.exit(f"{sidecar.name} {end} is not bound to the STEP twin written now. Rerun: {lineage_cmd(head)}")
-    if side["deleted"]:
-        sys.exit(f"{sidecar.name} lists deleted elements, which this example does not model")
+def check_entries(name, head, entries):
+    """Stop unless carry() can apply every entry. entries name GlobalIds under base and head, as a sidecar does."""
     # Only elements with an occurrence (walls, balcony pieces), from the right model.
     in_model = {v: {e.gid for e in MODELS[v] if e.key in OCC} for v in ("v1", head)}
     seen = set()
-    for e in side["entries"]:
+    for e in entries:
         names = e["base"] + e["head"]
         n_base, n_head = len(e["base"]), len(e["head"])
         shape = {"merge": n_base >= 2 and n_head == 1, "split": n_base == 1 and n_head >= 2}
@@ -478,8 +490,25 @@ def ifc_lite_lineage(head, step_v1, step_head):
         ]
         for ok, why in rules:
             if not ok:
-                sys.exit(f"{sidecar.name} has an entry this example does not model ({why}): {e}")
+                sys.exit(f"{name} has an entry this example does not model ({why}): {e}")
         seen.update(names)
+
+
+def ifc_lite_lineage(head, step_v1, step_head):
+    """The sidecar's file and hash, and its entries as ifc-lite wrote them."""
+    sidecar = sidecar_path(head)
+    if not sidecar.exists():
+        sys.exit(f"{sidecar} is missing. Create it with: {lineage_cmd(head)}")
+    raw = sidecar.read_bytes()
+    side = json.loads(raw)
+    if (side.get("format"), side.get("version")) != ("ifc-lite/lineage", 1):
+        sys.exit(f"{sidecar.name} is not an ifc-lite/lineage v1 sidecar")
+    for end, sha in (("base", step_v1), ("head", step_head)):
+        if side[end]["hash"] != "sha256:" + sha:
+            sys.exit(f"{sidecar.name} {end} is not bound to the STEP twin written now. Rerun: {lineage_cmd(head)}")
+    if side["deleted"]:
+        sys.exit(f"{sidecar.name} lists deleted elements, which this example does not model")
+    check_entries(sidecar.name, head, side["entries"])
     # Also into OUT, so an output folder holds what the lineage points at.
     PENDING.append((OUT / STEP_DIR / sidecar.name, raw))
     ref = {"file": f"{STEP_DIR}/{sidecar.name}", "sha256": hashlib.sha256(raw).hexdigest()}
@@ -500,14 +529,17 @@ def lineage_file(name, path, author, value):
     return ifcx_file(name, author, [{"path": path, "attributes": {"dokwood::lineage": value}}], LINEAGE_SCHEMA)
 
 
+def lineage_entry(side, source, **extra):
+    # One checked entry in IFCX form: each GlobalId turned into its path.
+    e = {"predecessors": [path_of(g) for g in side["base"]], "successors": [path_of(g) for g in side["head"]],
+         "relation": side["relation"], "evidence": side["reason"], "source": source}
+    if "shares" in side:
+        e["shares"] = side["shares"]
+    return dict(e, **extra)
+
+
 def lineage(head, base_ref, head_ref, sidecar, entries):
-    out = []
-    for side in entries:
-        e = {"predecessors": [path_of(g) for g in side["base"]], "successors": [path_of(g) for g in side["head"]],
-             "relation": side["relation"], "evidence": side["reason"], "source": "ifc-lite"}
-        if "shares" in side:
-            e["shares"] = side["shares"]
-        out.append(e)
+    out = [lineage_entry(side, "ifc-lite") for side in entries]
     return lineage_file(f"4-lineage-v1-{head}.ifcx", lineage_path(head), "model comparison (@ifc-lite/diff)", {
         "producer": f"{IFC_LITE} diff {DIFF_FLAGS}, run on the STEP twins in {STEP_DIR}/",
         "sidecar": sidecar, "base": base_ref, "head": head_ref, "entries": out, "deleted": []})
@@ -519,45 +551,95 @@ MANUAL_TIME = DATE + "T10:30:00Z"
 
 def manual_lineage(head, base_ref, head_ref):
     # ifc-lite took the larger piece for a reshaped Wand 1 and missed the split; a person states it.
-    entry = {"predecessors": [W["W1"]], "successors": [W["W1a"], W["W1b"]], "relation": "split",
-             "evidence": "manual:checked-against-plan", "source": "manual",
-             "author": MANUAL_AUTHOR, "timestamp": MANUAL_TIME}
-    return lineage_file(f"4-lineage-v1-{head}-manual.ifcx", lineage_path(head, "manual"), MANUAL_AUTHOR, {
+    name = f"4-lineage-v1-{head}-manual.ifcx"
+    side = {"base": [ELEMENTS["W1"].gid], "head": [ELEMENTS["W1a"].gid, ELEMENTS["W1b"].gid], "relation": "split",
+            "reason": "manual:checked-against-plan"}
+    # The same rules as for a sidecar entry: carry() applies both alike.
+    check_entries(name, head, [side])
+    entry = lineage_entry(side, "manual", author=MANUAL_AUTHOR, timestamp=MANUAL_TIME)
+    return lineage_file(name, lineage_path(head, "manual"), MANUAL_AUTHOR, {
         "producer": MANUAL_AUTHOR, "base": base_ref, "head": head_ref, "entries": [entry], "deleted": []})
 
 
 def carried_state(state, reviewed, current):
-    # An approval holds only for the derivation it reviewed.
+    # An approval holds only for the derivation it reviewed. carry() refuses an approval without a reviewed hash.
     return "to-confirm" if reviewed and reviewed != current else state
 
 
-def assignment_v2(head, entries, shas_v1, shas_v2):
-    old = reviewed_v1(shas_v1)
-    data = []
-    # Same path in v2: the derivation was redone, so a stale approval drops to to-confirm.
-    for k, (c, v, s, rev) in old.items():
-        state = carried_state(s, rev, shas_v2[OCC[k]]) if OCC[k] in shas_v2 else s
-        if state != s:
-            data.append(assignment_node(OCC[k], c, v, state, rev))
-    for e in entries:
-        pre, suc, rel = [KEY[g] for g in e["base"]], [KEY[g] for g in e["head"]], e["relation"]
-        if not any(k in old for k in pre):
+# One opinion about a place: a type, a review state, the derivation hash an approval reviewed, and
+# view data. Carried is that opinion on a head place, with the base places it came from.
+Opinion = namedtuple("Opinion", "type state reviewed data")
+Carried = namedtuple("Carried", "key type state reviewed data pre relation lineage")
+
+
+def links_of(*lineage_files):
+    """Lineage entries by element key, each with the lineage node that states it."""
+    return [{"pre": [PKEY[p] for p in e["predecessors"]], "suc": [PKEY[p] for p in e["successors"]],
+             "relation": e["relation"], "source": e["source"], "lineage": d["path"]}
+            for f in lineage_files for d in f["data"] for e in d["attributes"]["dokwood::lineage"]["entries"]]
+
+
+def effective(links):
+    # Convention: a manual entry replaces every tool entry that names one of its elements.
+    manual = [l for l in links if l["source"] == "manual"]
+    named = {k for l in manual for k in l["pre"] + l["suc"]}
+    return manual + [l for l in links if l["source"] != "manual" and not named & set(l["pre"] + l["suc"])]
+
+
+def agreed(values):
+    # same-or-none: the one value every predecessor has.
+    return values[0] if all(v == values[0] for v in values) else None
+
+
+def carry(old, links, shas_head):
+    """Move opinions on base places to the head places. old: key -> Opinion. One Carried per head place.
+
+    lineage is None where the place path is unchanged. type is None for a merge whose predecessors disagree.
+    """
+    unbound = sorted(k for k, o in old.items() if o.state == "approved" and not o.reviewed)
+    if unbound:
+        sys.exit(f"the approval of {unbound} has no reviewed hash, so a carry could not tell whether it is stale")
+    out = []
+    # Same path in the head: the derivation was redone, so a stale approval drops to to-confirm.
+    for k, o in old.items():
+        if OCC[k] in shas_head:
+            state = carried_state(o.state, o.reviewed, shas_head[OCC[k]])
+            out.append(Carried(k, o.type, state, o.reviewed, o.data, [k], "identity", None))
+    for l in links:
+        pre, rel = l["pre"], l["relation"]
+        had = [old.get(k) for k in pre]
+        if not any(had):
             continue
-        carried = {"occurrences": [OCC[k] for k in pre], "lineage": lineage_path(head), "relation": rel}
         if rel == "merge":
-            types = {old[k][:2] if k in old else None for k in pre}
-            if len(types) == 1 and None not in types:
-                (c, v), = types
-                data.append(assignment_node(OCC[suc[0]], c, v, "to-confirm",
-                                            carried=dict(carried, policy="same-type-or-none")))
+            out.append(Carried(l["suc"][0], agreed([o and o.type for o in had]), "to-confirm", None,
+                               agreed([o and o.data for o in had]), pre, rel, l["lineage"]))
         else:
-            c, v, s, rev = old[pre[0]]
-            for k in suc:
+            o, = had
+            for k in l["suc"]:
                 # Only an identity keeps its state; anything else is a new occurrence to confirm.
-                state = carried_state(s, rev, shas_v2[OCC[k]]) if rel == "identity" else "to-confirm"
-                data.append(assignment_node(OCC[k], c, v, state, rev, dict(carried, policy="copy-to-all")))
-    # The sidecar rules (heads are new, no element twice) leave one carried assignment per occurrence.
-    assert len({d["path"] for d in data}) == len(data)
+                state = carried_state(o.state, o.reviewed, shas_head[OCC[k]]) if rel == "identity" else "to-confirm"
+                out.append(Carried(k, o.type, state, o.reviewed, o.data, pre, rel, l["lineage"]))
+    # The entry rules (heads are new, no element twice) leave one carried opinion per place.
+    keys = [r.key for r in out]
+    twice = sorted({k for k in keys if keys.count(k) > 1})
+    if twice:
+        sys.exit(f"more than one opinion is carried to the place of {twice}, which this example does not model")
+    return out
+
+
+def assignment_v2(links, shas_v1, shas_v2):
+    old = {k: Opinion((c, v), s, rev, None) for k, (c, v, s, rev) in reviewed_v1(shas_v1).items()}
+    data = []
+    for r in carry(old, links, shas_v2):
+        if r.lineage is None:
+            # The v1 assignment still applies on this path; only a changed state is written again.
+            if r.state != old[r.key].state:
+                data.append(assignment_node(OCC[r.key], *r.type, r.state, r.reviewed))
+        elif r.type:
+            # A merge without an agreed type carries nothing in this shape.
+            carried = {"occurrences": [OCC[k] for k in r.pre], "lineage": r.lineage,
+                       "relation": r.relation, "policy": policy_of(r.relation)}
+            data.append(assignment_node(OCC[r.key], *r.type, r.state, r.reviewed, carried))
     return ifcx_file("4-assignment-v2.ifcx", "detail editor (DOKwood platform)", data, ASSIGN_SCHEMA)
 
 
@@ -585,16 +667,274 @@ def manual_split():
 steps = {v: write_step(v) for v in MODELS}
 sidecars = {h: ifc_lite_lineage(h, steps["v1"], steps[h]) for h in ("v2", "v2-samename")}
 m = {v: stage(model(v)) for v in MODELS}
-stage(catalog())
+cat = stage(catalog())
 d1, d2 = derivation("v1", m["v1"]), derivation("v2", m["v2"])
 shas_v1, shas_v2 = derivation_shas(d1), derivation_shas(d2)
 stage(d1)
 stage(d2)
 stage(assignment_v1(shas_v1))
 stage(manual_split())
-for h, (side, entries) in sidecars.items():
-    stage(lineage(h, m["v1"], m[h], side, entries))
-stage(assignment_v2("v2", sidecars["v2"][1], shas_v1, shas_v2))
-stage(manual_lineage("v2-samename", m["v1"], m["v2-samename"]))
+lin = {h: lineage(h, m["v1"], m[h], side, entries) for h, (side, entries) in sidecars.items()}
+for f in lin.values():
+    stage(f)
+links_v2 = links_of(lin["v2"])
+stage(assignment_v2(links_v2, shas_v1, shas_v2))
+lin_manual = manual_lineage("v2-samename", m["v1"], m["v2-samename"])
+stage(lin_manual)
+
+
+# ---- views and phases -------------------------------------------------------
+# A second discipline (one duct through Wand 2), a federation manifest over both models, and a
+# place across them. A place holds derivation data only. Each view types a place on its own node
+# uuid5(ns, "view|<view>|<place>"), which inherits exactly "place" and "type", so views never
+# write on a shared path. The phases VP and BP have separate stacks, linked by a lineage entry.
+DUCT = Element("Z1", "3ZuluftKanalWand2HLK01", "Zuluft 1", "IfcDuctSegment", (1.4, 4.6, 2.2, 1.6, 5.64, 2.4), None)
+MEP_ROOT = u("mep", "storey")
+
+
+def mep_model():
+    # Its own root: on the architect's storey path its attributes would replace the architect's.
+    p, body = path_of(DUCT.gid), u("body", DUCT.gid)
+    data = [{"path": MEP_ROOT, "children": {slug(DUCT.name): p},
+             "attributes": {"bsi::ifc::class": ifc_class("IfcBuildingStorey"), "bsi::ifc::prop::Name": "EG HLKS"}},
+            {"path": p, "children": {"Body": body},
+             "attributes": {"bsi::ifc::class": ifc_class(DUCT.cls), "bsi::ifc::prop::Name": DUCT.name}},
+            {"path": body, "attributes": {"usd::usdgeom::mesh": box_mesh(*DUCT.box),
+                                          "bsi::ifc::presentation::diffuseColor": [0.35, 0.55, 0.8]}}]
+    return ifcx_file("1-model-mep.ifcx", "MEP engineer (authoring tool export)", data, {}, MODEL_IMPORTS)
+
+
+def federation(refs):
+    # integrity in the Subresource Integrity form "sha256-<base64>". IFCX does not check it.
+    imports = [{"uri": r["layer"], "integrity": "sha256-" + base64.b64encode(bytes.fromhex(r["sha256"])).decode()}
+               for r in refs]
+    return ifcx_file("0-federation-bp.ifcx", "BIM coordinator", [], {}, imports)
+
+
+def federated_derivation(source, schemas):
+    wall = ELEMENTS["W2neu"]
+    w, d = path_of(wall.gid), path_of(DUCT.gid)
+    # Where the duct axis crosses the wall's middle plane.
+    point = [round((DUCT.box[0] + DUCT.box[3]) / 2, 4), round((wall.box[1] + wall.box[4]) / 2, 4),
+             round((DUCT.box[2] + DUCT.box[5]) / 2, 4)]
+    place = occ_path("penetration", w, d)
+    data = [{"path": u("detail-occurrences", "federated"), "children": {f"{slug(wall.name)}__{slug(DUCT.name)}": place},
+             "attributes": {"bsi::ifc::prop::Name": "Detail occurrences across disciplines (derived)"}},
+            {"path": place, "attributes": {
+                "dokwood::detail::members": [{"ref": w, "role": "penetrated"}, {"ref": d, "role": "penetrating"}],
+                "dokwood::detail::topology": {"junction": "penetration", "extent": {"kind": "point", "start": point}},
+                "dokwood::derivation": dict(ENGINE, operation="junction-detection", sources=sorted([w, d]),
+                                            sourceLayer=source["layer"], sourceSha256=source["sha256"])}}]
+    return ifcx_file("3-derivation-federated.ifcx", "detail-finder 1.4.0 (derived, do not edit)", data, schemas,
+                     [PROP_IMPORT])
+
+
+# Type chain, generic -> D012/v3 -> fabrication variant F2, each level with its own attribute id.
+GENERIC = u("generic-type", "slab-bearing-exterior")
+G_INTERIOR = u("generic-type", "slab-bearing-interior")
+G_BALCONY = u("generic-type", "balcony")
+G_BALCONY_TB = u("generic-type", "balcony-thermal-break")
+GENERIC_TYPES = [(GENERIC, "G-SB-EXT", "Deckenauflager Aussenwand", "slab-on-wall"),
+                 (G_INTERIOR, "G-SB-INT", "Deckenauflager Innenwand", "slab-on-wall"),
+                 (G_BALCONY, "G-BALC", "Balkonanschluss", "slab-to-slab"),
+                 (G_BALCONY_TB, "G-BALC-TB", "Balkonanschluss thermisch getrennt", "slab-to-slab")]
+F2 = u("fab-type", "D012", "v3", "F2")
+
+
+def catalog_generic():
+    data = [{"path": u("generic-catalog"), "children": {slug(name): p for p, _, name, _ in GENERIC_TYPES}}]
+    data += [{"path": p, "attributes": {"dokwood::type::generic": {
+        "code": code, "name": name, "junction": junction, "unit": "m"}}} for p, code, name, junction in GENERIC_TYPES]
+    # D012 is a generic exterior slab bearing. A new inherits key on the catalog's nodes; 2-catalog stays as it is.
+    data += [{"path": u("type", "D012", v), "inherits": {"refines": GENERIC}} for v in DETAIL_TYPES["D012"][0]]
+    schemas = {"dokwood::type::generic": {"value": obj({"code": S_STR, "name": S_STR, "junction": S_STR, "unit": S_STR})}}
+    return ifcx_file("2-catalog-generic.ifcx", "classification (generic types)", data, schemas)
+
+
+def catalog_fab():
+    data = [{"path": u("fab-catalog"), "children": {"D012_v3_F2": F2}},
+            {"path": F2, "inherits": {"refines": type_ref("D012", "v3")}, "attributes": {"dokwood::fab::variant": {
+                "code": "D012-v3-F2", "fastener": "VG 8x300, a = 250 mm", "cnc": "BTLx"}}}]
+    schemas = {"dokwood::fab::variant": {"value": obj({"code": S_STR, "fastener": S_STR, "cnc": S_STR})}}
+    return ifcx_file("2-catalog-fab.ifcx", "timber fabricator (variant catalog)", data, schemas)
+
+
+# carriedFrom: the base view layer and its occurrences this one was carried from. "lineage" is the
+# element lineage node that led here; absent where the place path is unchanged.
+VIEW_SCHEMA = {"dokwood::assignment": {"value": obj({
+    "view": enum("detail", "cost", "physics", "structure", "fabrication"),
+    "state": enum("proposed", "in-review", "approved", "to-confirm"),
+    "reviewedSha256": S_STR,
+    "carriedFrom": obj({"layer": S_STR, "sha256": S_STR, "occurrences": arr(S_REF), "lineage": S_REF,
+                        "relation": enum(*RELATIONS), "policy": enum(*POLICIES)}, optional=("lineage",)),
+}, optional=("reviewedSha256", "carriedFrom"))}}
+COST_SCHEMA = {"dokwood::cost::line": {"value": obj({"unitPrice": S_REAL, "currency": S_STR})}}
+SCOPE_SCHEMA = {"dokwood::scope": {"value": obj({
+    "junction": S_STR, "roles": arr(obj({"role": S_STR, "where": S_STR})),
+    "quantity": obj({"length": S_REAL}), "basis": S_STR})}}
+EXTERIOR = [j for j in junctions("v2") if j.kind == "slab-on-wall" and ELEMENTS[j.key].external]
+
+
+def view_path(view, *key):
+    # A view's node for one place: key is the place path, or "scope" and a scope key.
+    return u("view", view, *key)
+
+
+SCOPE_ITEM = view_path("cost", "scope", "slab-bearing-exterior")
+SCOPE_LENGTH = 12.5
+
+
+def view_occurrence(view, child, path, inherits, state, attrs=None, reviewed=None, carried=None):
+    # (child name, node) of one view's statement about a place, or about a scope with no place yet.
+    assignment = {"view": view, **review(state, reviewed, carried)}
+    return child, {"path": path, "inherits": inherits, "attributes": {"dokwood::assignment": assignment, **(attrs or {})}}
+
+
+def place_view(name, label, view, version, opinions, carried=None):
+    """One view over the places of one model version. opinions: key -> Opinion or Carried.
+
+    carried: key -> carriedFrom, for the opinions that were carried from a base view layer.
+    An occurrence without a type (a merge whose predecessors disagreed) inherits the place only.
+    """
+    spec, names, occs = VIEWS[view], place_names(version), []
+    no_place = sorted(set(opinions) - {j.key for j in junctions(version)})
+    if no_place:
+        sys.exit(f"{name}: {no_place} have an opinion and no junction in model {version}, so no place to write it on")
+    for j in junctions(version):
+        o = opinions.get(j.key)
+        if not o:
+            continue
+        place = OCC[j.key]
+        inherits = {"place": place, **({"type": o.type} if o.type else {})}
+        occs.append(view_occurrence(view, names[j.key], view_path(view, place), inherits, o.state, o.data,
+                                    o.reviewed, (carried or {}).get(j.key)))
+    return view_layer(name, f"{spec.author} ({label})", view, occs, spec.schemas)
+
+
+def carried_view(name, label, view, version, base, old, links, shas_head, new=None):
+    """The view over the head places: the base view's opinions carried by lineage, plus new statements.
+
+    Each carried one names where it came from: the base view layer, its occurrences, the lineage node.
+    """
+    rows = carry(old, links, shas_head)
+    lost = [k for k in old if not any(k in r.pre for r in rows)]
+    if lost:
+        sys.exit(f"{name}: the place of {lost} is gone and no lineage entry names it, which this example does not model")
+    carried = {}
+    for r in rows:
+        c = dict(base, occurrences=[view_path(view, OCC[k]) for k in r.pre if k in old])
+        if r.lineage:
+            c["lineage"] = r.lineage
+        carried[r.key] = dict(c, relation=r.relation, policy=policy_of(r.relation))
+    both = sorted(set(new or {}) & set(carried))
+    if both:
+        sys.exit(f"{name}: {both} have a new statement and a carried one on the same place; state one of them")
+    return place_view(name, label, view, version, {**(new or {}), **{r.key: r for r in rows}}, carried)
+
+
+def view_layer(name, author, view, occurrences, schemas):
+    data = [{"path": u("view-group", view), "children": {n: d["path"] for n, d in occurrences},
+             "attributes": {"bsi::ifc::prop::Name": f"View: {view}"}}]
+    return ifcx_file(name, author, data + [d for _, d in occurrences], {**VIEW_SCHEMA, **schemas}, [PROP_IMPORT])
+
+
+def cost_line(price):
+    return {"dokwood::cost::line": {"unitPrice": price, "currency": "CHF"}}
+
+
+# The views on the v1 places, written by hand. Detail says what 4-assignment-v1 says. Cost types
+# the two balcony pieces differently, so their merge has no agreed type.
+COST_V1 = [("W1", GENERIC, "approved", 175.0), ("W2", GENERIC, "approved", 168.0),
+           ("W3", G_INTERIOR, "in-review", 95.0),
+           ("BA", G_BALCONY, "proposed", 320.0), ("BB", G_BALCONY_TB, "proposed", 410.0)]
+# One row per view: who writes it, its own schemas, its v1 statements as (key, type, state, view data),
+# and what it states new in BP. Wand 4 had no detail type in v1, so that one is not carried.
+ViewSpec = namedtuple("ViewSpec", "author schemas v1 new_bp")
+VIEWS = {
+    "detail": ViewSpec("detail editor", {}, [(k, type_ref(c, v), s, None) for k, c, v, s in ASSIGN_V1],
+                       {"W4neu": Opinion(type_ref("D021", "v1"), "proposed", None, None)}),
+    "cost": ViewSpec("cost planner", COST_SCHEMA, [(k, t, s, cost_line(price)) for k, t, s, price in COST_V1], {}),
+}
+
+
+def views_v1(shas):
+    """view -> key -> Opinion."""
+    return {view: {k: Opinion(t, s, reviewed_sha(shas, k, s), data) for k, t, s, data in spec.v1}
+            for view, spec in VIEWS.items()}
+
+
+def cost_view_vp():
+    # A scope item: one coarse cost line for places nobody has derived yet, so no "place".
+    scope = {"dokwood::scope": {"junction": "slab-on-wall",
+                                "roles": [{"role": "bearing", "where": "IfcWall, IsExternal = true"},
+                                          {"role": "supported", "where": "IfcSlab"}],
+                                "quantity": {"length": SCOPE_LENGTH}, "basis": "estimate from VP floor plan"},
+             **cost_line(180.0)}
+    occs = [view_occurrence("cost", "Deckenauflager_aussen", SCOPE_ITEM, {"type": GENERIC}, "approved", scope)]
+    return view_layer("5-view-cost-vp.ifcx", "cost planner (phase VP)", "cost", occs, {**COST_SCHEMA, **SCOPE_SCHEMA})
+
+
+# dokwood::lineage plus "axis" and a phase on each end. A schema id is declared once per stack (the
+# last declaration applies to every layer), so "axis" is optional: absent means "version", and the
+# v1 to v2 lineage layers still validate when they meet this declaration.
+LINEAGE_END = obj({"layer": S_STR, "sha256": S_STR, "phase": enum("VP", "BP", "AP")}, optional=("phase",))
+AXIS_LINEAGE_SCHEMA = {"dokwood::lineage": {"value": obj({
+    "axis": enum("version", "phase", "type"),
+    **LINEAGE_SCHEMA["dokwood::lineage"]["value"]["objectRestrictions"]["values"],
+    "base": LINEAGE_END, "head": LINEAGE_END}, optional=("axis",))}}
+
+
+def axis_lineage_file(name, path, author, axis, producer, base, head, entry):
+    value = {"axis": axis, "producer": producer, "base": base, "head": head, "entries": [entry], "deleted": []}
+    return ifcx_file(name, author, [{"path": path, "attributes": {"dokwood::lineage": value}}], AXIS_LINEAGE_SCHEMA)
+
+
+def phase_lineage(vp, bp, cost_bp):
+    """bp is the binding of cost_bp, the BP cost view as written: every successor is an occurrence in it."""
+    lengths = [j.extent["length"] for j in EXTERIOR]
+    total = sum(lengths)
+    successors = [view_path("cost", OCC[j.key]) for j in EXTERIOR]
+    written = {d["path"] for d in cost_bp["data"]}
+    missing = [j.key for j, p in zip(EXTERIOR, successors) if p not in written]
+    if missing:
+        sys.exit(f"6-lineage-vp-bp.ifcx: the exterior place of {missing} has no occurrence in the BP cost view, "
+                 "so the scope item cannot be split onto it")
+    entry = {"predecessors": [SCOPE_ITEM], "successors": successors,
+             "relation": "split", "evidence": f"{SCOPE_LENGTH} m estimated, {total} m derived",
+             "shares": [x / total for x in lengths], "source": "manual"}
+    return axis_lineage_file("6-lineage-vp-bp.ifcx", u("lineage", "phase", "VP", "BP", "cost"),
+                             "cost planner (phase VP to BP)", "phase", "cost planner, checked against 3-derivation-v2",
+                             dict(vp, phase="VP"), dict(bp, phase="BP"), entry)
+
+
+def type_lineage(cat):
+    # A revision replaces, it is no is-a: v3 does not inherit v2. Specialization is never a lineage entry.
+    entry = {"predecessors": [type_ref("D012", "v2")], "successors": [type_ref("D012", "v3")],
+             "relation": "replaced", "evidence": "v3 replaces v2", "source": "manual"}
+    author = "DOKwood platform (detail catalog)"
+    return axis_lineage_file("6-lineage-type-d012.ifcx", u("lineage", "type", "D012", "v2", "v3"),
+                             author, "type", author, cat, cat, entry)
+
+
+fed = stage(federation([m["v2"], stage(mep_model())]))
+stage(federated_derivation(fed, d2["schemas"]))
+stage(catalog_generic())
+stage(catalog_fab())
+# The v1 views, then the same views on the v2 places: carried by the element lineage, one layer per view.
+old_views = views_v1(shas_v1)
+base = {view: stage(place_view(f"5-view-{view}-v1.ifcx", "model v1", view, "v1", old))
+        for view, old in old_views.items()}
+bp_views = {view: carried_view(f"5-view-{view}-bp.ifcx", "phase BP", view, "v2", base[view], old, links_v2, shas_v2,
+                               VIEWS[view].new_bp) for view, old in old_views.items()}
+bp = {view: stage(f) for view, f in bp_views.items()}
+stage(phase_lineage(stage(cost_view_vp()), bp["cost"], bp_views["cost"]))
+stage(type_lineage(cat))
+# v2-samename: the detail view carried twice, by the ifc-lite lineage alone and with the manual entry.
+d2s = derivation("v2-samename", m["v2-samename"])
+stage(d2s)
+tool_links = links_of(lin["v2-samename"])
+for suffix, links in (("-auto", tool_links), ("", effective(tool_links + links_of(lin_manual)))):
+    stage(carried_view(f"5-view-detail-v2-samename{suffix}.ifcx", "model v2-samename", "detail", "v2-samename",
+                       base["detail"], old_views["detail"], links, derivation_shas(d2s)))
 for p, data in PENDING:
     p.write_bytes(data)
