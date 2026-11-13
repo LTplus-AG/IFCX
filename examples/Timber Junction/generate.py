@@ -236,7 +236,7 @@ def step_model(version):
         dx, dy, dz = x1 - x0, y1 - y0, z1 - z0
         origin = add(f"IFCCARTESIANPOINT(({x0:.3f},{y0:.3f},{z0:.3f}))")
         lp = add(f"IFCLOCALPLACEMENT(#35,{add(f'IFCAXIS2PLACEMENT3D({origin},#21,#22)')})")
-        centre = add(f"IFCCARTESIANPOINT(({dx / 2:.3f},{dy / 2:.3f}))")
+        centre = add(f"IFCCARTESIANPOINT(({dx / 2:.4f},{dy / 2:.4f}))")  # exact for whole millimetres
         profile = add(f"IFCRECTANGLEPROFILEDEF(.AREA.,$,{add(f'IFCAXIS2PLACEMENT2D({centre},$)')},{dx:.3f},{dy:.3f})")
         solid = add(f"IFCEXTRUDEDAREASOLID({profile},#23,#21,{dz:.3f})")
         rep = add(f"IFCSHAPEREPRESENTATION(#25,'Body','SweptSolid',({solid}))")
@@ -461,8 +461,7 @@ def ifc_lite_lineage(head, step_v1, step_head):
             (set(e["base"]) <= in_model["v1"], "base is not an element with an occurrence in v1"),
             (set(e["head"]) <= in_model[head], f"head is not an element with an occurrence in {head}"),
             (shape.get(e["relation"], n_base == 1 and n_head == 1), f"{n_base}:{n_head} for {e['relation']}"),
-            (shares is None or (len(shares) == (n_base if e["relation"] == "merge" else n_head)
-                                and abs(sum(shares) - 1) <= 1e-9), "bad shares"),
+            (shares is None or (len(shares) == max(n_base, n_head) and abs(sum(shares) - 1) <= 1e-9), "bad shares"),
         ]
         for ok, why in rules:
             if not ok:

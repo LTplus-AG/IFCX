@@ -343,7 +343,7 @@ function StepElements(v: string)
         const [dx, dy] = nums(profile), [dz] = nums(solid);
         // The profile is centred on its own half extents, so the solid spans origin to origin + size.
         const centre = nums(refs(refs(profile)[0])[0]);
-        expect(centre.map((c, i) => Math.abs(c - [dx, dy][i] / 2) <= 0.0005), `${gid} profile centre`).to.deep.equal([true, true]);
+        [dx, dy].forEach((d, i) => expect(centre[i], `${gid} profile centre`).to.be.closeTo(d / 2, 1e-9));
         out[PathOf(gid)] = [cls, name, external.get(id), Box(origin, [origin[0] + dx, origin[1] + dy, origin[2] + dz])];
     }
     return out;

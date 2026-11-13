@@ -2,11 +2,11 @@
   "format": "ifc-lite/lineage",
   "version": 1,
   "base": {
-    "hash": "sha256:aa35ba9fa01c2297c7b1ff849550b4708fe08efada63d2798e0033118713c123",
+    "hash": "sha256:726e299b508a9d43c900568a655b028f3b61302d96e8834148dce09ada20f125",
     "path": "model-v1.ifc"
   },
   "head": {
-    "hash": "sha256:0ddb83b587516bb6b9b456c49d120ac7e7663ac1292aa5c8d512eec4eec7a5b9",
+    "hash": "sha256:974652273879616b021681a052c3072b88758e489228c1b617b9bcaddba5a282",
     "path": "model-v2-samename.ifc"
   },
   "entries": [

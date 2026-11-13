@@ -145,7 +145,7 @@
           "producer": "@ifc-lite/cli@0.45.1 diff --geometry --split-merge, run on the STEP twins in ifc-lite/",
           "sidecar": {
             "file": "ifc-lite/lineage-v1-v2-samename.json",
-            "sha256": "2286bc08417d4c557a3dc028af0810251564e7c861f3ea1cdc587db4e692f45c"
+            "sha256": "28122d031477abe2eb31c3df20efa6693307a14d004a812491f20f38a1e71335"
           },
           "base": {
             "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v1.ifcx",
