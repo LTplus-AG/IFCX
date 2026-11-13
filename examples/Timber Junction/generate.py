@@ -44,7 +44,8 @@ def write_bytes(p, data):
 def write(f):
     data = (json.dumps(f, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     # What a derived layer records about the layer it was derived from.
-    return {"layer": f["header"]["id"], "sha256": write_bytes(OUT / f["header"]["id"][len(ID_PREFIX):], data)}
+    p = OUT / f["header"]["id"][len(ID_PREFIX):]
+    return {"layer": f["header"]["id"], "sha256": write_bytes(p, data)}
 
 
 # key, GlobalId (from wp9-identity-demo), name, x0, y0, length, thickness, external
@@ -80,6 +81,10 @@ def ifc_class(code):
     return {"code": code, "uri": "https://identifier.buildingsmart.org/uri/buildingsmart/ifc/4.3/class/" + code}
 
 
+def wall_box(x0, y0, length, thick):
+    return (x0, y0, 0.0, x0 + length, y0 + thick, WALL_HEIGHT)
+
+
 def box_mesh(x0, y0, z0, x1, y1, z1):
     pts = [[x, y, z] for z in (z0, z1) for y in (y0, y1) for x in (x0, x1)]
     # quads as (a, b, c, d) over the corner indices above, wound outward
@@ -111,7 +116,7 @@ def model(walls, version):
             "bsi::ifc::prop::IsExternal": ext,
         }})
         data.append({"path": body, "attributes": {
-            "usd::usdgeom::mesh": box_mesh(x0, y0, 0.0, x0 + length, y0 + thick, WALL_HEIGHT),
+            "usd::usdgeom::mesh": box_mesh(*wall_box(x0, y0, length, thick)),
             "bsi::ifc::presentation::diffuseColor": [0.82, 0.68, 0.47] if ext else [0.9, 0.82, 0.66],
         }})
     sbody = u("body", SLAB_GID)
@@ -137,13 +142,14 @@ def model(walls, version):
 # Same GlobalIds, names, IsExternal and boxes as model(), as IfcExtrudedAreaSolid.
 STEP_DIR = "ifc-lite"
 SIDECAR = Path(__file__).resolve().parent / STEP_DIR / "lineage-v1-v2.json"
-LINEAGE_CMD = (f"cd {STEP_DIR} && npx -y @ifc-lite/cli@0.45.1 diff model-v1.ifc model-v2.ifc"
-               " --geometry --split-merge --lineage-out lineage-v1-v2.json")
+IFC_LITE, DIFF_FLAGS = "@ifc-lite/cli@0.45.1", "--geometry --split-merge"
+LINEAGE_CMD = (f"cd {STEP_DIR} && npx -y {IFC_LITE} diff model-v1.ifc model-v2.ifc {DIFF_FLAGS}"
+               f" --lineage-out {SIDECAR.name}")
 B64 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$"
 
 
 def ifc_guid(*parts):
-    n = uuid.uuid5(NS, "|".join(("step",) + parts)).int
+    n = uuid.UUID(u("step", *parts)).int
     return "".join(B64[(n >> (6 * i)) & 63] for i in reversed(range(22)))
 
 
@@ -185,7 +191,9 @@ def step_model(walls, version):
         lines.append(f"{ref}={text};")
         return ref
 
-    def product(cls, gid, name, x0, y0, z0, dx, dy, dz, kind):
+    def product(cls, gid, name, box, kind):
+        x0, y0, z0, x1, y1, z1 = box
+        dx, dy, dz = x1 - x0, y1 - y0, z1 - z0
         origin = add(f"IFCCARTESIANPOINT(({x0:.3f},{y0:.3f},{z0:.3f}))")
         lp = add(f"IFCLOCALPLACEMENT(#35,{add(f'IFCAXIS2PLACEMENT3D({origin},#21,#22)')})")
         centre = add(f"IFCCARTESIANPOINT(({dx / 2:.3f},{dy / 2:.3f}))")
@@ -197,13 +205,12 @@ def step_model(walls, version):
 
     contained = []
     for _, gid, name, x0, y0, length, thick, ext in walls:
-        w = product("IFCWALL", gid, name, x0, y0, 0.0, length, thick, WALL_HEIGHT, ".STANDARD.")
+        w = product("IFCWALL", gid, name, wall_box(x0, y0, length, thick), ".STANDARD.")
         prop = add(f"IFCPROPERTYSINGLEVALUE('IsExternal',$,IFCBOOLEAN({'.T.' if ext else '.F.'}),$)")
         pset = add(f"IFCPROPERTYSET('{ifc_guid('pset', gid)}',#5,'Pset_WallCommon',$,({prop}))")
         add(f"IFCRELDEFINESBYPROPERTIES('{ifc_guid('rdp', gid)}',#5,$,$,({w}),{pset})")
         contained.append(w)
-    x0, y0, z0, x1, y1, z1 = SLAB_BOX
-    contained.append(product("IFCSLAB", SLAB_GID, SLAB_NAME, x0, y0, z0, x1 - x0, y1 - y0, z1 - z0, ".FLOOR."))
+    contained.append(product("IFCSLAB", SLAB_GID, SLAB_NAME, SLAB_BOX, ".FLOOR."))
     add(f"IFCRELCONTAINEDINSPATIALSTRUCTURE('{ifc_guid('contained')}',#5,$,$,({','.join(contained)}),#36)")
     return ("ISO-10303-21;\nHEADER;\n"
             f"FILE_DESCRIPTION(('ViewDefinition [DesignTransferView]','Timber Junction {version}'),'2;1');\n"
@@ -325,6 +332,7 @@ def type_ref(code, ver):
 
 
 W = {k: path_of(g) for k, g, *_ in WALLS_V1 + WALLS_V2}
+KEY = {g: k for k, g, *_ in WALLS_V1 + WALLS_V2}
 OCC = {k: occ_path(p, SLAB_P) for k, p in W.items()}
 
 ASSIGN_V1 = [("W1", "D012", "v3", "approved"), ("W2", "D012", "v3", "in-review"), ("W3", "D021", "v1", "approved")]
@@ -338,24 +346,25 @@ def assignment_v1():
 
 
 LINEAGE = u("lineage", "v1", "v2")
-KEY = {g: k for k, g, *_ in WALLS_V1 + WALLS_V2}
 
 
 def ifc_lite_lineage(step_v1, step_v2):
-    """(predecessor keys, successor keys, relation, reason, shares) per entry of the ifc-lite sidecar."""
+    """The sidecar's file and hash, and (predecessor keys, successor keys, relation, reason, shares) per entry."""
     if not SIDECAR.exists():
         sys.exit(f"{SIDECAR} is missing. Create it with: {LINEAGE_CMD}")
-    side = json.loads(SIDECAR.read_text(encoding="utf-8"))
+    raw = SIDECAR.read_bytes()
+    side = json.loads(raw)
     for end, sha in (("base", step_v1), ("head", step_v2)):
         if side[end]["hash"] != "sha256:" + sha:
             sys.exit(f"{SIDECAR.name} {end} is not bound to the STEP twin written now. Rerun: {LINEAGE_CMD}")
     if side["deleted"]:
-        raise ValueError("deleted elements are not modelled in this example")
-    return [([KEY[g] for g in e["base"]], [KEY[g] for g in e["head"]], e["relation"], e["reason"], e.get("shares"))
+        sys.exit(f"{SIDECAR.name} lists deleted elements, which this example does not model")
+    ref = {"file": f"{STEP_DIR}/{SIDECAR.name}", "sha256": hashlib.sha256(raw).hexdigest()}
+    return ref, [([KEY[g] for g in e["base"]], [KEY[g] for g in e["head"]], e["relation"], e["reason"], e.get("shares"))
             for e in side["entries"]]
 
 
-def lineage(base, head, lineage_entries):
+def lineage(base, head, sidecar, lineage_entries):
     entries = []
     for pre, suc, rel, ev, shares in lineage_entries:
         e = {"predecessors": [W[k] for k in pre], "successors": [W[k] for k in suc],
@@ -364,13 +373,15 @@ def lineage(base, head, lineage_entries):
             e["shares"] = shares
         entries.append(e)
     data = [{"path": LINEAGE, "attributes": {"dokwood::lineage": {
-        "producer": "@ifc-lite/cli 0.45.1 diff --geometry --split-merge, run on the STEP twins in ifc-lite/",
+        "producer": f"{IFC_LITE} diff {DIFF_FLAGS}, run on the STEP twins in {STEP_DIR}/",
+        "sidecar": sidecar,
         "base": base,
         "head": head,
         "entries": entries, "deleted": []}}}]
     model_ref = obj({"layer": S_STR, "sha256": S_STR})
     schemas = {"dokwood::lineage": {"value": obj({
-        "producer": S_STR, "base": model_ref, "head": model_ref,
+        "producer": S_STR, "sidecar": obj({"file": S_STR, "sha256": S_STR}),
+        "base": model_ref, "head": model_ref,
         "entries": arr(obj({"predecessors": arr(S_REF), "successors": arr(S_REF),
                             "relation": enum(*RELATIONS),
                             "evidence": S_STR, "shares": arr(S_REAL)}, optional=("shares",))),
@@ -399,12 +410,12 @@ def assignment_v2(lineage_entries):
             "imports": [], "schemas": ASSIGN_SCHEMA, "data": data}
 
 
-lineage_entries = ifc_lite_lineage(write_step(WALLS_V1, "v1"), write_step(WALLS_V2, "v2"))
+sidecar, lineage_entries = ifc_lite_lineage(write_step(WALLS_V1, "v1"), write_step(WALLS_V2, "v2"))
 m1 = write(model(WALLS_V1, "v1"))
 m2 = write(model(WALLS_V2, "v2"))
 write(catalog())
 write(derivation(WALLS_V1, "v1", m1))
 write(derivation(WALLS_V2, "v2", m2))
 write(assignment_v1())
-write(lineage(m1, m2, lineage_entries))
+write(lineage(m1, m2, sidecar, lineage_entries))
 write(assignment_v2(lineage_entries))

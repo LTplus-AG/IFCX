@@ -115,11 +115,12 @@ into IFCX paths. (proven by running: `@ifc-lite/cli` 0.45.1 from npm, command
 above, gave a split of Wand 1 with shares 2/3 and 1/3, and Wand 2 and Wand 4
 as `identity` with reasons `content-match:renamed` and `content-match:moved`)
 
-What is not from ifc-lite: the IFCX paths, and `base` and `head`, which hold
-the SHA-256 of `1-model-v1.ifcx` and `1-model-v2.ifcx` rather than of the
-twins. (proven by running: a test recomputes them) That the twins carry the
-same content as the IFCX models is by construction in `generate.py`, not
-checked.
+What is not from ifc-lite: the IFCX paths, `sidecar` (file and SHA-256 of
+the ifc-lite output), and `base` and `head`, which hold the SHA-256 of
+`1-model-v1.ifcx` and `1-model-v2.ifcx` rather than of the twins. (proven by
+running: a test recomputes all of them, and the twin hashes in the sidecar)
+The twins and the IFCX models take their boxes from the same function in
+`generate.py`, but nothing compares the two.
 
 ## Compose it
 

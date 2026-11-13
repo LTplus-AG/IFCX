@@ -16,6 +16,19 @@
             "producer": {
               "dataType": "String"
             },
+            "sidecar": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "file": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  }
+                }
+              }
+            },
             "base": {
               "dataType": "Object",
               "objectRestrictions": {
@@ -111,7 +124,11 @@
       "path": "94778cdc-3e01-5007-a491-1264c08ff6e9",
       "attributes": {
         "dokwood::lineage": {
-          "producer": "@ifc-lite/cli 0.45.1 diff --geometry --split-merge, run on the STEP twins in ifc-lite/",
+          "producer": "@ifc-lite/cli@0.45.1 diff --geometry --split-merge, run on the STEP twins in ifc-lite/",
+          "sidecar": {
+            "file": "ifc-lite/lineage-v1-v2.json",
+            "sha256": "34b24c9e9b02450870a3d70b765a0ea2ea176477178de57fb8c28134445da953"
+          },
           "base": {
             "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v1.ifcx",
             "sha256": "476b523e845cd5af0009b56b6ea06a78160c3cacea673d5cfe99be48f9de2834"

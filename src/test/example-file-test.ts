@@ -73,6 +73,11 @@ describe("example file", () => {
         const lineage = ReadTimberJunction("4-lineage-v1-v2").data.find(d => d.attributes?.["dokwood::lineage"])!.attributes!["dokwood::lineage"];
         expect(lineage.base).to.deep.equal(binding("v1"));
         expect(lineage.head).to.deep.equal(binding("v2"));
+        // The entries come from an ifc-lite sidecar, itself bound to the STEP twins it diffed.
+        const sha = (file: string) => createHash("sha256").update(fs.readFileSync(`${timberJunctionPath}/${file}`)).digest("hex");
+        expect(lineage.sidecar.sha256).to.equal(sha(lineage.sidecar.file));
+        const sidecar = JSON.parse(fs.readFileSync(`${timberJunctionPath}/${lineage.sidecar.file}`).toString());
+        expect([sidecar.base.hash, sidecar.head.hash]).to.deep.equal(["v1", "v2"].map(v => `sha256:${sha(`ifc-lite/model-${v}.ifc`)}`));
         for (const v of ["v1", "v2"]) {
             const data = ReadTimberJunction(`3-derivation-${v}`).data;
             const group = data.find(d => d.children);
