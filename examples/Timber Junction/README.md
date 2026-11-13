@@ -330,10 +330,12 @@ v2  Wand_1_1__Decke        D012/v3  to-confirm   carriedFrom c876b170 (split)
 
 The web viewer (`web/viewer`, built from `src/viewer` with the
 `build-viewer` esbuild command) loaded the seven-layer v2 stack without an
-error. Its model tree listed the five walls, the slab, the balcony slab, the
-catalog, the six occurrences and the orphan roots, and the canvas held
-opaque and translucent pixels. (proven by running at commit `48e4b6b`, in a
-browser; the canvas was read as pixel counts, nobody looked at the picture)
+error. Its model tree listed the model elements, the catalog and every
+occurrence and orphan root of the v2 listing above, and a pixel count of the
+canvas found opaque and translucent pixels. (proven by running once by hand,
+not by a test: repo root served over HTTP, `web/viewer/index.html` opened in
+a browser, the seven files passed in stack order to `addModel` of
+`render.mjs`; nobody looked at the picture)
 
 ## Open gaps
 
