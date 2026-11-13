@@ -284,7 +284,8 @@ def assignment_v2():
     data = []
     by_old = {k: (c, v, s) for k, c, v, s in ASSIGN_V1}
     for pre, suc, rel, _, _ in LINEAGE_ENTRIES:
-        assert len(pre) == 1, "only single-predecessor relations are carried"
+        if len(pre) != 1:
+            raise ValueError("only single-predecessor relations are carried")
         if pre[0] not in by_old:
             continue
         c, v, s = by_old[pre[0]]

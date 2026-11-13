@@ -40,16 +40,20 @@ describe("example file", () => {
         const v1 = await ComposeTimberJunction(timberJunctionV1);
         const v2 = await ComposeTimberJunction(timberJunctionV2);
 
-        expect(ByOccurrence(v1, o => o.attributes.get("dokwood::detail::type")?.code ?? null)).to.deep.equal({
-            Wand_1__Decke: "D012", Wand_2__Decke: "D012", Wand_3__Decke: "D021", Wand_4__Decke: null });
-        expect(ByOccurrence(v2, o => o.attributes.get("dokwood::detail::assignment")?.state ?? null)).to.deep.equal({
-            Wand_1_1__Decke: "to-confirm", Wand_1_2__Decke: "to-confirm", Wand_2__Decke: "in-review",
-            Wand_3__Decke: "approved", Wand_4__Decke: null });
+        // Same rows as the "Composed occurrences" table in the README.
+        expect(ByOccurrence(v1, Summary)).to.deep.equal({
+            Wand_1__Decke: "D012/v3 approved", Wand_2__Decke: "D012/v3 in-review",
+            Wand_3__Decke: "D021/v1 approved", Wand_4__Decke: "-" });
+        expect(ByOccurrence(v2, Summary)).to.deep.equal({
+            Wand_1_1__Decke: "D012/v3 to-confirm split", Wand_1_2__Decke: "D012/v3 to-confirm split",
+            Wand_2__Decke: "D012/v3 in-review renamed", Wand_3__Decke: "D021/v1 approved", Wand_4__Decke: "-" });
 
-        // Known gap: v1 assignments whose occurrence was not re-derived compose as member-less roots.
+        // Known gap: v1 assignments whose occurrence was not re-derived compose as member-less roots,
+        // one per v1 occurrence that 4-assignment-v2 carries from.
         const orphans = [...v2.children.values()].filter(n =>
             n.attributes.has("dokwood::detail::assignment") && !n.attributes.has("dokwood::detail::members"));
-        expect(orphans.length).to.equal(2);
+        const carriedFrom = ReadTimberJunction("4-assignment-v2").data.map(d => d.attributes!["dokwood::detail::assignment"].carriedFrom.occurrence);
+        expect(orphans.map(n => n.node).sort()).to.deep.equal([...new Set(carriedFrom)].sort());
     });
     it("timber junction v2 stack composes the same in reverse layer order", async () => {
         // No two layers write the same attribute on the same path, so order cannot decide anything here.
@@ -62,10 +66,12 @@ describe("example file", () => {
         const lineage = ReadTimberJunction("4-lineage-v1-v2").data[0].attributes!["dokwood::lineage"];
         expect(lineage.base.sha256).to.equal(sha("1-model-v1"));
         expect(lineage.head.sha256).to.equal(sha("1-model-v2"));
-        for (const v of ["v1", "v2"]) {
-            const derived = ReadTimberJunction(`3-derivation-${v}`).data.filter(d => d.attributes?.["dokwood::derivation"]);
-            expect(derived.map(d => d.attributes!["dokwood::derivation"].sourceSha256))
-                .to.deep.equal(derived.map(() => sha(`1-model-${v}`)));
+        for (const [v, walls] of [["v1", 4], ["v2", 5]] as const) {
+            const expected = sha(`1-model-${v}`);
+            const hashes = ReadTimberJunction(`3-derivation-${v}`).data
+                .filter(d => d.attributes?.["dokwood::derivation"])
+                .map(d => d.attributes!["dokwood::derivation"].sourceSha256);
+            expect(hashes).to.deep.equal(Array(walls).fill(expected));
         }
     });
 });
@@ -98,6 +104,15 @@ async function ComposeTimberJunction(names: string[])
     const layerStack = await (new IfcxLayerStackBuilder(provider).FromId(order.header.id)).Build();
     if (layerStack instanceof Error) throw layerStack;
     return LoadIfcxFile(layerStack.GetFederatedLayer());
+}
+
+// "<code>/<version> <state> <carried relation>", "-" for an occurrence with no type.
+function Summary(o: PostCompositionNode)
+{
+    const type = o.attributes.get("dokwood::detail::type");
+    const assignment = o.attributes.get("dokwood::detail::assignment");
+    if (!type) return "-";
+    return [`${type.code}/${type.version}`, assignment?.state, assignment?.carriedFrom?.relation].filter(x => x).join(" ");
 }
 
 function ByOccurrence(root: PostCompositionNode, value: (o: PostCompositionNode) => unknown)
