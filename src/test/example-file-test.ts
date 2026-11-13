@@ -9,6 +9,7 @@ import { InMemoryLayerProvider, StackedLayerProvider } from "../ifcx-core/layers
 import { FetchLayerProvider } from "../ifcx-core/layers/fetch-layer-provider";
 import { IfcxLayerStackBuilder } from "../ifcx-core/layers/layer-stack";
 import { PostCompositionNode } from "../ifcx-core/composition/node";
+import { NodeToJSON } from "./util/node2json";
 
 let examplesFolderPath = "../examples"
 
@@ -36,15 +37,14 @@ describe("example file", () => {
         expect(layerStack instanceof Error).to.be.false;
     });
     it("timber junction composes v1 and v2 layer stacks", async () => {
-        const v1 = await ComposeTimberJunction(["1-model-v1", "2-catalog", "3-derivation-v1", "4-assignment-v1"]);
-        const v2 = await ComposeTimberJunction(["1-model-v2", "2-catalog", "3-derivation-v2", "4-assignment-v1", "4-lineage-v1-v2", "4-assignment-v2"]);
+        const v1 = await ComposeTimberJunction(timberJunctionV1);
+        const v2 = await ComposeTimberJunction(timberJunctionV2);
 
-        const v1Types = Occurrences(v1).map(o => o.attributes.get("dokwood::detail::type")?.code ?? null);
-        expect(v1Types).to.deep.equal(["D012", "D012", "D021", null]);
-
-        const v2Occurrences = Occurrences(v2);
-        expect(v2Occurrences.map(o => o.attributes.get("dokwood::detail::assignment")?.state ?? null))
-            .to.deep.equal(["to-confirm", "to-confirm", "in-review", "approved", null]);
+        expect(ByOccurrence(v1, o => o.attributes.get("dokwood::detail::type")?.code ?? null)).to.deep.equal({
+            Wand_1__Decke: "D012", Wand_2__Decke: "D012", Wand_3__Decke: "D021", Wand_4__Decke: null });
+        expect(ByOccurrence(v2, o => o.attributes.get("dokwood::detail::assignment")?.state ?? null)).to.deep.equal({
+            Wand_1_1__Decke: "to-confirm", Wand_1_2__Decke: "to-confirm", Wand_2__Decke: "in-review",
+            Wand_3__Decke: "approved", Wand_4__Decke: null });
 
         // Known gap: v1 assignments whose occurrence was not re-derived compose as member-less roots.
         const orphans = [...v2.children.values()].filter(n =>
@@ -53,24 +53,28 @@ describe("example file", () => {
     });
     it("timber junction v2 stack composes the same in reverse layer order", async () => {
         // No two layers write the same attribute on the same path, so order cannot decide anything here.
-        const names = ["1-model-v2", "2-catalog", "3-derivation-v2", "4-assignment-v1", "4-lineage-v1-v2", "4-assignment-v2"];
-        const summary = (root: PostCompositionNode) => Occurrences(root).map(o => [
-            o.attributes.get("dokwood::detail::type")?.code ?? null,
-            o.attributes.get("dokwood::detail::assignment")?.state ?? null]);
-        const forward = await ComposeTimberJunction(names);
-        const reverse = await ComposeTimberJunction([...names].reverse());
-        expect(summary(reverse)).to.deep.equal(summary(forward));
+        const forward = await ComposeTimberJunction(timberJunctionV2);
+        const reverse = await ComposeTimberJunction([...timberJunctionV2].reverse());
+        expect(NodeToJSON(reverse)).to.deep.equal(NodeToJSON(forward));
     });
-    it("timber junction lineage is bound to the model file hashes", () => {
-        const lineageFile = ReadTimberJunction("4-lineage-v1-v2");
-        const lineage = lineageFile.data[0].attributes!["dokwood::lineage"];
+    it("timber junction lineage and derivations are bound to the model file hashes", () => {
         const sha = (name: string) => createHash("sha256").update(fs.readFileSync(`${timberJunctionPath}/${name}.ifcx`)).digest("hex");
+        const lineage = ReadTimberJunction("4-lineage-v1-v2").data[0].attributes!["dokwood::lineage"];
         expect(lineage.base.sha256).to.equal(sha("1-model-v1"));
         expect(lineage.head.sha256).to.equal(sha("1-model-v2"));
+        for (const v of ["v1", "v2"]) {
+            const derived = ReadTimberJunction(`3-derivation-${v}`).data.filter(d => d.attributes?.["dokwood::derivation"]);
+            expect(derived.map(d => d.attributes!["dokwood::derivation"].sourceSha256))
+                .to.deep.equal(derived.map(() => sha(`1-model-${v}`)));
+        }
     });
 });
 
 const timberJunctionPath = `${examplesFolderPath}/Timber Junction`;
+const timberJunctionV1 = ["1-model-v1", "2-catalog", "3-derivation-v1", "4-assignment-v1"];
+const timberJunctionV2 = ["1-model-v2", "2-catalog", "3-derivation-v2", "4-assignment-v1", "4-lineage-v1-v2", "4-assignment-v2"];
+// One provider for all composes, so the ifcx.dev imports are fetched once per run.
+const fetchProvider = new FetchLayerProvider();
 
 function ReadTimberJunction(name: string)
 {
@@ -89,16 +93,21 @@ async function ComposeTimberJunction(names: string[])
     };
     const provider = new StackedLayerProvider([
         new InMemoryLayerProvider().AddAll([order, ...files]),
-        new FetchLayerProvider()
+        fetchProvider
     ]);
     const layerStack = await (new IfcxLayerStackBuilder(provider).FromId(order.header.id)).Build();
     if (layerStack instanceof Error) throw layerStack;
     return LoadIfcxFile(layerStack.GetFederatedLayer());
 }
 
+function ByOccurrence(root: PostCompositionNode, value: (o: PostCompositionNode) => unknown)
+{
+    return Object.fromEntries([...Occurrences(root).entries()].map(([name, o]) => [name, value(o)]));
+}
+
 function Occurrences(root: PostCompositionNode)
 {
     const group = [...root.children.values()].find(n => n.attributes.get("bsi::ifc::prop::Name") === "Detail occurrences (derived)");
     if (!group) throw new Error(`No root node named "Detail occurrences (derived)" in the composed timber junction stack`);
-    return [...group.children.values()];
+    return group.children;
 }

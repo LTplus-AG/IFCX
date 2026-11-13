@@ -22,13 +22,17 @@ def u(*parts):
     return str(uuid.uuid5(NS, "|".join(parts)))
 
 
+def path_of(gid):
+    return u("element", gid)
+
+
 def header(name, author):
     return {"id": ID_PREFIX + name, "ifcxVersion": "ifcx_alpha", "dataVersion": "1.0.0",
             "author": author, "timestamp": DATE}
 
 
-def write(name, f):
-    p = OUT / name
+def write(f):
+    p = OUT / f["header"]["id"][len(ID_PREFIX):]
     p.write_text(json.dumps(f, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
@@ -48,7 +52,9 @@ WALLS_V2 = [
     WALLS_V1[2],
     ("W4neu", "2WandW4NeuVerschoben04", "Wand 4", 3.5, 3.0, 2.5, 0.12, False),
 ]
-SLAB = ("S1", "1DeckeUeberEGStabil001", "Decke über EG")
+SLAB_GID = "1DeckeUeberEGStabil001"
+SLAB_P = path_of(SLAB_GID)
+SLAB_NAME = "Decke über EG"
 SLAB_BOX = (0.0, 0.0, WALL_HEIGHT, 6.0, 5.24, WALL_HEIGHT + 0.24)
 
 STOREY = u("storey")
@@ -56,8 +62,14 @@ CATALOG = u("catalog")
 OCC_GROUP = u("detail-occurrences")
 
 
-def path_of(gid):
-    return u("element", gid)
+
+
+def slug(name):
+    return name.replace(" ", "_").replace(".", "_")
+
+
+def ifc_class(code):
+    return {"code": code, "uri": "https://identifier.buildingsmart.org/uri/buildingsmart/ifc/4.3/class/" + code}
 
 
 def box_mesh(x0, y0, z0, x1, y1, z1):
@@ -81,13 +93,12 @@ MODEL_IMPORTS = [
 def model(walls, version):
     data = []
     children = {}
-    for key, gid, name, x0, y0, length, thick, ext in walls:
+    for _, gid, name, x0, y0, length, thick, ext in walls:
         p = path_of(gid)
         body = u("body", gid)
-        children[name.replace(" ", "_").replace(".", "_")] = p
+        children[slug(name)] = p
         data.append({"path": p, "children": {"Body": body}, "attributes": {
-            "bsi::ifc::class": {"code": "IfcWall",
-                                "uri": "https://identifier.buildingsmart.org/uri/buildingsmart/ifc/4.3/class/IfcWall"},
+            "bsi::ifc::class": ifc_class("IfcWall"),
             "bsi::ifc::prop::Name": name,
             "bsi::ifc::prop::IsExternal": ext,
         }})
@@ -95,13 +106,11 @@ def model(walls, version):
             "usd::usdgeom::mesh": box_mesh(x0, y0, 0.0, x0 + length, y0 + thick, WALL_HEIGHT),
             "bsi::ifc::presentation::diffuseColor": [0.82, 0.68, 0.47] if ext else [0.9, 0.82, 0.66],
         }})
-    sp = path_of(SLAB[1])
-    sbody = u("body", SLAB[1])
-    children["Decke_ueber_EG"] = sp
-    data.append({"path": sp, "children": {"Body": sbody}, "attributes": {
-        "bsi::ifc::class": {"code": "IfcSlab",
-                            "uri": "https://identifier.buildingsmart.org/uri/buildingsmart/ifc/4.3/class/IfcSlab"},
-        "bsi::ifc::prop::Name": SLAB[2],
+    sbody = u("body", SLAB_GID)
+    children["Decke_ueber_EG"] = SLAB_P
+    data.append({"path": SLAB_P, "children": {"Body": sbody}, "attributes": {
+        "bsi::ifc::class": ifc_class("IfcSlab"),
+        "bsi::ifc::prop::Name": SLAB_NAME,
     }})
     data.append({"path": sbody, "attributes": {
         "usd::usdgeom::mesh": box_mesh(*SLAB_BOX),
@@ -109,8 +118,7 @@ def model(walls, version):
         "bsi::ifc::presentation::opacity": 0.4,
     }})
     data.insert(0, {"path": STOREY, "children": children, "attributes": {
-        "bsi::ifc::class": {"code": "IfcBuildingStorey",
-                            "uri": "https://identifier.buildingsmart.org/uri/buildingsmart/ifc/4.3/class/IfcBuildingStorey"},
+        "bsi::ifc::class": ifc_class("IfcBuildingStorey"),
         "bsi::ifc::prop::Name": "EG",
     }})
     return {"header": header(f"1-model-{version}.ifcx", "architect (authoring tool export)"),
@@ -120,7 +128,6 @@ def model(walls, version):
 S_REF = {"dataType": "Reference"}
 S_STR = {"dataType": "String"}
 S_REAL = {"dataType": "Real"}
-S_POINT = {"dataType": "Array", "arrayRestrictions": {"value": S_REAL}}
 
 
 def obj(values, optional=()):
@@ -134,33 +141,33 @@ def arr(v):
     return {"dataType": "Array", "arrayRestrictions": {"value": v}}
 
 
+S_POINT = arr(S_REAL)
+
+
 def enum(*opts):
     return {"dataType": "Enum", "enumRestrictions": {"options": list(opts)}}
 
 
 # ---- catalog -------------------------------------------------------------
 DETAIL_TYPES = {
-    ("D012", "v2"): ("Deckenauflager aussen", "slab-on-wall",
-                     [("bearing", "AW Holzrahmen 240"), ("supported", "Decke Holz 240")]),
-    ("D012", "v3"): ("Deckenauflager aussen", "slab-on-wall",
-                     [("bearing", "AW Holzrahmen 240"), ("supported", "Decke Holz 240")]),
-    ("D021", "v1"): ("Innenwand unter Decke", "slab-on-wall",
-                     [("bearing", "IW Holzrahmen 120"), ("supported", "Decke Holz 240")]),
+    "D012": (["v2", "v3"], "Deckenauflager aussen", [("bearing", "AW Holzrahmen 240"), ("supported", "Decke Holz 240")]),
+    "D021": (["v1"], "Innenwand unter Decke", [("bearing", "IW Holzrahmen 120"), ("supported", "Decke Holz 240")]),
 }
 
 
 def catalog():
-    data = [{"path": CATALOG, "children": {"D012": u("type", "D012"), "D021": u("type", "D021")},
+    data = [{"path": CATALOG, "children": {code: u("type", code) for code in DETAIL_TYPES},
              "attributes": {"dokwood::catalog": {"name": "DOKwood Detailkatalog (example)",
                                                  "publisher": "DOKwood platform"}}}]
-    data.append({"path": u("type", "D012"), "children": {"v2": u("type", "D012", "v2"), "v3": u("type", "D012", "v3")}})
-    data.append({"path": u("type", "D021"), "children": {"v1": u("type", "D021", "v1")}})
-    for (code, ver), (name, junction, roles) in DETAIL_TYPES.items():
-        data.append({"path": u("type", code, ver), "attributes": {"dokwood::detail::type": {
-            "code": code, "name": name, "version": ver, "junction": junction,
-            "roles": [{"role": r, "assembly": a} for r, a in roles],
-            "document": f"https://example.org/dokwood/details/{code}_{ver}.pdf",
-        }}})
+    for code, (vers, _, _) in DETAIL_TYPES.items():
+        data.append({"path": u("type", code), "children": {v: u("type", code, v) for v in vers}})
+    for code, (vers, name, roles) in DETAIL_TYPES.items():
+        for ver in vers:
+            data.append({"path": u("type", code, ver), "attributes": {"dokwood::detail::type": {
+                "code": code, "name": name, "version": ver, "junction": "slab-on-wall",
+                "roles": [{"role": r, "assembly": a} for r, a in roles],
+                "document": f"https://example.org/dokwood/details/{code}_{ver}.pdf",
+            }}})
     schemas = {
         "dokwood::catalog": {"value": obj({"name": S_STR, "publisher": S_STR})},
         "dokwood::detail::type": {"value": obj({
@@ -181,22 +188,21 @@ def occ_path(wall_path, slab_path):
     return u("occurrence", "slab-on-wall", *sorted([wall_path, slab_path]))
 
 
-def derivation(walls, version, model_name, model_sha):
-    sp = path_of(SLAB[1])
+def derivation(walls, version, model_sha):
     data, children = [], {}
-    for key, gid, name, x0, y0, length, thick, ext in walls:
+    for _, gid, name, x0, y0, length, thick, ext in walls:
         wp = path_of(gid)
-        op = occ_path(wp, sp)
-        children[name.replace(" ", "_").replace(".", "_") + "__Decke"] = op
+        op = occ_path(wp, SLAB_P)
+        children[slug(name) + "__Decke"] = op
         yc = round(y0 + thick / 2, 4)
         data.append({"path": op, "attributes": {
-            "dokwood::detail::members": [{"ref": wp, "role": "bearing"}, {"ref": sp, "role": "supported"}],
+            "dokwood::detail::members": [{"ref": wp, "role": "bearing"}, {"ref": SLAB_P, "role": "supported"}],
             "dokwood::detail::topology": {"junction": "slab-on-wall", "extent": {
                 "kind": "line", "length": length,
                 "start": [x0, yc, WALL_HEIGHT], "end": [x0 + length, yc, WALL_HEIGHT]}},
             "dokwood::derivation": dict(ENGINE, operation="junction-detection",
-                                        sources=sorted([wp, sp]),
-                                        sourceLayer=ID_PREFIX + model_name,
+                                        sources=sorted([wp, SLAB_P]),
+                                        sourceLayer=ID_PREFIX + f"1-model-{version}.ifcx",
                                         sourceSha256=model_sha),
         }})
     data.insert(0, {"path": OCC_GROUP, "children": children,
@@ -228,7 +234,6 @@ def type_ref(code, ver):
     return f"{CATALOG}/{code}/{ver}"
 
 
-SLAB_P = path_of(SLAB[1])
 W = {k: path_of(g) for k, g, *_ in WALLS_V1 + WALLS_V2}
 OCC = {k: occ_path(p, SLAB_P) for k, p in W.items()}
 
@@ -279,6 +284,7 @@ def assignment_v2():
     data = []
     by_old = {k: (c, v, s) for k, c, v, s in ASSIGN_V1}
     for pre, suc, rel, _, _ in LINEAGE_ENTRIES:
+        assert len(pre) == 1, "only single-predecessor relations are carried"
         if pre[0] not in by_old:
             continue
         c, v, s = by_old[pre[0]]
@@ -292,15 +298,11 @@ def assignment_v2():
             "imports": [], "schemas": ASSIGN_SCHEMA, "data": data}
 
 
-sha1 = write("1-model-v1.ifcx", model(WALLS_V1, "v1"))
-sha2 = write("1-model-v2.ifcx", model(WALLS_V2, "v2"))
-write("2-catalog.ifcx", catalog())
-write("3-derivation-v1.ifcx", derivation(WALLS_V1, "v1", "1-model-v1.ifcx", sha1))
-write("3-derivation-v2.ifcx", derivation(WALLS_V2, "v2", "1-model-v2.ifcx", sha2))
-write("4-assignment-v1.ifcx", assignment_v1())
-write("4-lineage-v1-v2.ifcx", lineage(sha1, sha2))
-write("4-assignment-v2.ifcx", assignment_v2())
-print("v1", sha1)
-print("v2", sha2)
-for k in sorted(OCC):
-    print("occ", k, OCC[k])
+sha1 = write(model(WALLS_V1, "v1"))
+sha2 = write(model(WALLS_V2, "v2"))
+write(catalog())
+write(derivation(WALLS_V1, "v1", sha1))
+write(derivation(WALLS_V2, "v2", sha2))
+write(assignment_v1())
+write(lineage(sha1, sha2))
+write(assignment_v2())
