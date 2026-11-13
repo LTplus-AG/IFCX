@@ -67,6 +67,8 @@ describe("example file", () => {
                 const a = o.attributes.get("dokwood::detail::assignment");
                 if (!a) continue;
                 expect(o.attributes.has("dokwood::derivation"), `${name} derivation`).to.be.true;
+                // Only an approval sets a reviewed hash; to-confirm may keep it.
+                if (["proposed", "in-review"].includes(a.state)) expect(a, name).to.not.have.property("reviewedSha256");
                 const current = RecordSha(o.attributes.get("dokwood::derivation"));
                 if (a.state === "approved") {
                     expect(a.reviewedSha256, name).to.equal(current);
@@ -84,12 +86,17 @@ describe("example file", () => {
         expect(await check(timberJunctionV2)).to.deep.equal({ approved: [], stale: ["Wand_1_1__Decke", "Wand_1_2__Decke", "Wand_3__Decke"] });
     });
     it("timber junction layer order decides the Wand 3 review state", async () => {
-        // Exactly one attribute is written on the same path by two layers of the v2 stack.
-        const writes = timberJunctionV2.flatMap(layer => ReadTimberJunction(layer).data
-            .flatMap(d => Object.keys(d.attributes ?? {}).map(attr => `${d.path} ${attr}`)));
-        const twice = writes.filter((w, i) => writes.indexOf(w) !== i);
+        // On one path only, two layers of the v2 stack write the same attribute or inherits entry.
+        const writes = timberJunctionV2.flatMap(layer => ReadTimberJunction(layer).data.flatMap(d => [
+            ...Object.entries(d.attributes ?? {}).map(([k, v]) => [`${d.path} ${k}`, JSON.stringify(v)]),
+            ...Object.entries(d.inherits ?? {}).map(([k, v]) => [`${d.path} inherits ${k}`, JSON.stringify(v)])]));
+        const keys = writes.map(w => w[0]);
+        const twice = writes.filter((w, i) => keys.indexOf(w[0]) !== i);
         const wand3 = OccurrencePath("v1", "Wand_3__Decke");
-        expect(twice).to.deep.equal([`${wand3} dokwood::detail::assignment`]);
+        expect(twice.map(w => w[0])).to.deep.equal([`${wand3} dokwood::detail::assignment`, `${wand3} inherits detailType`]);
+        // Both layers inherit the same type, so only the assignment can differ by order.
+        expect(writes.filter(w => w[0] === `${wand3} inherits detailType`).map(w => w[1])).to.have.members(
+            Array(2).fill(JSON.stringify(`${ReadTimberJunction("2-catalog").data[0].path}/D021/v1`)));
         // The later layer wins: as committed 4-assignment-v2 comes last and says to-confirm.
         const forward = OccurrenceSummaries(await ComposeTimberJunction(timberJunctionV2));
         const swapped = OccurrenceSummaries(await ComposeTimberJunction(

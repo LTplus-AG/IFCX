@@ -122,7 +122,8 @@ approved, taken over sorted compact JSON with whole floats written as
 integers (`record_sha` in `generate.py`). That matches `JSON.stringify` for
 the values here, but it is not a general canonical form; RFC 8785 would be.
 An approval sets it, and it stays when the approval drops to `to-confirm`, to
-show what was approved. `in-review` and `proposed` never have one.
+show what was approved. `in-review` and `proposed` never have one. (proven by
+running, same test as below)
 
 The rule: `approved` needs `reviewedSha256` equal to the hash of the
 occurrence's current derivation record, and a `reviewedSha256` that differs
@@ -149,8 +150,9 @@ that. (proven by running)
 `4-assignment-v1.ifcx` says `approved` for the Wand 3 occurrence and
 `4-assignment-v2.ifcx` says `to-confirm`, both as
 `dokwood::detail::assignment` on `68b553da`. It is the only attribute that
-two layers of the v2 stack write on the same path. (proven by running) The
-later layer wins:
+two layers of the v2 stack write on the same path. Both layers also write
+`inherits.detailType` there, with the same value D021/v1, so it cannot differ
+by order. (proven by running) The later layer wins:
 
 | Order | Wand 3 composes to |
 |---|---|
@@ -197,7 +199,10 @@ The STEP twins and the IFCX models agree per wall and slab: the same
 GlobalIds (as `uuid5` paths), names, class, `IsExternal` and boxes (origin
 plus extruded rectangle against the mesh's bounding box, to 6 decimals), for
 all three models. (proven by running: `timber junction STEP twins match the
-IFCX models`, which also fails if one coordinate in a twin is changed)
+IFCX models`, which also fails if an element's origin in a twin is changed)
+The test reads each element's own origin, profile and depth only. The shared
+placement chain and axis directions (`#20` to `#35`) are assumed to be the
+identity, as `generate.py` writes them, and are not checked. (unproven)
 
 ### Merge (n:1)
 
@@ -212,11 +217,11 @@ was reviewed. Here both are D031/v1, so the merged occurrence gets D031/v1
 `to-confirm`, with `carriedFrom.occurrences` listing both old occurrences.
 (proven by running: `timber junction carries merges by same-type-or-none`,
 which checks the rule for every merge entry) If they disagree, nothing is
-carried (pointed at `generate.py:518`; unproven, the example has no such case).
+carried (pointed at `generate.py:522`; unproven, the example has no such case).
 
 Every other relation uses `copy-to-all`: every successor gets the type. Only
 an `identity` successor keeps its state, unless the approval rule resets it;
-any other successor is `to-confirm` (pointed at `generate.py:526`; `replaced`
+any other successor is `to-confirm` (pointed at `generate.py:530`; `replaced`
 is unproven, the example has none).
 
 ### Pieces keep the old name
