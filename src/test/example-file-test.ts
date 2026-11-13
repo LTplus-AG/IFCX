@@ -3,7 +3,6 @@ import { createHash } from "crypto";
 
 import { describe, it } from "./util/cappucino";
 import { expect } from "chai";
-import { LoadIfcxFile } from "../ifcx-core/workflows";
 import { IfcxFile } from "../ifcx-core/schema/schema-helper";
 import { InMemoryLayerProvider, StackedLayerProvider } from "../ifcx-core/layers/layer-providers";
 import { FetchLayerProvider } from "../ifcx-core/layers/fetch-layer-provider";
@@ -62,26 +61,26 @@ describe("example file", () => {
     it("timber junction approvals hold only for the derivation they reviewed", async () => {
         // The rule, which IFCX does not enforce: approved needs reviewedSha256 equal to the hash of the
         // occurrence's derivation record, and a different reviewedSha256 needs to-confirm.
-        const approved: string[][] = [], stale: string[][] = [];
-        for (const stack of [timberJunctionV1, timberJunctionV2]) {
-            approved.push([]); stale.push([]);
+        const check = async (stack: string[]) => {
+            const approved: string[] = [], stale: string[] = [];
             for (const [name, o] of OccurrenceNodes(await ComposeTimberJunction(stack))) {
                 const a = o.attributes.get("dokwood::detail::assignment");
                 if (!a) continue;
                 const current = RecordSha(o.attributes.get("dokwood::derivation"));
                 if (a.state === "approved") {
                     expect(a.reviewedSha256, name).to.equal(current);
-                    approved.at(-1)!.push(name);
+                    approved.push(name);
                 }
                 if (a.reviewedSha256 && a.reviewedSha256 !== current) {
                     expect(a.state, name).to.equal("to-confirm");
-                    stale.at(-1)!.push(name);
+                    stale.push(name);
                 }
             }
-        }
-        expect(approved).to.deep.equal([["Wand_1__Decke", "Wand_3__Decke", "Decke__Balkonplatte_A"], []]);
+            return { approved, stale };
+        };
+        expect(await check(timberJunctionV1)).to.deep.equal({ approved: ["Wand_1__Decke", "Wand_3__Decke", "Decke__Balkonplatte_A"], stale: [] });
         // Wand 3 kept its path, but its derivation record names model v2 now, so its v1 approval is stale.
-        expect(stale).to.deep.equal([[], ["Wand_1_1__Decke", "Wand_1_2__Decke", "Wand_3__Decke"]]);
+        expect(await check(timberJunctionV2)).to.deep.equal({ approved: [], stale: ["Wand_1_1__Decke", "Wand_1_2__Decke", "Wand_3__Decke"] });
     });
     it("timber junction layer order decides the Wand 3 review state", async () => {
         // Exactly one attribute is written on the same path by two layers of the v2 stack.
@@ -114,11 +113,9 @@ describe("example file", () => {
                 .to.deep.equal(sidecar.entries.map((e: any) => [e.base.map(base), e.head.map(tip), e.relation, e.reason, e.shares, "ifc-lite"]));
         }
         for (const v of ["v1", "v2"]) {
-            const data = ReadTimberJunction(`3-derivation-${v}`).data;
-            const group = data.find(d => d.children);
-            expect(group, `occurrence group in 3-derivation-${v}`).to.exist;
-            const occurrences = data.filter(d => d !== group);
-            expect(occurrences.map(d => d.path).sort()).to.deep.equal(Object.values(group!.children!).sort());
+            const group = OccurrenceGroup(v);
+            const occurrences = ReadTimberJunction(`3-derivation-${v}`).data.filter(d => d.path !== group.path);
+            expect(occurrences.map(d => d.path).sort()).to.deep.equal(Object.values(group.children!).sort());
             const expected = binding(v);
             for (const d of occurrences) {
                 const derivation = d.attributes!["dokwood::derivation"];
@@ -126,7 +123,7 @@ describe("example file", () => {
             }
         }
     });
-    it("timber junction carries a merge only when the predecessors agree on the type", async () => {
+    it("timber junction carries merges by same-type-or-none", async () => {
         const merges = LineageOf("4-lineage-v1-v2").entries.filter((e: any) => e.relation === "merge");
         expect(merges.map((e: any) => [e.predecessors, e.successors, e.evidence, e.shares])).to.deep.equal([[
             ["1BalkonplatteTeilA0001", "1BalkonplatteTeilB0001"].map(PathOf), [PathOf("2BalkonplatteGanz00001")],
@@ -134,14 +131,19 @@ describe("example file", () => {
         const bySubject = async (stack: string[]) => new Map([...OccurrenceNodes(await ComposeTimberJunction(stack)).values()]
             .map(o => [o.attributes.get("dokwood::detail::members").find((m: any) => m.ref !== slabPath).ref, o]));
         const [v1, v2] = [await bySubject(timberJunctionV1), await bySubject(timberJunctionV2)];
-        const before = merges[0].predecessors.map((p: string) => v1.get(p)!);
-        const after = v2.get(merges[0].successors[0])!;
-        // same-type-or-none: the predecessors share D031/v1, so the merged occurrence gets it, to be confirmed.
-        expect(before.map(Summary)).to.deep.equal(["D031/v1 approved", "D031/v1 in-review"]);
-        expect(after.attributes.get("dokwood::detail::assignment")).to.deep.equal({ state: "to-confirm", carriedFrom: {
-            occurrences: before.map((o: PostCompositionNode) => o.node), lineage: LineageNode("4-lineage-v1-v2").path,
-            relation: "merge", policy: "same-type-or-none" } });
-        expect(Summary(after).split(" ")[0]).to.equal("D031/v1");
+        for (const merge of merges) {
+            const before: PostCompositionNode[] = merge.predecessors.map((p: string) => v1.get(p)!);
+            const after = v2.get(merge.successors[0])!;
+            // The merged occurrence gets the type only if every predecessor had the same one, and is to be confirmed.
+            const types = new Set(before.map(o => o.attributes.has("dokwood::detail::assignment") ? Summary(o).split(" ")[0] : "-"));
+            const agreed = types.size === 1 && !types.has("-");
+            expect(after.attributes.get("dokwood::detail::assignment")).to.deep.equal(!agreed ? undefined : { state: "to-confirm",
+                carriedFrom: { occurrences: before.map(o => o.node), lineage: LineageNode("4-lineage-v1-v2").path,
+                               relation: "merge", policy: "same-type-or-none" } });
+            expect(Summary(after).split(" ")[0]).to.equal(agreed ? [...types][0] : "-");
+        }
+        // The balcony is the agreeing case: D031/v1 approved and D031/v1 in-review.
+        expect(merges[0].predecessors.map((p: string) => Summary(v1.get(p)!))).to.deep.equal(["D031/v1 approved", "D031/v1 in-review"]);
     });
     it("timber junction: ifc-lite misses a split whose pieces keep the old name, a manual entry states it", async () => {
         const root = await ComposeTimberJunction(timberJunctionSameName);
@@ -165,9 +167,10 @@ describe("example file", () => {
         expect(added.filter(p => !ifcLite.some((e: any) => e.successors.includes(p)))).to.deep.equal([w1b]);
     });
     it("timber junction manual split of the Wand 2 occurrence is orphaned when Wand 2 is re-derived", async () => {
-        const parts = (o: PostCompositionNode) => [...o.children].map(([name, p]) =>
-            [name, p.attributes.get("dokwood::detail::topology").extent.start[0], p.attributes.get("dokwood::detail::topology").extent.end[0],
-             p.attributes.get("dokwood::detail::members")[0].ref]);
+        const parts = (o: PostCompositionNode) => [...o.children].map(([name, p]) => {
+            const { start, end } = p.attributes.get("dokwood::detail::topology").extent;
+            return [name, start[0], end[0], p.attributes.get("dokwood::detail::members")[0].ref];
+        });
         const oldWall = PathOf("1WandW2altAussenwand02");
         const split = [["Teil_1", 0, 2.5, oldWall], ["Teil_2", 3.5, 6, oldWall]];
         const v1 = await ComposeTimberJunction(timberJunctionV1);
@@ -180,7 +183,7 @@ describe("example file", () => {
         expect(after.node).to.not.equal(before.node);
         expect([after.children.size, after.attributes.has("dokwood::detail::manualSplit")]).to.deep.equal([0, false]);
         // The split stays on the old path: a root with no members, its parts naming a wall model v2 does not have.
-        const orphan = [...v2.children.values()].find(n => n.node === before.node)!;
+        const orphan = v2.children.get(before.node)!;
         expect(orphan.attributes.has("dokwood::detail::members")).to.be.false;
         expect(parts(orphan)).to.deep.equal(split);
         expect(ModelElements("v2").map(d => d.path)).to.not.include(oldWall);
@@ -199,14 +202,9 @@ const timberJunctionSameName = ["1-model-v2-samename", "4-lineage-v1-v2-samename
 // One provider for all composes, so the ifcx.dev imports are fetched once per run.
 const fetchProvider = new FetchLayerProvider();
 
-function TimberJunctionFile(name: string)
-{
-    return `${timberJunctionPath}/${name}.ifcx`;
-}
-
 function ReadTimberJunction(name: string)
 {
-    return JSON.parse(fs.readFileSync(TimberJunctionFile(name)).toString()) as IfcxFile;
+    return JSON.parse(fs.readFileSync(`${timberJunctionPath}/${name}.ifcx`).toString()) as IfcxFile;
 }
 
 // Same stacking as `ifcx compose`: later files win.
@@ -225,7 +223,7 @@ async function ComposeTimberJunction(names: string[])
     ]);
     const layerStack = await (new IfcxLayerStackBuilder(provider).FromId(order.header.id)).Build();
     if (layerStack instanceof Error) throw layerStack;
-    return LoadIfcxFile(layerStack.GetFederatedLayer());
+    return layerStack.GetFullTree();
 }
 
 // uuid5 as in generate.py: an element's IFCX path is uuid5(ns, "element|<GlobalId>").
@@ -266,9 +264,18 @@ function LineageOf(name: string)
     return LineageNode(name).attributes!["dokwood::lineage"];
 }
 
+const occurrenceGroupName = "Detail occurrences (derived)";
+
+function OccurrenceGroup(v: string)
+{
+    const group = ReadTimberJunction(`3-derivation-${v}`).data.find(d => d.attributes?.["bsi::ifc::prop::Name"] === occurrenceGroupName);
+    if (!group) throw new Error(`No node named "${occurrenceGroupName}" in 3-derivation-${v}`);
+    return group;
+}
+
 function OccurrencePath(v: string, name: string)
 {
-    return ReadTimberJunction(`3-derivation-${v}`).data.find(d => d.children)!.children![name];
+    return OccurrenceGroup(v).children![name];
 }
 
 // Convention of this example, not IFCX: a manual entry replaces every ifc-lite entry that names one of its elements.
@@ -345,8 +352,8 @@ function Summary(o: PostCompositionNode)
 
 function OccurrenceNodes(root: PostCompositionNode)
 {
-    const group = [...root.children.values()].find(n => n.attributes.get("bsi::ifc::prop::Name") === "Detail occurrences (derived)");
-    if (!group) throw new Error(`No root node named "Detail occurrences (derived)" in the composed timber junction stack`);
+    const group = [...root.children.values()].find(n => n.attributes.get("bsi::ifc::prop::Name") === occurrenceGroupName);
+    if (!group) throw new Error(`No root node named "${occurrenceGroupName}" in the composed timber junction stack`);
     return group.children;
 }
 

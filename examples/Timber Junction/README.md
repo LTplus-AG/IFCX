@@ -205,13 +205,14 @@ every predecessor had an assignment with the same type and version; its state
 is always `to-confirm` and it has no `reviewedSha256`, since no single record
 was reviewed. Here both are D031/v1, so the merged occurrence gets D031/v1
 `to-confirm`, with `carriedFrom.occurrences` listing both old occurrences.
-(proven by running: `timber junction carries a merge only when the
-predecessors agree on the type`) If they disagree, nothing is carried
-(pointed at `generate.py:487`; unproven, the example has no such case).
+(proven by running: `timber junction carries merges by same-type-or-none`,
+which checks the rule for every merge entry) If they disagree, nothing is
+carried (pointed at `generate.py:503`; unproven, the example has no such case).
 
-Split and identity use `copy-to-all`: every successor gets the type; a split
-successor is `to-confirm`, an identity successor keeps its state unless the
-approval rule resets it.
+Every other relation uses `copy-to-all`: every successor gets the type. Only
+an `identity` successor keeps its state, unless the approval rule resets it;
+any other successor is `to-confirm` (pointed at `generate.py:511`; `replaced`
+is unproven, the example has none).
 
 ### Pieces keep the old name
 

@@ -45,8 +45,8 @@ def write_bytes(p, data):
 
 def write(f):
     data = (json.dumps(f, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
-    # What a derived layer records about the layer it was derived from.
     p = OUT / f["header"]["id"][len(ID_PREFIX):]
+    # What a derived layer records about the layer it was derived from.
     return {"layer": f["header"]["id"], "sha256": write_bytes(p, data)}
 
 
@@ -128,12 +128,16 @@ MODEL_IMPORTS = [
 ]
 
 
+def add_child(children, name, key, path):
+    # Two pieces both named "Wand 1" need distinct child names.
+    children[name if name not in children else f"{name}_{key}"] = path
+
+
 def model(version):
     data, children = [], {}
     for e in MODELS[version]:
         p, body = path_of(e.gid), u("body", e.gid)
-        # Two pieces both named "Wand 1" need distinct child names.
-        children[slug(e.name) if slug(e.name) not in children else slug(e.name) + "_" + e.key] = p
+        add_child(children, slug(e.name), e.key, p)
         attrs = {"bsi::ifc::class": ifc_class(e.cls), "bsi::ifc::prop::Name": e.name}
         look = {"bsi::ifc::presentation::diffuseColor": [0.7, 0.7, 0.7], "bsi::ifc::presentation::opacity": 0.4}
         if e.external is not None:
@@ -302,6 +306,9 @@ TOPOLOGY_SCHEMA = {"dokwood::detail::topology": {"value": obj({"junction": S_STR
     optional=("length", "start", "end"))})}}
 
 
+Junction = namedtuple("Junction", "key name kind bearing supported extent")
+
+
 def occ_path(kind, bearing, supported):
     # Name is a pure function of the inputs: junction kind plus sorted member paths.
     return u("occurrence", kind, *sorted([bearing, supported]))
@@ -311,32 +318,35 @@ def line(x0, x1, y, z):
     return {"kind": "line", "length": round(x1 - x0, 4), "start": [x0, y, z], "end": [x1, y, z]}
 
 
+def members(bearing, supported):
+    return [{"ref": bearing, "role": "bearing"}, {"ref": supported, "role": "supported"}]
+
+
 def junctions(version):
-    """(subject key, child name, kind, bearing path, supported path, extent) per occurrence."""
+    """One Junction per occurrence; key is the wall or balcony piece it belongs to."""
     out = []
     for e in MODELS[version]:
         x0, y0, z0, x1, y1, z1 = e.box
         if e.cls == "IfcWall":
             # Along the wall axis, on top of the wall.
-            out.append((e.key, slug(e.name) + "__Decke", "slab-on-wall", path_of(e.gid), SLAB_P,
-                        line(x0, x1, round((y0 + y1) / 2, 4), WALL_HEIGHT)))
+            out.append(Junction(e.key, slug(e.name) + "__Decke", "slab-on-wall", path_of(e.gid), SLAB_P,
+                                line(x0, x1, round((y0 + y1) / 2, 4), WALL_HEIGHT)))
         elif e is not SLAB:
             # Along the edge where the balcony meets the floor slab, at its top.
-            out.append((e.key, "Decke__" + slug(e.name), "slab-to-slab", SLAB_P, path_of(e.gid),
-                        line(x0, x1, y0, z1)))
+            out.append(Junction(e.key, "Decke__" + slug(e.name), "slab-to-slab", SLAB_P, path_of(e.gid),
+                                line(x0, x1, y0, z1)))
     return out
 
 
 def derivation(version, source):
     data, children = [], {}
-    for _, name, kind, bearing, supported, extent in junctions(version):
-        op = occ_path(kind, bearing, supported)
-        children[name] = op
-        data.append({"path": op, "attributes": {
-            "dokwood::detail::members": [{"ref": bearing, "role": "bearing"}, {"ref": supported, "role": "supported"}],
-            "dokwood::detail::topology": {"junction": kind, "extent": extent},
+    for j in junctions(version):
+        add_child(children, j.name, j.key, OCC[j.key])
+        data.append({"path": OCC[j.key], "attributes": {
+            "dokwood::detail::members": members(j.bearing, j.supported),
+            "dokwood::detail::topology": {"junction": j.kind, "extent": j.extent},
             "dokwood::derivation": dict(ENGINE, operation="junction-detection",
-                                        sources=sorted([bearing, supported]),
+                                        sources=sorted([j.bearing, j.supported]),
                                         sourceLayer=source["layer"],
                                         sourceSha256=source["sha256"]),
         }})
@@ -376,7 +386,7 @@ def type_ref(code, ver):
 ELEMENTS = {e.key: e for m in MODELS.values() for e in m}
 W = {k: path_of(e.gid) for k, e in ELEMENTS.items()}
 KEY = {e.gid: k for k, e in ELEMENTS.items()}
-OCC = {j[0]: occ_path(*j[2:5]) for v in MODELS for j in junctions(v)}
+OCC = {j.key: occ_path(j.kind, j.bearing, j.supported) for v in MODELS for j in junctions(v)}
 
 ASSIGN_V1 = [("W1", "D012", "v3", "approved"), ("W2", "D012", "v3", "in-review"), ("W3", "D021", "v1", "approved"),
              ("BA", "D031", "v1", "approved"), ("BB", "D031", "v1", "in-review")]
@@ -392,15 +402,19 @@ def assignment_node(occ, code, ver, state, reviewed=None, carried=None):
             "attributes": {"dokwood::detail::assignment": a}}
 
 
+def reviewed_v1(shas):
+    """key -> (code, version, state, reviewedSha256). An approval records the hash of the derivation it approved."""
+    return {k: (c, v, s, shas[OCC[k]] if s == "approved" else None) for k, c, v, s in ASSIGN_V1}
+
+
 def assignment_v1(shas):
-    # An approval records the hash of the derivation record it approved.
-    data = [assignment_node(OCC[k], c, v, s, shas[OCC[k]] if s == "approved" else None) for k, c, v, s in ASSIGN_V1]
+    data = [assignment_node(OCC[k], *a) for k, a in reviewed_v1(shas).items()]
     return {"header": header("4-assignment-v1.ifcx", "detail editor (DOKwood platform)"),
             "imports": [], "schemas": ASSIGN_SCHEMA, "data": data}
 
 
-def lineage_path(head, source="ifc-lite"):
-    return u("lineage", "v1", head) if source == "ifc-lite" else u("lineage", "v1", head, source)
+def lineage_path(head, *extra):
+    return u("lineage", "v1", head, *extra)
 
 
 def ifc_lite_lineage(head, step_v1, step_head):
@@ -436,6 +450,11 @@ LINEAGE_SCHEMA = {"dokwood::lineage": {"value": obj({
     "deleted": arr(S_REF)}, optional=("sidecar",))}}
 
 
+def lineage_file(name, path, author, value):
+    return {"header": header(name, author), "imports": [], "schemas": LINEAGE_SCHEMA,
+            "data": [{"path": path, "attributes": {"dokwood::lineage": value}}]}
+
+
 def lineage(head, base_ref, head_ref, sidecar, entries):
     out = []
     for pre, suc, rel, ev, shares in entries:
@@ -444,11 +463,9 @@ def lineage(head, base_ref, head_ref, sidecar, entries):
         if shares is not None:
             e["shares"] = shares
         out.append(e)
-    data = [{"path": lineage_path(head), "attributes": {"dokwood::lineage": {
+    return lineage_file(f"4-lineage-v1-{head}.ifcx", lineage_path(head), "model comparison (@ifc-lite/diff)", {
         "producer": f"{IFC_LITE} diff {DIFF_FLAGS}, run on the STEP twins in {STEP_DIR}/",
-        "sidecar": sidecar, "base": base_ref, "head": head_ref, "entries": out, "deleted": []}}}]
-    return {"header": header(f"4-lineage-v1-{head}.ifcx", "model comparison (@ifc-lite/diff)"),
-            "imports": [], "schemas": LINEAGE_SCHEMA, "data": data}
+        "sidecar": sidecar, "base": base_ref, "head": head_ref, "entries": out, "deleted": []})
 
 
 MANUAL_AUTHOR = "planner (manual review in detail editor)"
@@ -460,10 +477,8 @@ def manual_lineage(head, base_ref, head_ref):
     entry = {"predecessors": [W["W1"]], "successors": [W["W1a"], W["W1b"]], "relation": "split",
              "evidence": "manual:checked-against-plan", "source": "manual",
              "author": MANUAL_AUTHOR, "timestamp": MANUAL_TIME}
-    data = [{"path": lineage_path(head, "manual"), "attributes": {"dokwood::lineage": {
-        "producer": MANUAL_AUTHOR, "base": base_ref, "head": head_ref, "entries": [entry], "deleted": []}}}]
-    return {"header": header(f"4-lineage-v1-{head}-manual.ifcx", MANUAL_AUTHOR),
-            "imports": [], "schemas": LINEAGE_SCHEMA, "data": data}
+    return lineage_file(f"4-lineage-v1-{head}-manual.ifcx", lineage_path(head, "manual"), MANUAL_AUTHOR, {
+        "producer": MANUAL_AUTHOR, "base": base_ref, "head": head_ref, "entries": [entry], "deleted": []})
 
 
 def carried_state(state, reviewed, current):
@@ -472,30 +487,31 @@ def carried_state(state, reviewed, current):
 
 
 def assignment_v2(entries, shas_v1, shas_v2):
-    old = {k: (c, v, s, shas_v1[OCC[k]] if s == "approved" else None) for k, c, v, s in ASSIGN_V1}
+    old = reviewed_v1(shas_v1)
     data = []
     # Same path in v2: the derivation was redone, so a stale approval drops to to-confirm.
     for k, (c, v, s, rev) in old.items():
-        if OCC[k] in shas_v2 and carried_state(s, rev, shas_v2[OCC[k]]) != s:
-            data.append(assignment_node(OCC[k], c, v, "to-confirm", rev))
+        state = carried_state(s, rev, shas_v2[OCC[k]]) if OCC[k] in shas_v2 else s
+        if state != s:
+            data.append(assignment_node(OCC[k], c, v, state, rev))
     for pre, suc, rel, _, _ in entries:
         if not any(k in old for k in pre):
             continue
         carried = {"occurrences": [OCC[k] for k in pre], "lineage": lineage_path("v2"), "relation": rel}
         if rel == "merge":
             types = {old[k][:2] if k in old else None for k in pre}
-            if len(types) != 1 or None in types:
-                continue
-            (c, v), = types
-            data.append(assignment_node(OCC[suc[0]], c, v, "to-confirm",
-                                        carried=dict(carried, policy="same-type-or-none")))
-            continue
-        if len(pre) != 1:
+            if len(types) == 1 and None not in types:
+                (c, v), = types
+                data.append(assignment_node(OCC[suc[0]], c, v, "to-confirm",
+                                            carried=dict(carried, policy="same-type-or-none")))
+        elif len(pre) == 1:
+            c, v, s, rev = old[pre[0]]
+            for k in suc:
+                # Only an identity keeps its state; anything else is a new occurrence to confirm.
+                state = carried_state(s, rev, shas_v2[OCC[k]]) if rel == "identity" else "to-confirm"
+                data.append(assignment_node(OCC[k], c, v, state, rev, dict(carried, policy="copy-to-all")))
+        else:
             raise ValueError(f"{rel} with several predecessors is not carried")
-        c, v, s, rev = old[pre[0]]
-        for k in suc:
-            state = "to-confirm" if rel == "split" else carried_state(s, rev, shas_v2[OCC[k]])
-            data.append(assignment_node(OCC[k], c, v, state, rev, dict(carried, policy="copy-to-all")))
     return {"header": header("4-assignment-v2.ifcx", "detail editor (DOKwood platform)"),
             "imports": [], "schemas": ASSIGN_SCHEMA, "data": data}
 
@@ -507,31 +523,32 @@ SPLIT_SCHEMA = {"dokwood::detail::manualSplit": {"value": obj({"reason": S_STR, 
 def manual_split():
     # A person splits the Wand 2 occurrence at the balcony door, x 2.50 to 3.50, written against v1.
     occ = OCC["W2"]
-    (_, _, kind, bearing, supported, ext), = [j for j in junctions("v1") if j[0] == "W2"]
-    parts = {"Teil_1": (0.0, 2.5), "Teil_2": (3.5, 6.0)}
-    data = [{"path": occ, "children": {n: u("manual-part", occ, n) for n in parts},
+    j, = [j for j in junctions("v1") if j.key == "W2"]
+    _, y, z = j.extent["start"]
+    parts = {n: (u("manual-part", occ, n), x0, x1) for n, x0, x1 in (("Teil_1", 0.0, 2.5), ("Teil_2", 3.5, 6.0))}
+    data = [{"path": occ, "children": {n: p for n, (p, _, _) in parts.items()},
              "attributes": {"dokwood::detail::manualSplit": {
                  "reason": "balcony door from x 2.50 to 3.50", "author": MANUAL_AUTHOR, "timestamp": MANUAL_TIME}}}]
-    for n, (x0, x1) in parts.items():
-        data.append({"path": u("manual-part", occ, n), "attributes": {
-            "dokwood::detail::members": [{"ref": bearing, "role": "bearing"}, {"ref": supported, "role": "supported"}],
-            "dokwood::detail::topology": {"junction": kind, "extent": line(x0, x1, ext["start"][1], ext["start"][2])},
+    for p, x0, x1 in parts.values():
+        data.append({"path": p, "attributes": {
+            "dokwood::detail::members": members(j.bearing, j.supported),
+            "dokwood::detail::topology": {"junction": j.kind, "extent": line(x0, x1, y, z)},
         }})
     return {"header": header("4-manual-split.ifcx", MANUAL_AUTHOR),
             "imports": [], "schemas": {**SPLIT_SCHEMA, **MEMBERS_SCHEMA, **TOPOLOGY_SCHEMA}, "data": data}
 
 
 steps = {v: write_step(v) for v in MODELS}
-side_v2, entries_v2 = ifc_lite_lineage("v2", steps["v1"], steps["v2"])
-side_same, entries_same = ifc_lite_lineage("v2-samename", steps["v1"], steps["v2-samename"])
+sidecars = {h: ifc_lite_lineage(h, steps["v1"], steps[h]) for h in ("v2", "v2-samename")}
 m = {v: write(model(v)) for v in MODELS}
 write(catalog())
 d1, d2 = derivation("v1", m["v1"]), derivation("v2", m["v2"])
+shas_v1, shas_v2 = derivation_shas(d1), derivation_shas(d2)
 write(d1)
 write(d2)
-write(assignment_v1(derivation_shas(d1)))
+write(assignment_v1(shas_v1))
 write(manual_split())
-write(lineage("v2", m["v1"], m["v2"], side_v2, entries_v2))
-write(assignment_v2(entries_v2, derivation_shas(d1), derivation_shas(d2)))
-write(lineage("v2-samename", m["v1"], m["v2-samename"], side_same, entries_same))
+for h, (side, entries) in sidecars.items():
+    write(lineage(h, m["v1"], m[h], side, entries))
+write(assignment_v2(sidecars["v2"][1], shas_v1, shas_v2))
 write(manual_lineage("v2-samename", m["v1"], m["v2-samename"]))
