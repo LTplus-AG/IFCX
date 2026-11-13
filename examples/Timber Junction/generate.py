@@ -26,6 +26,10 @@ def path_of(gid):
     return u("element", gid)
 
 
+def model_id(version):
+    return ID_PREFIX + f"1-model-{version}.ifcx"
+
+
 def header(name, author):
     return {"id": ID_PREFIX + name, "ifcxVersion": "ifcx_alpha", "dataVersion": "1.0.0",
             "author": author, "timestamp": DATE}
@@ -60,8 +64,6 @@ SLAB_BOX = (0.0, 0.0, WALL_HEIGHT, 6.0, 5.24, WALL_HEIGHT + 0.24)
 STOREY = u("storey")
 CATALOG = u("catalog")
 OCC_GROUP = u("detail-occurrences")
-
-
 
 
 def slug(name):
@@ -131,9 +133,7 @@ S_REAL = {"dataType": "Real"}
 
 
 def obj(values, optional=()):
-    vals = {}
-    for k, v in values.items():
-        vals[k] = dict(v, optional=True) if k in optional else v
+    vals = {k: dict(v, optional=True) if k in optional else v for k, v in values.items()}
     return {"dataType": "Object", "objectRestrictions": {"values": vals}}
 
 
@@ -190,7 +190,7 @@ def occ_path(wall_path, slab_path):
 
 def derivation(walls, version, model_sha):
     data, children = [], {}
-    for _, gid, name, x0, y0, length, thick, ext in walls:
+    for _, gid, name, x0, y0, length, thick, _ in walls:
         wp = path_of(gid)
         op = occ_path(wp, SLAB_P)
         children[slug(name) + "__Decke"] = op
@@ -202,7 +202,7 @@ def derivation(walls, version, model_sha):
                 "start": [x0, yc, WALL_HEIGHT], "end": [x0 + length, yc, WALL_HEIGHT]}},
             "dokwood::derivation": dict(ENGINE, operation="junction-detection",
                                         sources=sorted([wp, SLAB_P]),
-                                        sourceLayer=ID_PREFIX + f"1-model-{version}.ifcx",
+                                        sourceLayer=model_id(version),
                                         sourceSha256=model_sha),
         }})
     data.insert(0, {"path": OCC_GROUP, "children": children,
@@ -265,8 +265,8 @@ def lineage(sha1, sha2):
         entries.append(e)
     data = [{"path": LINEAGE, "attributes": {"dokwood::lineage": {
         "producer": "@ifc-lite/diff lineage, transcribed",
-        "base": {"layer": ID_PREFIX + "1-model-v1.ifcx", "sha256": sha1},
-        "head": {"layer": ID_PREFIX + "1-model-v2.ifcx", "sha256": sha2},
+        "base": {"layer": model_id("v1"), "sha256": sha1},
+        "head": {"layer": model_id("v2"), "sha256": sha2},
         "entries": entries, "deleted": []}}}]
     model_ref = obj({"layer": S_STR, "sha256": S_STR})
     schemas = {"dokwood::lineage": {"value": obj({
