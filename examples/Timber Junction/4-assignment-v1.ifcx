@@ -35,10 +35,24 @@
                     "dataType": "Reference"
                   },
                   "relation": {
-                    "dataType": "String"
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "split",
+                        "merge",
+                        "renamed",
+                        "moved",
+                        "replaced"
+                      ]
+                    }
                   },
                   "policy": {
-                    "dataType": "String"
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "copy-to-all"
+                      ]
+                    }
                   }
                 }
               },

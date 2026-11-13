@@ -51,6 +51,16 @@ describe("example file", () => {
             n.attributes.has("dokwood::detail::assignment") && !n.attributes.has("dokwood::detail::members"));
         expect(orphans.length).to.equal(2);
     });
+    it("timber junction v2 stack composes the same in reverse layer order", async () => {
+        // No two layers write the same attribute on the same path, so order cannot decide anything here.
+        const names = ["1-model-v2", "2-catalog", "3-derivation-v2", "4-assignment-v1", "4-lineage-v1-v2", "4-assignment-v2"];
+        const summary = (root: PostCompositionNode) => Occurrences(root).map(o => [
+            o.attributes.get("dokwood::detail::type")?.code ?? null,
+            o.attributes.get("dokwood::detail::assignment")?.state ?? null]);
+        const forward = await ComposeTimberJunction(names);
+        const reverse = await ComposeTimberJunction([...names].reverse());
+        expect(summary(reverse)).to.deep.equal(summary(forward));
+    });
     it("timber junction lineage is bound to the model file hashes", () => {
         const lineageFile = ReadTimberJunction("4-lineage-v1-v2");
         const lineage = lineageFile.data[0].attributes!["dokwood::lineage"];
@@ -88,6 +98,7 @@ async function ComposeTimberJunction(names: string[])
 
 function Occurrences(root: PostCompositionNode)
 {
-    const group = [...root.children.values()].find(n => n.attributes.get("bsi::ifc::prop::Name") === "Detail occurrences (derived)")!;
+    const group = [...root.children.values()].find(n => n.attributes.get("bsi::ifc::prop::Name") === "Detail occurrences (derived)");
+    if (!group) throw new Error(`No root node named "Detail occurrences (derived)" in the composed timber junction stack`);
     return [...group.children.values()];
 }

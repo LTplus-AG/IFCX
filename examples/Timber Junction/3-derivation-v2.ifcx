@@ -6,13 +6,12 @@
     "author": "detail-finder 1.4.0 (derived, do not edit)",
     "timestamp": "2026-11-13"
   },
-  "imports": [],
+  "imports": [
+    {
+      "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/prop@v5a.ifcx"
+    }
+  ],
   "schemas": {
-    "bsi::ifc::prop::Name": {
-      "value": {
-        "dataType": "String"
-      }
-    },
     "dokwood::detail::members": {
       "value": {
         "dataType": "Array",

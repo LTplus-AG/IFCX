@@ -27,6 +27,16 @@ See "What would be proposed under bsi::" below.
 Model v2 is a full re-export, not a layer on top of v1. That is the hard case:
 new paths for every changed element.
 
+`generate.py` writes all eight `.ifcx` files. To change the example, edit the
+script and run it in this folder (Python 3, no packages):
+
+```sh
+python3 generate.py
+```
+
+It writes next to itself and is deterministic, so an unchanged script gives
+the committed files byte for byte.
+
 ## How each IFCX mechanism is used
 
 - **children**: the model storey lists its walls, the derivation layer lists its
@@ -43,16 +53,27 @@ new paths for every changed element.
   them. Wrong enum values are rejected. (proven by running: a lineage with
   `"relation": "teleported"` fails composition)
 - **layering**: each writer owns one file. The assignment is an opinion about
-  a node that another tool wrote, without editing that tool's file. Stacking
-  order decides who wins; later layers win.
-  (pointed at `src/ifcx-core/composition/compose.ts:17`)
+  a node that another tool wrote, without editing that tool's file. Layer
+  order does not matter in this example: no two layers write the same
+  attribute on the same path, so the rule that later layers win
+  (`src/ifcx-core/composition/compose.ts:17`) never applies. (proven by
+  running: the v2 stack in reverse order composes to the same JSON, and
+  `npm test` checks it)
 
 ### Occurrence identity
 
-An occurrence path is a UUIDv5 of the junction kind and the sorted member
-paths, so re-deriving the same model gives the same paths. This follows the
-naming rule in `docs/boolean-output-identity.md` (name is a pure function of
-the inputs). Consequence, visible in v2:
+An occurrence path is a pure function of its inputs, so re-deriving the same
+model gives the same paths:
+
+```
+ns   = uuid5(NAMESPACE_URL, "dokwood.example/timber-junction")
+path = uuid5(ns, "occurrence|slab-on-wall|" + "|".join(sorted(member_paths)))
+```
+
+The member paths are the wall and slab paths, themselves
+`uuid5(ns, "element|<GlobalId>")`. Example: Wand 3 (`14669707-...`) and the
+slab (`05b23ede-...`) give `68b553da-3631-54b8-a33a-6b1a8a0338a6`.
+(proven by running) Consequence, visible in v2:
 
 - Wand 3 and the slab kept their paths, so the Wand 3 occurrence kept its path
   and the v1 assignment (D021, approved) applies without any lineage.
@@ -64,8 +85,9 @@ the inputs). Consequence, visible in v2:
 
 ### Derivation record
 
-`dokwood::derivation` generalizes `bsi::ifc::geometry::brep::derived_from`
-from that doc: `operation`, `engine`, `engineVersion`, `tolerance`, `sources`
+`dokwood::derivation` generalizes `bsi::ifc::geometry::brep::derived_from`,
+an attribute proposed for Boolean geometry output (not in this repo):
+`operation`, `engine`, `engineVersion`, `tolerance`, `sources`
 (paths), plus `sourceLayer` and `sourceSha256` so a consumer can tell which
 model version an occurrence was derived from.
 
@@ -89,9 +111,13 @@ The hashes are over the exact bytes of `1-model-v1.ifcx` and
 cd src && npm install
 npx esbuild ifcx-cli/ifcx-cli.ts --bundle --outfile=ifcx-cli.js --external:three --platform=node
 cd "../examples/Timber Junction"
-node ../../src/ifcx-cli.js compose 1-model-v1.ifcx 2-catalog.ifcx 3-derivation-v1.ifcx 4-assignment-v1.ifcx v1.json
-node ../../src/ifcx-cli.js compose 1-model-v2.ifcx 2-catalog.ifcx 3-derivation-v2.ifcx 4-assignment-v1.ifcx 4-lineage-v1-v2.ifcx 4-assignment-v2.ifcx v2.json
+out=$(mktemp -d)
+node ../../src/ifcx-cli.js compose 1-model-v1.ifcx 2-catalog.ifcx 3-derivation-v1.ifcx 4-assignment-v1.ifcx "$out/v1.json"
+node ../../src/ifcx-cli.js compose 1-model-v2.ifcx 2-catalog.ifcx 3-derivation-v2.ifcx 4-assignment-v1.ifcx 4-lineage-v1-v2.ifcx 4-assignment-v2.ifcx "$out/v2.json"
 ```
+
+The composed JSON goes to a fresh temp folder, because `compose` refuses to
+overwrite an existing output file.
 
 The model layers import `ifc`, `prop` and `usd`, which are fetched from
 ifcx.dev. Schema validation is on. `npm test` composes both stacks too
@@ -123,9 +149,15 @@ and slab. (proven by running, in a local build of the viewer)
    speaks about the v1 occurrences of Wand 1 and Wand 2. Nothing derives those
    paths any more, so composition turns each into a new root node that has a
    type and a state but no members. IFCX has no rule to flag or drop such a
-   node, and a later layer cannot delete a node, only null its children,
-   inherits or attributes. (proven by running; root detection at
-   `src/ifcx-core/composition/cycles.ts:50`)
+   node, and a later layer cannot delete a node. (proven by running; root
+   detection at `src/ifcx-core/composition/cycles.ts:50`) Nulling the
+   orphan's `inherits` entry composes, but the root stays, with its state and
+   no type. Nulling its `dokwood::detail::assignment` attribute crashes
+   validation with a TypeError at
+   `src/ifcx-core/schema/schema-validation.ts:93`: the Object check passes
+   because `typeof null` is `"object"`, then `Object.hasOwn(null, ...)` throws.
+   (both proven by running) That validator bug is a separate fix, not part of
+   this example.
 2. **A section along an edge as reference target.** The extent is a line given
    by coordinates inside an attribute. A path can name a node (a wall, or a
    Brep edge on the geometry-tiers branch) but not a stretch of it, such as
@@ -135,15 +167,29 @@ and slab. (proven by running, in a local build of the viewer)
    `{ref, role}` in an attribute. To IFCX these refs are strings: the
    validator only checks the type (`src/ifcx-core/schema/schema-validation.ts:76`)
    and a member ref pointing at a missing node composes without error.
-   (proven by running) `children` would give resolution but means
+   (proven by running) `sourceLayer` and `sourceSha256` are not checked
+   either: `3-derivation-v2.ifcx` and `4-assignment-v2.ifcx` stacked on
+   `1-model-v1.ifcx` compose with exit 0. (proven by running) `children` would give resolution but means
    containment, and a node listed as child of two walls is copied into both
    (pointed at `src/ifcx-core/composition/compose.ts:160`).
 4. **Lineage binding is to file bytes.** The header has no content hash, so the
    SHA-256 breaks if a file is reformatted without any data change. (pointed
    at `schema/ifcx.tsp:21`, the header has id, versions, author and timestamp
-   only)
+   only) Nothing checks the binding either: `base.sha256` and `head.sha256`
+   are not compared with the stacked layers, and a lineage entry with a
+   predecessor that is no node at all and `shares` of `[0.9, 0.9]` composes.
+   (proven by running)
 5. **Carrying is manual.** `4-assignment-v2.ifcx` was written by applying the
    lineage outside IFCX. No IFCX mechanism applies a lineage to opinions.
+6. **An approval is not tied to the derivation it reviewed.** The Wand 3
+   occurrence `68b553da` has `sourceSha256` `476b...` in v1 and `e79c...` in
+   v2, yet the v1 approval applies to it unchanged, because its path depends
+   only on the member paths. A reviewer approved a derivation from v1; the
+   composed v2 says approved for a derivation from v2. (proven by running)
+7. **Nothing orders opinions after their subject.** IFCX does not require an
+   opinion layer to come after the layer it refers to. The v2 stack with
+   `4-assignment-v2.ifcx` first and `1-model-v2.ifcx` last composes without
+   error. (proven by running)
 
 ## What would be proposed under bsi::
 
