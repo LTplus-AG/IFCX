@@ -471,6 +471,7 @@ def ifc_lite_lineage(head, step_v1, step_head):
             (set(e["head"]) <= in_model[head], f"head is not an element with an occurrence in {head}"),
             (shape.get(e["relation"], n_base == 1 and n_head == 1), f"{n_base}:{n_head} for {e['relation']}"),
             (not set(e["head"]) & in_model["v1"], "head element is also in v1"),
+            (not set(e["base"]) & {g.gid for g in MODELS[head]}, f"base element is still in {head}"),
             (len(set(names)) == len(names) and seen.isdisjoint(names), "element named twice"),
             ("shares" not in e or (isinstance(shares, list) and len(shares) == max(n_base, n_head)
                                    and abs(sum(shares) - 1) <= 1e-9), "bad shares"),

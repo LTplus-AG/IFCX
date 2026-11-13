@@ -222,11 +222,11 @@ was reviewed. Here both are D031/v1, so the merged occurrence gets D031/v1
 `to-confirm`, with `carriedFrom.occurrences` listing both old occurrences.
 (proven by running: `timber junction carries merges by same-type-or-none`,
 which checks the rule for every merge entry) If they disagree, nothing is
-carried (pointed at `generate.py:548`; unproven, the example has no such case).
+carried (pointed at `generate.py:549`; unproven, the example has no such case).
 
 Every other relation uses `copy-to-all`: every successor gets the type. Only
 an `identity` successor keeps its state, unless the approval rule resets it;
-any other successor is `to-confirm` (pointed at `generate.py:556`; `replaced`
+any other successor is `to-confirm` (pointed at `generate.py:557`; `replaced`
 is unproven, the example has none).
 
 ### Pieces keep the old name
@@ -348,7 +348,7 @@ stack with the balcony. (unproven)
    construct for it found)
 3. **n-ary junction node.** The occurrence holds its members as a list of
    `{ref, role}` in an attribute. To IFCX these refs are strings: the
-   validator only checks the type (`src/ifcx-core/schema/schema-validation.ts:76`)
+   validator only checks the type (`src/ifcx-core/schema/schema-validation.ts:78`)
    and a member ref pointing at a missing node composes without error.
    (proven by running; the manual split parts in v2 are such a case)
    `sourceLayer` and `sourceSha256` are not checked either:
