@@ -1,0 +1,50 @@
+{
+  "format": "ifc-lite/lineage",
+  "version": 1,
+  "base": {
+    "hash": "sha256:cd655fc08116109ac10d28761a153052910014ccaf441a09295fe1acc58900fc",
+    "path": "model-v1.ifc"
+  },
+  "head": {
+    "hash": "sha256:e3fe2ff9346858df7bcb6a3c5650b9a0fe12eb2e301dabcd724b61fe9a126e28",
+    "path": "model-v2.ifc"
+  },
+  "entries": [
+    {
+      "base": [
+        "1WandW1altAussenwand01"
+      ],
+      "head": [
+        "2WandW1aNeuTeilstueckA",
+        "2WandW1bNeuTeilstueckB"
+      ],
+      "relation": "split",
+      "reason": "split:verified",
+      "shares": [
+        0.6666666666666666,
+        0.3333333333333333
+      ]
+    },
+    {
+      "base": [
+        "1WandW2altAussenwand02"
+      ],
+      "head": [
+        "2WandW2NeuNurNeueGuid2"
+      ],
+      "relation": "identity",
+      "reason": "content-match:renamed"
+    },
+    {
+      "base": [
+        "1WandW4altInnenwand004"
+      ],
+      "head": [
+        "2WandW4NeuVerschoben04"
+      ],
+      "relation": "identity",
+      "reason": "content-match:moved"
+    }
+  ],
+  "deleted": []
+}

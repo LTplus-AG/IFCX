@@ -7,8 +7,12 @@ Run from anywhere with Python 3.8 or later, no packages needed:
 Without an argument the files are written next to this script, replacing the
 committed ones. The output is deterministic: running it on an unchanged script
 gives the committed files byte for byte.
+
+It also writes IFC STEP twins of the two models to ifc-lite/, because ifc-lite
+reads STEP and not IFCX. The lineage layer is translated from what ifc-lite
+wrote when diffing those twins (ifc-lite/lineage-v1-v2.json, see LINEAGE_CMD).
 """
-import hashlib, json, sys, uuid
+import hashlib, itertools, json, sys, uuid
 from pathlib import Path
 
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent
@@ -31,13 +35,16 @@ def header(name, author):
             "author": author, "timestamp": DATE}
 
 
-def write(f):
-    p = OUT / f["header"]["id"][len(ID_PREFIX):]
+def write_bytes(p, data):
     # Bytes, not text mode, so the files are LF on every OS and the hash is over what was written.
-    data = (json.dumps(f, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     p.write_bytes(data)
+    return hashlib.sha256(data).hexdigest()
+
+
+def write(f):
+    data = (json.dumps(f, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     # What a derived layer records about the layer it was derived from.
-    return {"layer": f["header"]["id"], "sha256": hashlib.sha256(data).hexdigest()}
+    return {"layer": f["header"]["id"], "sha256": write_bytes(OUT / f["header"]["id"][len(ID_PREFIX):], data)}
 
 
 # key, GlobalId (from wp9-identity-demo), name, x0, y0, length, thickness, external
@@ -124,6 +131,89 @@ def model(walls, version):
     }})
     return {"header": header(f"1-model-{version}.ifcx", "architect (authoring tool export)"),
             "imports": MODEL_IMPORTS, "schemas": {}, "data": data}
+
+
+# ---- IFC STEP twins, for ifc-lite ------------------------------------------
+# Same GlobalIds, names, IsExternal and boxes as model(), as IfcExtrudedAreaSolid.
+STEP_DIR = "ifc-lite"
+SIDECAR = Path(__file__).resolve().parent / STEP_DIR / "lineage-v1-v2.json"
+LINEAGE_CMD = (f"cd {STEP_DIR} && npx -y @ifc-lite/cli@0.45.1 diff model-v1.ifc model-v2.ifc"
+               " --geometry --split-merge --lineage-out lineage-v1-v2.json")
+B64 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$"
+
+
+def ifc_guid(*parts):
+    n = uuid.uuid5(NS, "|".join(("step",) + parts)).int
+    return "".join(B64[(n >> (6 * i)) & 63] for i in reversed(range(22)))
+
+
+def step_str(s):
+    return "'" + "".join(c if ord(c) < 128 else f"\\X2\\{ord(c):04X}\\X0\\" for c in s) + "'"
+
+
+def step_model(walls, version):
+    lines = [
+        "#1=IFCPERSON($,'Example',$,$,$,$,$,$);",
+        "#2=IFCORGANIZATION($,'DOKwood example',$,$,$);",
+        "#3=IFCPERSONANDORGANIZATION(#1,#2,$);",
+        "#4=IFCAPPLICATION(#2,'1.0','Timber Junction generate.py','tj');",
+        "#5=IFCOWNERHISTORY(#3,#4,$,.ADDED.,$,$,$,1700000000);",
+        "#10=IFCSIUNIT(*,.LENGTHUNIT.,$,.METRE.);",
+        "#11=IFCUNITASSIGNMENT((#10));",
+        "#20=IFCCARTESIANPOINT((0.,0.,0.));",
+        "#21=IFCDIRECTION((0.,0.,1.));",
+        "#22=IFCDIRECTION((1.,0.,0.));",
+        "#23=IFCAXIS2PLACEMENT3D(#20,#21,#22);",
+        "#24=IFCGEOMETRICREPRESENTATIONCONTEXT($,'Model',3,1.E-05,#23,$);",
+        "#25=IFCGEOMETRICREPRESENTATIONSUBCONTEXT('Body','Model',*,*,*,*,#24,$,.MODEL_VIEW.,$);",
+        f"#30=IFCPROJECT('{ifc_guid('project')}',#5,'Timber Junction',$,$,$,$,(#24),#11);",
+        "#31=IFCLOCALPLACEMENT($,#23);",
+        f"#32=IFCSITE('{ifc_guid('site')}',#5,'Site',$,$,#31,$,$,.ELEMENT.,$,$,$,$,$);",
+        "#33=IFCLOCALPLACEMENT(#31,#23);",
+        f"#34=IFCBUILDING('{ifc_guid('building')}',#5,'Building',$,$,#33,$,$,.ELEMENT.,$,$,$);",
+        "#35=IFCLOCALPLACEMENT(#33,#23);",
+        f"#36=IFCBUILDINGSTOREY('{ifc_guid('storey')}',#5,'EG',$,$,#35,$,$,.ELEMENT.,0.);",
+        f"#37=IFCRELAGGREGATES('{ifc_guid('agg', 'site')}',#5,$,$,#30,(#32));",
+        f"#38=IFCRELAGGREGATES('{ifc_guid('agg', 'building')}',#5,$,$,#32,(#34));",
+        f"#39=IFCRELAGGREGATES('{ifc_guid('agg', 'storey')}',#5,$,$,#34,(#36));",
+    ]
+
+    ids = itertools.count(100)
+
+    def add(text):
+        ref = f"#{next(ids)}"
+        lines.append(f"{ref}={text};")
+        return ref
+
+    def product(cls, gid, name, x0, y0, z0, dx, dy, dz, kind):
+        origin = add(f"IFCCARTESIANPOINT(({x0:.3f},{y0:.3f},{z0:.3f}))")
+        lp = add(f"IFCLOCALPLACEMENT(#35,{add(f'IFCAXIS2PLACEMENT3D({origin},#21,#22)')})")
+        centre = add(f"IFCCARTESIANPOINT(({dx / 2:.3f},{dy / 2:.3f}))")
+        profile = add(f"IFCRECTANGLEPROFILEDEF(.AREA.,$,{add(f'IFCAXIS2PLACEMENT2D({centre},$)')},{dx:.3f},{dy:.3f})")
+        solid = add(f"IFCEXTRUDEDAREASOLID({profile},#23,#21,{dz:.3f})")
+        rep = add(f"IFCSHAPEREPRESENTATION(#25,'Body','SweptSolid',({solid}))")
+        pds = add(f"IFCPRODUCTDEFINITIONSHAPE($,$,({rep}))")
+        return add(f"{cls}('{gid}',#5,{step_str(name)},$,$,{lp},{pds},$,{kind})")
+
+    contained = []
+    for _, gid, name, x0, y0, length, thick, ext in walls:
+        w = product("IFCWALL", gid, name, x0, y0, 0.0, length, thick, WALL_HEIGHT, ".STANDARD.")
+        prop = add(f"IFCPROPERTYSINGLEVALUE('IsExternal',$,IFCBOOLEAN({'.T.' if ext else '.F.'}),$)")
+        pset = add(f"IFCPROPERTYSET('{ifc_guid('pset', gid)}',#5,'Pset_WallCommon',$,({prop}))")
+        add(f"IFCRELDEFINESBYPROPERTIES('{ifc_guid('rdp', gid)}',#5,$,$,({w}),{pset})")
+        contained.append(w)
+    x0, y0, z0, x1, y1, z1 = SLAB_BOX
+    contained.append(product("IFCSLAB", SLAB_GID, SLAB_NAME, x0, y0, z0, x1 - x0, y1 - y0, z1 - z0, ".FLOOR."))
+    add(f"IFCRELCONTAINEDINSPATIALSTRUCTURE('{ifc_guid('contained')}',#5,$,$,({','.join(contained)}),#36)")
+    return ("ISO-10303-21;\nHEADER;\n"
+            f"FILE_DESCRIPTION(('ViewDefinition [DesignTransferView]','Timber Junction {version}'),'2;1');\n"
+            f"FILE_NAME('model-{version}.ifc','{DATE}T00:00:00',(''),(''),'','Timber Junction generate.py','');\n"
+            "FILE_SCHEMA(('IFC4'));\nENDSEC;\nDATA;\n" + "\n".join(lines) + "\nENDSEC;\nEND-ISO-10303-21;\n")
+
+
+def write_step(walls, version):
+    (OUT / STEP_DIR).mkdir(exist_ok=True)
+    return write_bytes(OUT / STEP_DIR / f"model-{version}.ifc", step_model(walls, version).encode("ascii"))
 
 
 S_REF = {"dataType": "Reference"}
@@ -220,7 +310,8 @@ def derivation(walls, version, source):
 
 
 # ---- assignment + lineage ------------------------------------------------
-RELATIONS = ("split", "merge", "renamed", "moved", "replaced")
+# ifc-lite LineageRelation; a rename or move is "identity" with a content-match reason.
+RELATIONS = ("identity", "split", "merge", "replaced")
 POLICIES = ("copy-to-all",)
 ASSIGN_SCHEMA = {"dokwood::detail::assignment": {"value": obj({
     "state": enum("proposed", "in-review", "approved", "to-confirm"),
@@ -247,23 +338,33 @@ def assignment_v1():
 
 
 LINEAGE = u("lineage", "v1", "v2")
-LINEAGE_ENTRIES = [
-    (["W1"], ["W1a", "W1b"], "split", "split:verified", [0.6667, 0.3333]),
-    (["W2"], ["W2neu"], "renamed", "content-match:renamed", None),
-    (["W4"], ["W4neu"], "moved", "content-match:moved", None),
-]
+KEY = {g: k for k, g, *_ in WALLS_V1 + WALLS_V2}
 
 
-def lineage(base, head):
+def ifc_lite_lineage(step_v1, step_v2):
+    """(predecessor keys, successor keys, relation, reason, shares) per entry of the ifc-lite sidecar."""
+    if not SIDECAR.exists():
+        sys.exit(f"{SIDECAR} is missing. Create it with: {LINEAGE_CMD}")
+    side = json.loads(SIDECAR.read_text(encoding="utf-8"))
+    for end, sha in (("base", step_v1), ("head", step_v2)):
+        if side[end]["hash"] != "sha256:" + sha:
+            sys.exit(f"{SIDECAR.name} {end} is not bound to the STEP twin written now. Rerun: {LINEAGE_CMD}")
+    if side["deleted"]:
+        raise ValueError("deleted elements are not modelled in this example")
+    return [([KEY[g] for g in e["base"]], [KEY[g] for g in e["head"]], e["relation"], e["reason"], e.get("shares"))
+            for e in side["entries"]]
+
+
+def lineage(base, head, lineage_entries):
     entries = []
-    for pre, suc, rel, ev, shares in LINEAGE_ENTRIES:
+    for pre, suc, rel, ev, shares in lineage_entries:
         e = {"predecessors": [W[k] for k in pre], "successors": [W[k] for k in suc],
              "relation": rel, "evidence": ev}
         if shares:
             e["shares"] = shares
         entries.append(e)
     data = [{"path": LINEAGE, "attributes": {"dokwood::lineage": {
-        "producer": "@ifc-lite/diff lineage, transcribed",
+        "producer": "@ifc-lite/cli 0.45.1 diff --geometry --split-merge, run on the STEP twins in ifc-lite/",
         "base": base,
         "head": head,
         "entries": entries, "deleted": []}}}]
@@ -278,11 +379,11 @@ def lineage(base, head):
             "imports": [], "schemas": schemas, "data": data}
 
 
-def assignment_v2():
+def assignment_v2(lineage_entries):
     # copy-to-all: every successor of an assigned occurrence gets the type, but must be re-confirmed.
     data = []
     by_old = {k: (c, v, s) for k, c, v, s in ASSIGN_V1}
-    for pre, suc, rel, _, _ in LINEAGE_ENTRIES:
+    for pre, suc, rel, _, _ in lineage_entries:
         if len(pre) != 1:
             raise ValueError("only single-predecessor relations are carried")
         if pre[0] not in by_old:
@@ -298,11 +399,12 @@ def assignment_v2():
             "imports": [], "schemas": ASSIGN_SCHEMA, "data": data}
 
 
+lineage_entries = ifc_lite_lineage(write_step(WALLS_V1, "v1"), write_step(WALLS_V2, "v2"))
 m1 = write(model(WALLS_V1, "v1"))
 m2 = write(model(WALLS_V2, "v2"))
 write(catalog())
 write(derivation(WALLS_V1, "v1", m1))
 write(derivation(WALLS_V2, "v2", m2))
 write(assignment_v1())
-write(lineage(m1, m2))
-write(assignment_v2())
+write(lineage(m1, m2, lineage_entries))
+write(assignment_v2(lineage_entries))

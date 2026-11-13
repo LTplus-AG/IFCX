@@ -23,19 +23,28 @@ See "What would be proposed under bsi::" below.
 | 4 assignment | `4-assignment-v1.ifcx` | detail editor | Type assignment and review state per occurrence |
 | 4 provenance | `4-lineage-v1-v2.ifcx` | model comparison | Lineage from v1 walls to v2 walls |
 | 4 assignment | `4-assignment-v2.ifcx` | detail editor | v1 assignments carried to v2 occurrences via the lineage |
+| (not a layer) | `ifc-lite/model-v1.ifc`, `model-v2.ifc` | `generate.py` | IFC STEP twins of the two models, for ifc-lite |
+| (not a layer) | `ifc-lite/lineage-v1-v2.json` | ifc-lite 0.45.1 | Lineage sidecar from diffing the twins |
 
 Model v2 is a full re-export, not a layer on top of v1. That is the hard case:
 new paths for every changed element.
 
-`generate.py` writes all eight `.ifcx` files. To change the example, edit the
-script and run it in this folder (Python 3.8 or later, no packages):
+`generate.py` writes all eight `.ifcx` files and the two STEP twins. To change
+the example, edit the script and run it in this folder (Python 3.8 or later,
+no packages):
 
 ```sh
 python3 generate.py
 ```
 
 It writes next to itself and is deterministic, so an unchanged script gives
-the committed files byte for byte.
+the committed files byte for byte. If a change touches the model, the STEP
+twins change too and the script stops until the lineage sidecar is rerun
+(Node 20 or later):
+
+```sh
+cd ifc-lite && npx -y @ifc-lite/cli@0.45.1 diff model-v1.ifc model-v2.ifc --geometry --split-merge --lineage-out lineage-v1-v2.json
+```
 
 ## How each IFCX mechanism is used
 
@@ -93,17 +102,24 @@ model version an occurrence was derived from.
 
 ### Lineage
 
-`dokwood::lineage` mirrors the `ifc-lite/lineage` v1 sidecar: `base` and
-`head` bound by SHA-256, `entries` with lists of predecessors and successors,
-`relation`, `evidence`, optional `shares`, and `deleted`. Differences from
-ifc-lite: references are IFCX paths instead of GlobalIds, and `renamed` and
-`moved` are relations here, where ifc-lite uses `identity` with reason
-`content-match:renamed` / `content-match:moved`. The entries were transcribed
-from the demo output, not produced by running ifc-lite on these files
-(unproven that ifc-lite can diff IFCX).
+`dokwood::lineage` is the `ifc-lite/lineage` v1 sidecar translated to IFCX:
+`base` and `head`, `entries` with lists of predecessors and successors,
+`relation`, `evidence`, optional `shares`, and `deleted`. ifc-lite reads IFC
+STEP, not IFCX (`ifc-lite diff 1-model-v1.ifcx 1-model-v2.ifcx` fails with
+"is not a valid IFC/STEP file"), so the entries come from diffing STEP twins
+of the two models. `generate.py` writes the twins with the same GlobalIds,
+names, `IsExternal` and boxes as the IFCX models, reads
+`ifc-lite/lineage-v1-v2.json`, checks that its hashes match the twins it just
+wrote, and copies relation, reason and shares verbatim, with GlobalIds turned
+into IFCX paths. (proven by running: `@ifc-lite/cli` 0.45.1 from npm, command
+above, gave a split of Wand 1 with shares 2/3 and 1/3, and Wand 2 and Wand 4
+as `identity` with reasons `content-match:renamed` and `content-match:moved`)
 
-The hashes are over the exact bytes of `1-model-v1.ifcx` and
-`1-model-v2.ifcx`. (proven by running: a test recomputes them)
+What is not from ifc-lite: the IFCX paths, and `base` and `head`, which hold
+the SHA-256 of `1-model-v1.ifcx` and `1-model-v2.ifcx` rather than of the
+twins. (proven by running: a test recomputes them) That the twins carry the
+same content as the IFCX models is by construction in `generate.py`, not
+checked.
 
 ## Compose it
 
@@ -133,15 +149,18 @@ v1  Wand_1__Decke    D012/v3  approved
 
 v2  Wand_1_1__Decke  D012/v3  to-confirm   carriedFrom c876b170 (split)
     Wand_1_2__Decke  D012/v3  to-confirm   carriedFrom c876b170 (split)
-    Wand_2__Decke    D012/v3  in-review    carriedFrom d5a65e9f (renamed)
+    Wand_2__Decke    D012/v3  in-review    carriedFrom d5a65e9f (identity)
     Wand_3__Decke    D021/v1  approved     (same path as v1)
     Wand_4__Decke    (no type)
     root c876b170    D012/v3  approved     no members  <- orphan
     root d5a65e9f    D012/v3  in-review    no members  <- orphan
 ```
 
-The web viewer (`src/viewer`) loads the six v2 layers and renders the walls
-and slab. (proven by running, in a local build of the viewer)
+The web viewer (`web/viewer`, built from `src/viewer` with the
+`build-viewer` esbuild command) loads the six v2 layers in the order above and
+renders the five walls and the translucent slab. (proven by running: headless
+Chrome, no console errors except a 404 for `favicon.ico` from the static file
+server)
 
 ## Open gaps
 
@@ -200,8 +219,8 @@ and slab. (proven by running, in a local build of the viewer)
   with role, junction kind, extent. Needs a real reference type that the
   validator resolves.
 - `bsi::lineage` as a layer kind or header block: predecessors, successors,
-  relation (split, merge, renamed, moved, replaced), evidence, shares, bound
-  to content hashes of both versions.
+  relation (identity, split, merge, replaced, as in ifc-lite), evidence,
+  shares, bound to content hashes of both versions.
 - A composition rule for opinions about nodes that no longer exist.
 
 The detail types and their catalog stay in a domain namespace; they are not a

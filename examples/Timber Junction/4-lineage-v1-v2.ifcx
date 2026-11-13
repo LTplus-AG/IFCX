@@ -69,10 +69,9 @@
                         "dataType": "Enum",
                         "enumRestrictions": {
                           "options": [
+                            "identity",
                             "split",
                             "merge",
-                            "renamed",
-                            "moved",
                             "replaced"
                           ]
                         }
@@ -112,7 +111,7 @@
       "path": "94778cdc-3e01-5007-a491-1264c08ff6e9",
       "attributes": {
         "dokwood::lineage": {
-          "producer": "@ifc-lite/diff lineage, transcribed",
+          "producer": "@ifc-lite/cli 0.45.1 diff --geometry --split-merge, run on the STEP twins in ifc-lite/",
           "base": {
             "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v1.ifcx",
             "sha256": "476b523e845cd5af0009b56b6ea06a78160c3cacea673d5cfe99be48f9de2834"
@@ -133,8 +132,8 @@
               "relation": "split",
               "evidence": "split:verified",
               "shares": [
-                0.6667,
-                0.3333
+                0.6666666666666666,
+                0.3333333333333333
               ]
             },
             {
@@ -144,7 +143,7 @@
               "successors": [
                 "cd3ec012-1541-5c56-8cad-a962328d922f"
               ],
-              "relation": "renamed",
+              "relation": "identity",
               "evidence": "content-match:renamed"
             },
             {
@@ -154,7 +153,7 @@
               "successors": [
                 "3ad8f0f9-f71c-5dc3-8e82-c5b981b8905f"
               ],
-              "relation": "moved",
+              "relation": "identity",
               "evidence": "content-match:moved"
             }
           ],

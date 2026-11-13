@@ -38,10 +38,9 @@
                     "dataType": "Enum",
                     "enumRestrictions": {
                       "options": [
+                        "identity",
                         "split",
                         "merge",
-                        "renamed",
-                        "moved",
                         "replaced"
                       ]
                     }

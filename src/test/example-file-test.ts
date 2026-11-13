@@ -46,7 +46,7 @@ describe("example file", () => {
             Wand_3__Decke: "D021/v1 approved", Wand_4__Decke: "-" });
         expect(OccurrenceSummaries(v2)).to.deep.equal({
             Wand_1_1__Decke: "D012/v3 to-confirm split c876b170", Wand_1_2__Decke: "D012/v3 to-confirm split c876b170",
-            Wand_2__Decke: "D012/v3 in-review renamed d5a65e9f", Wand_3__Decke: "D021/v1 approved", Wand_4__Decke: "-" });
+            Wand_2__Decke: "D012/v3 in-review identity d5a65e9f", Wand_3__Decke: "D021/v1 approved", Wand_4__Decke: "-" });
 
         // Known gap: v1 assignments whose occurrence was not re-derived compose as member-less roots.
         const orphans = [...v2.children.values()].filter(n =>

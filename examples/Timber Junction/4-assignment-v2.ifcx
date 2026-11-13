@@ -38,10 +38,9 @@
                     "dataType": "Enum",
                     "enumRestrictions": {
                       "options": [
+                        "identity",
                         "split",
                         "merge",
-                        "renamed",
-                        "moved",
                         "replaced"
                       ]
                     }
@@ -109,7 +108,7 @@
           "carriedFrom": {
             "occurrence": "d5a65e9f-e257-582a-9a83-fccc4a6ff50c",
             "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
-            "relation": "renamed",
+            "relation": "identity",
             "policy": "copy-to-all"
           }
         }
