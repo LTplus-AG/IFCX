@@ -242,13 +242,13 @@ was reviewed. Here both are D031/v1, so the merged occurrence gets D031/v1
 `to-confirm`, with `carriedFrom.occurrences` listing both old occurrences.
 (proven by running: `timber junction carries merges by same-type-or-none`,
 which checks the rule for every merge entry) If they disagree, nothing is
-carried in this shape (pointed at `generate.py:597`; unproven, these layers
+carried in this shape (pointed at `generate.py:621`; unproven, these layers
 have no such case). The view shape has one, see "Carrying views across a
 model revision".
 
 Every other relation uses `copy-to-all`: every successor gets the type. Only
 an `identity` successor keeps its state, unless the approval rule resets it;
-any other successor is `to-confirm` (pointed at `generate.py:581`; `replaced`
+any other successor is `to-confirm` (pointed at `generate.py:605`; `replaced`
 is unproven, the example has none).
 
 ### Pieces keep the old name
@@ -631,8 +631,8 @@ The web viewer, built with the `build-viewer` esbuild command into a scratch
 folder, loaded the BP stack as it was before the carry (twelve layers,
 hand-written view layers) and rendered the walls, the slab and the duct
 through Wand 2, which has a box mesh; the model tree listed both view groups.
-(proven by running at commit `45fa415`, headless Chrome) Not rerun for the
-stacks above. (unproven)
+(proven by running before the carry step was added, headless Chrome) Not
+rerun for the stacks above. (unproven)
 
 ## Open gaps
 
@@ -766,7 +766,7 @@ Found with "Carrying views across a model revision":
     running, carry test)
 24. **The carry is a tool outside IFCX**, as in gap 5, now once per view. It
     has to run after every re-export and before anyone reads the views.
-    Nothing in a stack says whether it ran. (pointed at `generate.py:559`,
+    Nothing in a stack says whether it ran. (pointed at `generate.py:583`,
     `carry`)
 
 ## Real corpus case: r09 to r10 partition-wall split

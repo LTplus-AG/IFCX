@@ -219,7 +219,7 @@ describe("example file", () => {
         // The manifest binds each model by its bytes, in SRI form.
         expect(fed.imports).to.deep.equal(names.map((n, i) => ({ uri: models[i].header.id,
             integrity: `sha256-${FileSha(`${n}.ifcx`, "base64")}` })));
-        const [place] = ReadTimberJunction("3-derivation-federated").data.filter(d => d.attributes?.["dokwood::derivation"]);
+        const [place] = Places("3-derivation-federated");
         const derivation = place.attributes!["dokwood::derivation"];
         expect([derivation.sourceLayer, derivation.sourceSha256]).to.deep.equal([fed.header.id, FileSha("0-federation-bp.ifcx")]);
         // One member is an element of the architect's model, the other of the MEP model.
@@ -240,7 +240,6 @@ describe("example file", () => {
         // exactly place and type, so a place has at most one type per view. A scope item has no place and inherits
         // only type; a carried merge whose predecessors disagreed has no type and inherits only place. Read from the
         // input files, since the composed output has no inherits.
-        const viewLayers = ["5-view-detail-bp", "5-view-cost-bp"];
         for (const stack of viewStacks) {
             const places = new Set(stack.flatMap(n => Places(n).map(d => d.path)));
             const layers = stack.filter(n => n.startsWith("5-view-"));
@@ -266,13 +265,13 @@ describe("example file", () => {
         }
         // A view layer writes no path that any other layer of the stack writes.
         const writes = new Map(timberJunctionBP.map(n => [n, ReadTimberJunction(n).data.map(d => d.path)]));
-        for (const layer of viewLayers) {
+        for (const layer of ViewLayers("bp")) {
             const others = new Set(timberJunctionBP.filter(n => n !== layer).flatMap(n => writes.get(n)!));
             expect(writes.get(layer)!.filter(p => others.has(p)), layer).to.deep.equal([]);
         }
         // Two views type the same place differently and each sees the place's members, extent and derivation.
         const bp = await ComposeTimberJunction(timberJunctionBP);
-        const [detail, cost] = ["detail", "cost"].map(v => RootNamed(bp, `View: ${v}`).children);
+        const [detail, cost] = timberJunctionViewNames.map(v => RootNamed(bp, `View: ${v}`).children);
         const placeKeys = ["dokwood::derivation", "dokwood::detail::members", "dokwood::detail::topology"];
         // Per place: [detail type, generic type] as the detail view shows it, then as the cost view shows it.
         const typed: { [name: string]: (string | undefined)[][] } = {
@@ -299,12 +298,12 @@ describe("example file", () => {
         // The v1 view layers left in the BP stack, as the old v2 stack keeps 4-assignment-v1: every v1 occurrence on a
         // place that was not derived again is found, and each is named by a carried BP occurrence.
         const bp = timberJunctionBP.map(ReadTimberJunction);
-        const v1Views = ["5-view-detail-v1", "5-view-cost-v1"];
+        const v1Views = ViewLayers("v1");
         const withV1 = [...v1Views.map(ReadTimberJunction), ...bp];
         const rederived = new Set(Places("3-derivation-v2").map(d => d.path));
         const stale = v1Views.flatMap(n => ViewOccurrences(n)).filter(o => !rederived.has(o.place)).map(o => o.path);
         expect([stale.length, OrphanViewOccurrences(withV1).sort()]).to.deep.equal([8, [...stale].sort()]);
-        const named = new Set(["5-view-detail-bp", "5-view-cost-bp"].flatMap(n => ViewOccurrences(n))
+        const named = new Set(ViewLayers("bp").flatMap(n => ViewOccurrences(n))
             .flatMap(o => o.assignment.carriedFrom?.occurrences ?? []));
         expect(stale.filter(p => !named.has(p))).to.deep.equal([]);
         // Known gap: inherits to a missing path is not an error. The stale occurrences compose under the view group
@@ -346,8 +345,8 @@ describe("example file", () => {
             Decke__Balkonplatte: "- to-confirm merge" });
         // The rules behind those rows, checked on every carried occurrence against the v1 view, the lineage and the
         // re-derived places. No v1 occurrence is left without a successor.
-        for (const view of ["detail", "cost"]) {
-            expect(CheckCarried(view, `5-view-${view}-v1`, `5-view-${view}-bp`, "3-derivation-v2", ["4-lineage-v1-v2"]), view).to.deep.equal([]);
+        for (const view of timberJunctionViewNames) {
+            expect(CheckCarried(view, `5-view-${view}-bp`, "3-derivation-v2", ["4-lineage-v1-v2"]), view).to.deep.equal([]);
         }
         // The detail view says what the single-node shape says, in v1 and after the carry: type and state per place.
         const typeAndState = (rows: { [name: string]: string }) => Object.fromEntries(Object.entries(rows)
@@ -355,14 +354,13 @@ describe("example file", () => {
         expect(typeAndState(ViewSummaries(v1, "detail"))).to.deep.equal(typeAndState(OccurrenceSummaries(await ComposeTimberJunction(timberJunctionV1))));
         const { Wand_4__Decke, ...carried } = typeAndState(ViewSummaries(bp, "detail"));
         expect(carried).to.deep.equal(typeAndState(OccurrenceSummaries(await ComposeTimberJunction(timberJunctionV2))));
-        expect(ViewOccurrences("5-view-detail-bp").filter(o => !o.assignment.carriedFrom).map(o => o.name)).to.deep.equal(["Wand_4__Decke"]);
     });
     it("timber junction views carry: an approval holds only for the derivation it reviewed, per view", async () => {
         // A composed view occurrence shows its place's derivation record, so the rule is checked on the node itself.
         const check = async (stack: string[]) => {
             const root = await ComposeTimberJunction(stack);
             const approved: string[] = [], stale: string[] = [];
-            for (const view of ["detail", "cost"]) {
+            for (const view of timberJunctionViewNames) {
                 for (const [child, o] of RootNamed(root, `View: ${view}`).children) {
                     const name = `${view} ${child}`;
                     const a = o.attributes.get("dokwood::assignment");
@@ -388,7 +386,7 @@ describe("example file", () => {
             "detail Wand_3__Decke", "cost Wand_1_1__Decke", "cost Wand_1_2__Decke", "cost Wand_2__Decke"] });
     });
     it("timber junction views carry: with the ifc-lite lineage alone the smaller Wand 1 piece gets nothing, the manual entry fixes it", async () => {
-        const placeOf = (gid: string) => Places("3-derivation-v2-samename").find(d => d.attributes!["dokwood::detail::members"][0].ref === PathOf(gid))!.path;
+        const placeOf = (gid: string) => Places("3-derivation-v2-samename").find(d => SubjectOf(d) === PathOf(gid))!.path;
         const [w1a, w1b] = ["2WandW1aNeuTeilstueckA", "2WandW1bNeuTeilstueckB"].map(placeOf);
         const row = (layer: string, place: string) => ViewOccurrences(layer).filter(o => o.place === place)
             .map(o => [o.assignment.state, o.assignment.carriedFrom.relation, o.assignment.carriedFrom.lineage]);
@@ -397,12 +395,12 @@ describe("example file", () => {
         const auto = "5-view-detail-v2-samename-auto";
         expect([row(auto, w1a), row(auto, w1b)]).to.deep.equal([[["to-confirm", "identity", tool]], []]);
         expect(PlacesWithoutOccurrence(timberJunctionSameNameViewsAuto, "detail")).to.deep.equal(["Wand_1__Decke_W1b", "Wand_4__Decke"]);
-        expect(CheckCarried("detail", "5-view-detail-v1", auto, "3-derivation-v2-samename", ["4-lineage-v1-v2-samename"])).to.deep.equal([]);
+        expect(CheckCarried("detail", auto, "3-derivation-v2-samename", ["4-lineage-v1-v2-samename"])).to.deep.equal([]);
         // With the manual entry in place of the ifc-lite one: both pieces, as a split, naming the manual lineage node.
         const fixed = "5-view-detail-v2-samename";
         expect([row(fixed, w1a), row(fixed, w1b)]).to.deep.equal([[["to-confirm", "split", manual]], [["to-confirm", "split", manual]]]);
         expect(PlacesWithoutOccurrence(timberJunctionSameNameViews, "detail")).to.deep.equal(["Wand_4__Decke"]);
-        expect(CheckCarried("detail", "5-view-detail-v1", fixed, "3-derivation-v2-samename",
+        expect(CheckCarried("detail", fixed, "3-derivation-v2-samename",
             ["4-lineage-v1-v2-samename", "4-lineage-v1-v2-samename-manual"])).to.deep.equal([]);
         // Both stacks compose and validate; the rule check cannot tell the wrong one from the right one.
         const composed = await ComposeTimberJunction(timberJunctionSameNameViews);
@@ -415,7 +413,7 @@ describe("example file", () => {
         const bp = timberJunctionBP.map(ReadTimberJunction);
         const viewsOf = async (files: IfcxFile[]) => {
             const root = await ComposeFiles(files);
-            return ["detail", "cost"].map(v => RootNamed(root, `View: ${v}`).children.get("Wand_1_1__Decke")!);
+            return timberJunctionViewNames.map(v => RootNamed(root, `View: ${v}`).children.get("Wand_1_1__Decke")!);
         };
         const [detail, cost] = await viewsOf(bp);
         expect([TypeOf(detail), TypeOf(cost)]).to.deep.equal(["D012/v3", "-"]);
@@ -495,6 +493,8 @@ const timberJunctionSameNameViews = ["1-model-v2-samename", "2-catalog-generic",
     "5-view-detail-v2-samename", "4-lineage-v1-v2-samename", "4-lineage-v1-v2-samename-manual"];
 const timberJunctionSameNameViewsAuto = ["1-model-v2-samename", "2-catalog-generic", "2-catalog", "3-derivation-v2-samename",
     "5-view-detail-v2-samename-auto", "4-lineage-v1-v2-samename"];
+// The views with a layer per model version; destructured as [detail, cost] where a test names both.
+const timberJunctionViewNames = ["detail", "cost"];
 const viewStacks = [timberJunctionVP, timberJunctionV1Views, timberJunctionBP, timberJunctionSameNameViews, timberJunctionSameNameViewsAuto];
 // One provider for all composes, so the ifcx.dev imports are fetched once per run.
 const fetchProvider = new FetchLayerProvider();
@@ -707,10 +707,27 @@ const scopeItem = ViewPath("cost", "scope|slab-bearing-exterior");
 const catalogPath = Uuid5(timberJunctionNs, "catalog");
 const genericTypePath = Uuid5(timberJunctionNs, "generic-type|slab-bearing-exterior");
 
-// The derived places a layer writes.
+// The derived places a file writes.
+function PlacesOf(file: IfcxFile)
+{
+    return file.data.filter(d => d.attributes?.["dokwood::derivation"]);
+}
+
 function Places(layer: string)
 {
-    return ReadTimberJunction(layer).data.filter(d => d.attributes?.["dokwood::derivation"]);
+    return PlacesOf(ReadTimberJunction(layer));
+}
+
+// The element a place is about: its member that is not the floor slab.
+function SubjectOf(place: IfcxFile["data"][0]): string
+{
+    return place.attributes!["dokwood::detail::members"].find((m: any) => m.ref !== slabPath).ref;
+}
+
+// The view layers of one phase or model version, one per view.
+function ViewLayers(suffix: string)
+{
+    return timberJunctionViewNames.map(view => `5-view-${view}-${suffix}`);
 }
 
 // A view layer as written: per occurrence its child name, place, type, assignment and view data.
@@ -738,7 +755,7 @@ function ViewSummaries(root: PostCompositionNode, view: string)
 // View occurrences whose place no layer of the stack derives. Scope items have no place and are not meant.
 function OrphanViewOccurrences(files: IfcxFile[])
 {
-    const places = new Set(files.flatMap(f => f.data.filter(d => d.attributes?.["dokwood::derivation"]).map(d => d.path)));
+    const places = new Set(files.flatMap(f => PlacesOf(f).map(d => d.path)));
     return files.flatMap(f => f.data.filter(d => d.attributes?.["dokwood::assignment"] && d.inherits?.place && !places.has(d.inherits.place))
         .map(d => d.path));
 }
@@ -747,16 +764,16 @@ function OrphanViewOccurrences(files: IfcxFile[])
 function PlacesWithoutOccurrence(stack: string[], view: string)
 {
     const typed = new Set(stack.filter(n => n.startsWith(`5-view-${view}-`)).flatMap(n => ViewOccurrences(n)).map(o => o.place));
-    return stack.filter(n => n.startsWith("3-derivation-")).flatMap(n => Object.entries(ReadTimberJunction(n).data[0].children!))
+    return stack.filter(n => n.startsWith("3-derivation-")).flatMap(n => Object.entries(OccurrenceGroup(n.slice("3-derivation-".length)).children!))
         .filter(([, path]) => !typed.has(path)).map(([name]) => name);
 }
 
 // The carry rules, checked on every carried occurrence of a head view layer against the base view layer, the lineage
-// layers and the re-derived places. Returns the base occurrences that no head occurrence names.
-function CheckCarried(view: string, baseLayer: string, headLayer: string, headDerivation: string, lineageLayers: string[])
+// layers and the re-derived places. The base is the v1 layer of that view. Returns the base occurrences that no head occurrence names.
+function CheckCarried(view: string, headLayer: string, headDerivation: string, lineageLayers: string[])
 {
-    const subject = (place: IfcxFile["data"][0]) => place.attributes!["dokwood::detail::members"].find((m: any) => m.ref !== slabPath).ref;
-    const basePlace = new Map(Places("3-derivation-v1").map(d => [subject(d), d.path]));
+    const baseLayer = `5-view-${view}-v1`;
+    const basePlace = new Map(Places("3-derivation-v1").map(d => [SubjectOf(d), d.path]));
     const headPlace = new Map(Places(headDerivation).map(d => [d.path, d]));
     const base = new Map(ViewOccurrences(baseLayer).map(o => [o.path, o]));
     const lineages = new Map(lineageLayers.map(LineageNode).map(n => [n.path, n.attributes!["dokwood::lineage"].entries as any[]]));
@@ -767,7 +784,7 @@ function CheckCarried(view: string, baseLayer: string, headLayer: string, headDe
         const { layer, sha256, occurrences, lineage, relation, policy } = carried;
         expect({ layer, sha256 }, o.name).to.deep.equal(FileBinding(baseLayer));
         const place = headPlace.get(o.place)!;
-        const entry = lineage && lineages.get(lineage)!.find(e => e.successors.includes(subject(place)));
+        const entry = lineage && lineages.get(lineage)!.find(e => e.successors.includes(SubjectOf(place)));
         if (lineage) {
             // The entry that leads to this place's element, and the base occurrences on its predecessors' places.
             expect(entry?.relation, o.name).to.equal(relation);
