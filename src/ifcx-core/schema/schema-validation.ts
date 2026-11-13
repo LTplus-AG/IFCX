@@ -82,7 +82,7 @@ function ValidateAttributeValue(desc: IfcxValueDescription, value: any, path: st
     }
     else if (desc.dataType === "Object")
     {
-        if (typeof value !== "object")
+        if (typeof value !== "object" || value === null)
         {
             throw new SchemaValidationError(`Expected "${value}" to be of type object`);
         }
@@ -128,6 +128,7 @@ export function Validate(schemas: {[key: string]: IfcxSchema}, inputNodes: Map<s
             }
             let schema = schemas[schemaID];
             let value = node.attributes[schemaID];
+            if (value === null) return; // null is the deletion marker, nothing to validate
             
             try
             {
