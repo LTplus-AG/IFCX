@@ -1,0 +1,30 @@
+{
+  "format": "ifc-lite/lineage",
+  "version": 1,
+  "base": {
+    "hash": "sha256:6b83bd45c297b545a45fc8a1d331a19380a4b9302f9e1a467ad8a68f25d08d17",
+    "path": "building-architecture-r09.ifc"
+  },
+  "head": {
+    "hash": "sha256:b47e05a7a1cadc4bdc4ec7f5ffa98866c6e62265dc509dedc2fcc7a11caf885e",
+    "path": "building-architecture-r10.ifc"
+  },
+  "entries": [
+    {
+      "base": [
+        "2tsdtNmQj7tRjIX4ABManr"
+      ],
+      "head": [
+        "0KkLs7PeT5xeBRlY1ixJUZ",
+        "2fdw0DJf9FhApKd3dUa4tH"
+      ],
+      "relation": "split",
+      "reason": "split:verified",
+      "shares": [
+        0.5,
+        0.5
+      ]
+    }
+  ],
+  "deleted": []
+}

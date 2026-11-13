@@ -1,0 +1,181 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/4-manual-split.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "planner (manual review in detail editor)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [],
+  "schemas": {
+    "dokwood::detail::manualSplit": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "reason": {
+              "dataType": "String"
+            },
+            "author": {
+              "dataType": "String"
+            },
+            "timestamp": {
+              "dataType": "String"
+            }
+          }
+        }
+      }
+    },
+    "dokwood::detail::members": {
+      "value": {
+        "dataType": "Array",
+        "arrayRestrictions": {
+          "value": {
+            "dataType": "Object",
+            "objectRestrictions": {
+              "values": {
+                "ref": {
+                  "dataType": "Reference"
+                },
+                "role": {
+                  "dataType": "String"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "dokwood::detail::topology": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "junction": {
+              "dataType": "String"
+            },
+            "extent": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "kind": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "point",
+                        "line",
+                        "area"
+                      ]
+                    }
+                  },
+                  "length": {
+                    "dataType": "Real",
+                    "optional": true
+                  },
+                  "start": {
+                    "dataType": "Array",
+                    "arrayRestrictions": {
+                      "value": {
+                        "dataType": "Real"
+                      }
+                    },
+                    "optional": true
+                  },
+                  "end": {
+                    "dataType": "Array",
+                    "arrayRestrictions": {
+                      "value": {
+                        "dataType": "Real"
+                      }
+                    },
+                    "optional": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "d5a65e9f-e257-582a-9a83-fccc4a6ff50c",
+      "children": {
+        "Teil_1": "6e812e15-8ab3-53c5-8fea-2112e36c0181",
+        "Teil_2": "d683a3cb-41f1-508e-9951-1834af5145ae"
+      },
+      "attributes": {
+        "dokwood::detail::manualSplit": {
+          "reason": "balcony door from x 2.50 to 3.50",
+          "author": "planner (manual review in detail editor)",
+          "timestamp": "2026-11-13T10:30:00Z"
+        }
+      }
+    },
+    {
+      "path": "6e812e15-8ab3-53c5-8fea-2112e36c0181",
+      "attributes": {
+        "dokwood::detail::members": [
+          {
+            "ref": "f67f61de-119a-546b-8d06-35b2b83bb491",
+            "role": "bearing"
+          },
+          {
+            "ref": "05b23ede-6634-5544-af86-10c324c07c06",
+            "role": "supported"
+          }
+        ],
+        "dokwood::detail::topology": {
+          "junction": "slab-on-wall",
+          "extent": {
+            "kind": "line",
+            "length": 2.5,
+            "start": [
+              0.0,
+              5.12,
+              2.6
+            ],
+            "end": [
+              2.5,
+              5.12,
+              2.6
+            ]
+          }
+        }
+      }
+    },
+    {
+      "path": "d683a3cb-41f1-508e-9951-1834af5145ae",
+      "attributes": {
+        "dokwood::detail::members": [
+          {
+            "ref": "f67f61de-119a-546b-8d06-35b2b83bb491",
+            "role": "bearing"
+          },
+          {
+            "ref": "05b23ede-6634-5544-af86-10c324c07c06",
+            "role": "supported"
+          }
+        ],
+        "dokwood::detail::topology": {
+          "junction": "slab-on-wall",
+          "extent": {
+            "kind": "line",
+            "length": 2.5,
+            "start": [
+              3.5,
+              5.12,
+              2.6
+            ],
+            "end": [
+              6.0,
+              5.12,
+              2.6
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

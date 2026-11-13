@@ -1,0 +1,219 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/4-lineage-v1-v2.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "model comparison (@ifc-lite/diff)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [],
+  "schemas": {
+    "dokwood::lineage": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "producer": {
+              "dataType": "String"
+            },
+            "sidecar": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "file": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  }
+                }
+              },
+              "optional": true
+            },
+            "base": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  }
+                }
+              }
+            },
+            "head": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  }
+                }
+              }
+            },
+            "entries": {
+              "dataType": "Array",
+              "arrayRestrictions": {
+                "value": {
+                  "dataType": "Object",
+                  "objectRestrictions": {
+                    "values": {
+                      "predecessors": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Reference"
+                          }
+                        }
+                      },
+                      "successors": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Reference"
+                          }
+                        }
+                      },
+                      "relation": {
+                        "dataType": "Enum",
+                        "enumRestrictions": {
+                          "options": [
+                            "identity",
+                            "split",
+                            "merge",
+                            "replaced"
+                          ]
+                        }
+                      },
+                      "evidence": {
+                        "dataType": "String"
+                      },
+                      "shares": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Real"
+                          }
+                        },
+                        "optional": true
+                      },
+                      "source": {
+                        "dataType": "Enum",
+                        "enumRestrictions": {
+                          "options": [
+                            "ifc-lite",
+                            "manual"
+                          ]
+                        }
+                      },
+                      "author": {
+                        "dataType": "String",
+                        "optional": true
+                      },
+                      "timestamp": {
+                        "dataType": "String",
+                        "optional": true
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "deleted": {
+              "dataType": "Array",
+              "arrayRestrictions": {
+                "value": {
+                  "dataType": "Reference"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+      "attributes": {
+        "dokwood::lineage": {
+          "producer": "@ifc-lite/cli@0.45.1 diff --geometry --split-merge, run on the STEP twins in ifc-lite/",
+          "sidecar": {
+            "file": "ifc-lite/lineage-v1-v2.json",
+            "sha256": "19e1ead331432c7e0f20d834078fddabe333b9e374491affcec976e3c1526e2b"
+          },
+          "base": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v1.ifcx",
+            "sha256": "7a3e9751cb49ae30fb25ead9976dace14c55fa07ee78009ba457388cd9a8e0cd"
+          },
+          "head": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v2.ifcx",
+            "sha256": "4d106680dc6897b650a4457a1b8d507d3767e12b8ec26aed7bcb89d4386473cf"
+          },
+          "entries": [
+            {
+              "predecessors": [
+                "e9f11d11-e391-5112-a5da-33c607555fc3",
+                "e84753a2-92b0-5906-a89d-9214ba6f3d40"
+              ],
+              "successors": [
+                "5778caf1-56ae-59f5-a513-526426d6fd7f"
+              ],
+              "relation": "merge",
+              "evidence": "merge:verified",
+              "source": "ifc-lite",
+              "shares": [
+                0.5,
+                0.5
+              ]
+            },
+            {
+              "predecessors": [
+                "3897f691-029a-59f9-8b78-441618b20751"
+              ],
+              "successors": [
+                "90330d74-e5fa-54b0-bc79-8b23da540c26",
+                "c9fbf9f4-7c07-569b-9cd2-4ea05b82b645"
+              ],
+              "relation": "split",
+              "evidence": "split:verified",
+              "source": "ifc-lite",
+              "shares": [
+                0.6666666666666666,
+                0.3333333333333333
+              ]
+            },
+            {
+              "predecessors": [
+                "f67f61de-119a-546b-8d06-35b2b83bb491"
+              ],
+              "successors": [
+                "cd3ec012-1541-5c56-8cad-a962328d922f"
+              ],
+              "relation": "identity",
+              "evidence": "content-match:renamed",
+              "source": "ifc-lite"
+            },
+            {
+              "predecessors": [
+                "5504f316-d63c-5efc-828c-11bf228e6ce5"
+              ],
+              "successors": [
+                "3ad8f0f9-f71c-5dc3-8e82-c5b981b8905f"
+              ],
+              "relation": "identity",
+              "evidence": "content-match:moved",
+              "source": "ifc-lite"
+            }
+          ],
+          "deleted": []
+        }
+      }
+    }
+  ]
+}

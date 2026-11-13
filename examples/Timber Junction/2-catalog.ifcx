@@ -1,0 +1,192 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/2-catalog.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "DOKwood platform (detail catalog)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [],
+  "schemas": {
+    "dokwood::catalog": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "name": {
+              "dataType": "String"
+            },
+            "publisher": {
+              "dataType": "String"
+            }
+          }
+        }
+      }
+    },
+    "dokwood::detail::type": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "code": {
+              "dataType": "String"
+            },
+            "name": {
+              "dataType": "String"
+            },
+            "version": {
+              "dataType": "String"
+            },
+            "junction": {
+              "dataType": "String"
+            },
+            "roles": {
+              "dataType": "Array",
+              "arrayRestrictions": {
+                "value": {
+                  "dataType": "Object",
+                  "objectRestrictions": {
+                    "values": {
+                      "role": {
+                        "dataType": "String"
+                      },
+                      "assembly": {
+                        "dataType": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "document": {
+              "dataType": "String"
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "7fba7fc8-d5fd-546b-99b7-56fd912629f3",
+      "children": {
+        "D012": "7766f60a-25e7-5663-af57-f1515e3c49e4",
+        "D021": "7c7ca018-8b80-5d9e-b93f-765a870a3926",
+        "D031": "bea0b4b8-7677-581f-a05e-29af8d57f8f5"
+      },
+      "attributes": {
+        "dokwood::catalog": {
+          "name": "DOKwood Detailkatalog (example)",
+          "publisher": "DOKwood platform"
+        }
+      }
+    },
+    {
+      "path": "7766f60a-25e7-5663-af57-f1515e3c49e4",
+      "children": {
+        "v2": "cfaee718-b06e-53b7-a504-19ed1532a79a",
+        "v3": "bff29461-c525-5383-a99c-ad799194fa83"
+      }
+    },
+    {
+      "path": "7c7ca018-8b80-5d9e-b93f-765a870a3926",
+      "children": {
+        "v1": "1b8ea740-d0b3-5897-98ca-374f622e4f06"
+      }
+    },
+    {
+      "path": "bea0b4b8-7677-581f-a05e-29af8d57f8f5",
+      "children": {
+        "v1": "e941adf0-1e85-5c56-983f-79b167448eca"
+      }
+    },
+    {
+      "path": "cfaee718-b06e-53b7-a504-19ed1532a79a",
+      "attributes": {
+        "dokwood::detail::type": {
+          "code": "D012",
+          "name": "Deckenauflager aussen",
+          "version": "v2",
+          "junction": "slab-on-wall",
+          "roles": [
+            {
+              "role": "bearing",
+              "assembly": "AW Holzrahmen 240"
+            },
+            {
+              "role": "supported",
+              "assembly": "Decke Holz 240"
+            }
+          ],
+          "document": "https://example.org/dokwood/details/D012_v2.pdf"
+        }
+      }
+    },
+    {
+      "path": "bff29461-c525-5383-a99c-ad799194fa83",
+      "attributes": {
+        "dokwood::detail::type": {
+          "code": "D012",
+          "name": "Deckenauflager aussen",
+          "version": "v3",
+          "junction": "slab-on-wall",
+          "roles": [
+            {
+              "role": "bearing",
+              "assembly": "AW Holzrahmen 240"
+            },
+            {
+              "role": "supported",
+              "assembly": "Decke Holz 240"
+            }
+          ],
+          "document": "https://example.org/dokwood/details/D012_v3.pdf"
+        }
+      }
+    },
+    {
+      "path": "1b8ea740-d0b3-5897-98ca-374f622e4f06",
+      "attributes": {
+        "dokwood::detail::type": {
+          "code": "D021",
+          "name": "Innenwand unter Decke",
+          "version": "v1",
+          "junction": "slab-on-wall",
+          "roles": [
+            {
+              "role": "bearing",
+              "assembly": "IW Holzrahmen 120"
+            },
+            {
+              "role": "supported",
+              "assembly": "Decke Holz 240"
+            }
+          ],
+          "document": "https://example.org/dokwood/details/D021_v1.pdf"
+        }
+      }
+    },
+    {
+      "path": "e941adf0-1e85-5c56-983f-79b167448eca",
+      "attributes": {
+        "dokwood::detail::type": {
+          "code": "D031",
+          "name": "Balkonanschluss",
+          "version": "v1",
+          "junction": "slab-to-slab",
+          "roles": [
+            {
+              "role": "bearing",
+              "assembly": "Decke Holz 240"
+            },
+            {
+              "role": "supported",
+              "assembly": "Balkonplatte Holz 160"
+            }
+          ],
+          "document": "https://example.org/dokwood/details/D031_v1.pdf"
+        }
+      }
+    }
+  ]
+}
