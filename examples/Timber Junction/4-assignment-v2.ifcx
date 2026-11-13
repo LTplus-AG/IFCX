@@ -1,0 +1,105 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/4-assignment-v2.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "detail editor (DOKwood platform)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [],
+  "schemas": {
+    "dokwood::detail::assignment": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "state": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "proposed",
+                  "in-review",
+                  "approved",
+                  "to-confirm"
+                ]
+              }
+            },
+            "carriedFrom": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "occurrence": {
+                    "dataType": "Reference"
+                  },
+                  "lineage": {
+                    "dataType": "Reference"
+                  },
+                  "relation": {
+                    "dataType": "String"
+                  },
+                  "policy": {
+                    "dataType": "String"
+                  }
+                }
+              },
+              "optional": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "3de3f167-ded9-5d58-a746-bea12098d9c8",
+      "inherits": {
+        "detailType": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D012/v3"
+      },
+      "attributes": {
+        "dokwood::detail::assignment": {
+          "state": "to-confirm",
+          "carriedFrom": {
+            "occurrence": "c876b170-0f9d-5bb0-bf7e-0eb96a3ff346",
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "split",
+            "policy": "copy-to-all"
+          }
+        }
+      }
+    },
+    {
+      "path": "d5fc1958-9c80-5cf6-8572-59cbbee4498c",
+      "inherits": {
+        "detailType": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D012/v3"
+      },
+      "attributes": {
+        "dokwood::detail::assignment": {
+          "state": "to-confirm",
+          "carriedFrom": {
+            "occurrence": "c876b170-0f9d-5bb0-bf7e-0eb96a3ff346",
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "split",
+            "policy": "copy-to-all"
+          }
+        }
+      }
+    },
+    {
+      "path": "c186e4d2-29e5-5d6f-adac-639450400670",
+      "inherits": {
+        "detailType": "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D012/v3"
+      },
+      "attributes": {
+        "dokwood::detail::assignment": {
+          "state": "in-review",
+          "carriedFrom": {
+            "occurrence": "d5a65e9f-e257-582a-9a83-fccc4a6ff50c",
+            "lineage": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+            "relation": "renamed",
+            "policy": "copy-to-all"
+          }
+        }
+      }
+    }
+  ]
+}

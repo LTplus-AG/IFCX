@@ -1,0 +1,166 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/4-lineage-v1-v2.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "model comparison (@ifc-lite/diff)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [],
+  "schemas": {
+    "dokwood::lineage": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "producer": {
+              "dataType": "String"
+            },
+            "base": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  }
+                }
+              }
+            },
+            "head": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  }
+                }
+              }
+            },
+            "entries": {
+              "dataType": "Array",
+              "arrayRestrictions": {
+                "value": {
+                  "dataType": "Object",
+                  "objectRestrictions": {
+                    "values": {
+                      "predecessors": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Reference"
+                          }
+                        }
+                      },
+                      "successors": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Reference"
+                          }
+                        }
+                      },
+                      "relation": {
+                        "dataType": "Enum",
+                        "enumRestrictions": {
+                          "options": [
+                            "split",
+                            "merge",
+                            "renamed",
+                            "moved",
+                            "replaced"
+                          ]
+                        }
+                      },
+                      "evidence": {
+                        "dataType": "String"
+                      },
+                      "shares": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Real"
+                          }
+                        },
+                        "optional": true
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "deleted": {
+              "dataType": "Array",
+              "arrayRestrictions": {
+                "value": {
+                  "dataType": "Reference"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "94778cdc-3e01-5007-a491-1264c08ff6e9",
+      "attributes": {
+        "dokwood::lineage": {
+          "producer": "@ifc-lite/diff lineage, transcribed",
+          "base": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v1.ifcx",
+            "sha256": "476b523e845cd5af0009b56b6ea06a78160c3cacea673d5cfe99be48f9de2834"
+          },
+          "head": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v2.ifcx",
+            "sha256": "e79c7a1e72071759b0ecfb97aca378794c3aba97e96ab941073cff4e1e779eb6"
+          },
+          "entries": [
+            {
+              "predecessors": [
+                "3897f691-029a-59f9-8b78-441618b20751"
+              ],
+              "successors": [
+                "90330d74-e5fa-54b0-bc79-8b23da540c26",
+                "c9fbf9f4-7c07-569b-9cd2-4ea05b82b645"
+              ],
+              "relation": "split",
+              "evidence": "split:verified",
+              "shares": [
+                0.6667,
+                0.3333
+              ]
+            },
+            {
+              "predecessors": [
+                "f67f61de-119a-546b-8d06-35b2b83bb491"
+              ],
+              "successors": [
+                "cd3ec012-1541-5c56-8cad-a962328d922f"
+              ],
+              "relation": "renamed",
+              "evidence": "content-match:renamed"
+            },
+            {
+              "predecessors": [
+                "5504f316-d63c-5efc-828c-11bf228e6ce5"
+              ],
+              "successors": [
+                "3ad8f0f9-f71c-5dc3-8e82-c5b981b8905f"
+              ],
+              "relation": "moved",
+              "evidence": "content-match:moved"
+            }
+          ],
+          "deleted": []
+        }
+      }
+    }
+  ]
+}
