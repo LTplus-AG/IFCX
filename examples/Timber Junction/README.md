@@ -28,7 +28,7 @@ Model v2 is a full re-export, not a layer on top of v1. That is the hard case:
 new paths for every changed element.
 
 `generate.py` writes all eight `.ifcx` files. To change the example, edit the
-script and run it in this folder (Python 3, no packages):
+script and run it in this folder (Python 3.8 or later, no packages):
 
 ```sh
 python3 generate.py

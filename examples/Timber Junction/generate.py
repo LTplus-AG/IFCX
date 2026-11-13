@@ -33,9 +33,11 @@ def header(name, author):
 
 def write(f):
     p = OUT / f["header"]["id"][len(ID_PREFIX):]
-    p.write_text(json.dumps(f, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    # Bytes, not text mode, so the files are LF on every OS and the hash is over what was written.
+    data = (json.dumps(f, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    p.write_bytes(data)
     # What a derived layer records about the layer it was derived from.
-    return {"layer": f["header"]["id"], "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
+    return {"layer": f["header"]["id"], "sha256": hashlib.sha256(data).hexdigest()}
 
 
 # key, GlobalId (from wp9-identity-demo), name, x0, y0, length, thickness, external

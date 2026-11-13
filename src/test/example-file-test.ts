@@ -45,8 +45,8 @@ describe("example file", () => {
             Wand_1__Decke: "D012/v3 approved", Wand_2__Decke: "D012/v3 in-review",
             Wand_3__Decke: "D021/v1 approved", Wand_4__Decke: "-" });
         expect(OccurrenceSummaries(v2)).to.deep.equal({
-            Wand_1_1__Decke: "D012/v3 to-confirm split", Wand_1_2__Decke: "D012/v3 to-confirm split",
-            Wand_2__Decke: "D012/v3 in-review renamed", Wand_3__Decke: "D021/v1 approved", Wand_4__Decke: "-" });
+            Wand_1_1__Decke: "D012/v3 to-confirm split c876b170", Wand_1_2__Decke: "D012/v3 to-confirm split c876b170",
+            Wand_2__Decke: "D012/v3 in-review renamed d5a65e9f", Wand_3__Decke: "D021/v1 approved", Wand_4__Decke: "-" });
 
         // Known gap: v1 assignments whose occurrence was not re-derived compose as member-less roots.
         const orphans = [...v2.children.values()].filter(n =>
@@ -76,8 +76,9 @@ describe("example file", () => {
         for (const v of ["v1", "v2"]) {
             const data = ReadTimberJunction(`3-derivation-${v}`).data;
             const group = data.find(d => d.children);
+            expect(group, `occurrence group in 3-derivation-${v}`).to.exist;
             const occurrences = data.filter(d => d !== group);
-            expect(occurrences.map(d => d.path).sort()).to.deep.equal(Object.values(group?.children ?? {}).sort());
+            expect(occurrences.map(d => d.path).sort()).to.deep.equal(Object.values(group!.children!).sort());
             const expected = binding(v);
             for (const d of occurrences) {
                 const derivation = d.attributes!["dokwood::derivation"];
@@ -122,12 +123,14 @@ async function ComposeTimberJunction(names: string[])
     return LoadIfcxFile(layerStack.GetFederatedLayer());
 }
 
-// "<code>/<version> <state> <carried relation>", with "-" in place of a missing type.
+// "<code>/<version> <state> <carried relation> <carried-from path prefix>", with "-" in place of a missing type.
 function Summary(o: PostCompositionNode)
 {
     const type = o.attributes.get("dokwood::detail::type");
     const assignment = o.attributes.get("dokwood::detail::assignment");
-    return [type ? `${type.code}/${type.version}` : "-", assignment?.state, assignment?.carriedFrom?.relation].filter(x => x).join(" ");
+    const carried = assignment?.carriedFrom;
+    return [type ? `${type.code}/${type.version}` : "-", assignment?.state, carried?.relation, carried?.occurrence.slice(0, 8)]
+        .filter(x => x).join(" ");
 }
 
 function OccurrenceSummaries(root: PostCompositionNode)
