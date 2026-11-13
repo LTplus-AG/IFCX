@@ -143,7 +143,7 @@ def model(walls, version):
 STEP_DIR = "ifc-lite"
 SIDECAR = Path(__file__).resolve().parent / STEP_DIR / "lineage-v1-v2.json"
 IFC_LITE, DIFF_FLAGS = "@ifc-lite/cli@0.45.1", "--geometry --split-merge"
-LINEAGE_CMD = (f'cd "{OUT / STEP_DIR}" && npx -y {IFC_LITE} diff model-v1.ifc model-v2.ifc {DIFF_FLAGS}'
+LINEAGE_CMD = (f'cd "{OUT.resolve() / STEP_DIR}" && npx -y {IFC_LITE} diff model-v1.ifc model-v2.ifc {DIFF_FLAGS}'
                f' --lineage-out "{SIDECAR}"')
 B64 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$"
 
@@ -375,7 +375,7 @@ def lineage(base, head, sidecar, lineage_entries):
     for pre, suc, rel, ev, shares in lineage_entries:
         e = {"predecessors": [W[k] for k in pre], "successors": [W[k] for k in suc],
              "relation": rel, "evidence": ev}
-        if shares:
+        if shares is not None:
             e["shares"] = shares
         entries.append(e)
     data = [{"path": LINEAGE, "attributes": {"dokwood::lineage": {

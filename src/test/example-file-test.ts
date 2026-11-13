@@ -84,7 +84,12 @@ describe("example file", () => {
                 .filter(d => d.attributes?.["bsi::ifc::class"]?.code === "IfcWall")
                 .map(d => [d.attributes!["bsi::ifc::prop::Name"], d.path]));
             const step = fs.readFileSync(`${timberJunctionPath}/ifc-lite/model-${v}.ifc`).toString();
-            return (gid: string) => byName.get(step.match(new RegExp(`IFCWALL\\('${gid}',#\\d+,'([^']*)'`))?.[1]);
+            const nameOf = new Map([...step.matchAll(/IFCWALL\('([^']+)',#\d+,'([^']*)'/g)].map(m => [m[1], m[2]]));
+            return (gid: string) => {
+                const path = byName.get(nameOf.get(gid));
+                expect(path, `${gid} in model-${v}.ifc and 1-model-${v}.ifcx`).to.exist;
+                return path;
+            };
         };
         const [base, head] = [pathOf("v1"), pathOf("v2")];
         expect(lineage.entries.map((e: any) => [e.predecessors, e.successors, e.relation, e.evidence, e.shares]))
