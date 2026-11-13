@@ -1,0 +1,206 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/6-lineage-type-d012.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "DOKwood platform (detail catalog)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [],
+  "schemas": {
+    "dokwood::lineage": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "axis": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "version",
+                  "phase",
+                  "type"
+                ]
+              },
+              "optional": true
+            },
+            "producer": {
+              "dataType": "String"
+            },
+            "sidecar": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "file": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  }
+                }
+              },
+              "optional": true
+            },
+            "base": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  },
+                  "phase": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "VP",
+                        "BP",
+                        "AP"
+                      ]
+                    },
+                    "optional": true
+                  }
+                }
+              }
+            },
+            "head": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  },
+                  "phase": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "VP",
+                        "BP",
+                        "AP"
+                      ]
+                    },
+                    "optional": true
+                  }
+                }
+              }
+            },
+            "entries": {
+              "dataType": "Array",
+              "arrayRestrictions": {
+                "value": {
+                  "dataType": "Object",
+                  "objectRestrictions": {
+                    "values": {
+                      "predecessors": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Reference"
+                          }
+                        }
+                      },
+                      "successors": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Reference"
+                          }
+                        }
+                      },
+                      "relation": {
+                        "dataType": "Enum",
+                        "enumRestrictions": {
+                          "options": [
+                            "identity",
+                            "split",
+                            "merge",
+                            "replaced"
+                          ]
+                        }
+                      },
+                      "evidence": {
+                        "dataType": "String"
+                      },
+                      "shares": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Real"
+                          }
+                        },
+                        "optional": true
+                      },
+                      "source": {
+                        "dataType": "Enum",
+                        "enumRestrictions": {
+                          "options": [
+                            "ifc-lite",
+                            "manual"
+                          ]
+                        }
+                      },
+                      "author": {
+                        "dataType": "String",
+                        "optional": true
+                      },
+                      "timestamp": {
+                        "dataType": "String",
+                        "optional": true
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "deleted": {
+              "dataType": "Array",
+              "arrayRestrictions": {
+                "value": {
+                  "dataType": "Reference"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "6f17dc12-9b52-5284-8ab7-0a6f39810e8a",
+      "attributes": {
+        "dokwood::lineage": {
+          "axis": "type",
+          "producer": "DOKwood platform (detail catalog)",
+          "base": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/2-catalog.ifcx",
+            "sha256": "ee63115f0750178e4e706d9c3184962b3faf56e37f2512a4a6425d6cc86bcb9d"
+          },
+          "head": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/2-catalog.ifcx",
+            "sha256": "ee63115f0750178e4e706d9c3184962b3faf56e37f2512a4a6425d6cc86bcb9d"
+          },
+          "entries": [
+            {
+              "predecessors": [
+                "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D012/v2"
+              ],
+              "successors": [
+                "7fba7fc8-d5fd-546b-99b7-56fd912629f3/D012/v3"
+              ],
+              "relation": "replaced",
+              "evidence": "v3 replaces v2",
+              "source": "manual"
+            }
+          ],
+          "deleted": []
+        }
+      }
+    }
+  ]
+}

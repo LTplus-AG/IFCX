@@ -1,0 +1,215 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/6-lineage-vp-bp.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "cost planner (phase VP to BP)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [],
+  "schemas": {
+    "dokwood::lineage": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "axis": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "version",
+                  "phase",
+                  "type"
+                ]
+              },
+              "optional": true
+            },
+            "producer": {
+              "dataType": "String"
+            },
+            "sidecar": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "file": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  }
+                }
+              },
+              "optional": true
+            },
+            "base": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  },
+                  "phase": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "VP",
+                        "BP",
+                        "AP"
+                      ]
+                    },
+                    "optional": true
+                  }
+                }
+              }
+            },
+            "head": {
+              "dataType": "Object",
+              "objectRestrictions": {
+                "values": {
+                  "layer": {
+                    "dataType": "String"
+                  },
+                  "sha256": {
+                    "dataType": "String"
+                  },
+                  "phase": {
+                    "dataType": "Enum",
+                    "enumRestrictions": {
+                      "options": [
+                        "VP",
+                        "BP",
+                        "AP"
+                      ]
+                    },
+                    "optional": true
+                  }
+                }
+              }
+            },
+            "entries": {
+              "dataType": "Array",
+              "arrayRestrictions": {
+                "value": {
+                  "dataType": "Object",
+                  "objectRestrictions": {
+                    "values": {
+                      "predecessors": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Reference"
+                          }
+                        }
+                      },
+                      "successors": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Reference"
+                          }
+                        }
+                      },
+                      "relation": {
+                        "dataType": "Enum",
+                        "enumRestrictions": {
+                          "options": [
+                            "identity",
+                            "split",
+                            "merge",
+                            "replaced"
+                          ]
+                        }
+                      },
+                      "evidence": {
+                        "dataType": "String"
+                      },
+                      "shares": {
+                        "dataType": "Array",
+                        "arrayRestrictions": {
+                          "value": {
+                            "dataType": "Real"
+                          }
+                        },
+                        "optional": true
+                      },
+                      "source": {
+                        "dataType": "Enum",
+                        "enumRestrictions": {
+                          "options": [
+                            "ifc-lite",
+                            "manual"
+                          ]
+                        }
+                      },
+                      "author": {
+                        "dataType": "String",
+                        "optional": true
+                      },
+                      "timestamp": {
+                        "dataType": "String",
+                        "optional": true
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "deleted": {
+              "dataType": "Array",
+              "arrayRestrictions": {
+                "value": {
+                  "dataType": "Reference"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "0019030a-ed1a-5587-ab91-f872c4dbd3af",
+      "attributes": {
+        "dokwood::lineage": {
+          "axis": "phase",
+          "producer": "cost planner, checked against 3-derivation-v2",
+          "base": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-cost-vp.ifcx",
+            "sha256": "264245ccfde7121b47e5c45f99a3d240b0724f086937622d70283f15667785fb",
+            "phase": "VP"
+          },
+          "head": {
+            "layer": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-cost-bp.ifcx",
+            "sha256": "0c24f98c8ffcfd83ee3993d46df9c0bd9b26bae471accfabb8444d94f350d3ec",
+            "phase": "BP"
+          },
+          "entries": [
+            {
+              "predecessors": [
+                "4c84adbf-a1f8-5d1a-b6a3-233219261300"
+              ],
+              "successors": [
+                "d865fb7c-2f28-5243-b4e4-e38dce6c5f5a",
+                "bcb4946e-a018-5e69-929e-8c59810a5e07",
+                "e3577aa9-3efd-5a1c-98c4-240bca274081"
+              ],
+              "relation": "split",
+              "evidence": "12.5 m estimated, 12.0 m derived",
+              "shares": [
+                0.3333333333333333,
+                0.16666666666666666,
+                0.5
+              ],
+              "source": "manual"
+            }
+          ],
+          "deleted": []
+        }
+      }
+    }
+  ]
+}

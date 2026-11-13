@@ -1,0 +1,64 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/2-catalog-generic.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "classification (generic types)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [],
+  "schemas": {
+    "dokwood::type::generic": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "code": {
+              "dataType": "String"
+            },
+            "name": {
+              "dataType": "String"
+            },
+            "junction": {
+              "dataType": "String"
+            },
+            "unit": {
+              "dataType": "String"
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "87d19e28-7c05-536e-9e65-45268b50e676",
+      "children": {
+        "Deckenauflager_aussen": "9be709e9-821e-5da5-bc83-3c73698b47e9"
+      }
+    },
+    {
+      "path": "9be709e9-821e-5da5-bc83-3c73698b47e9",
+      "attributes": {
+        "dokwood::type::generic": {
+          "code": "G-SB-EXT",
+          "name": "Deckenauflager Aussenwand",
+          "junction": "slab-on-wall",
+          "unit": "m"
+        }
+      }
+    },
+    {
+      "path": "cfaee718-b06e-53b7-a504-19ed1532a79a",
+      "inherits": {
+        "refines": "9be709e9-821e-5da5-bc83-3c73698b47e9"
+      }
+    },
+    {
+      "path": "bff29461-c525-5383-a99c-ad799194fa83",
+      "inherits": {
+        "refines": "9be709e9-821e-5da5-bc83-3c73698b47e9"
+      }
+    }
+  ]
+}

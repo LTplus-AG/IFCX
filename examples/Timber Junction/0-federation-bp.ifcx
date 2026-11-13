@@ -1,0 +1,21 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/0-federation-bp.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "BIM coordinator",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [
+    {
+      "uri": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-v2.ifcx",
+      "integrity": "sha256-TRBmgNxol7ZQpEV6G41QfTdn4SuOwmrte8uJ1Dhkc88="
+    },
+    {
+      "uri": "ifc5.technical.buildingsmart.org/examples/Timber Junction/1-model-mep.ifcx",
+      "integrity": "sha256-gaEefJL7GrWJUxSth2N+ykMJyDR7cMEgdlXnGwHdgRY="
+    }
+  ],
+  "schemas": {},
+  "data": []
+}

@@ -1,0 +1,127 @@
+{
+  "header": {
+    "id": "ifc5.technical.buildingsmart.org/examples/Timber Junction/5-view-cost-bp.ifcx",
+    "ifcxVersion": "ifcx_alpha",
+    "dataVersion": "1.0.0",
+    "author": "cost planner (phase BP)",
+    "timestamp": "2026-11-13"
+  },
+  "imports": [
+    {
+      "uri": "https://ifcx.dev/@standards.buildingsmart.org/ifc/core/prop@v5a.ifcx"
+    }
+  ],
+  "schemas": {
+    "dokwood::assignment": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "view": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "detail",
+                  "cost",
+                  "physics",
+                  "structure",
+                  "fabrication"
+                ]
+              }
+            },
+            "state": {
+              "dataType": "Enum",
+              "enumRestrictions": {
+                "options": [
+                  "proposed",
+                  "in-review",
+                  "approved",
+                  "to-confirm"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "dokwood::cost::line": {
+      "value": {
+        "dataType": "Object",
+        "objectRestrictions": {
+          "values": {
+            "unitPrice": {
+              "dataType": "Real"
+            },
+            "currency": {
+              "dataType": "String"
+            }
+          }
+        }
+      }
+    }
+  },
+  "data": [
+    {
+      "path": "93f734b9-9511-5235-9840-efe1aece7a5a",
+      "children": {
+        "Wand_1_1__Decke": "d865fb7c-2f28-5243-b4e4-e38dce6c5f5a",
+        "Wand_1_2__Decke": "bcb4946e-a018-5e69-929e-8c59810a5e07",
+        "Wand_2__Decke": "e3577aa9-3efd-5a1c-98c4-240bca274081"
+      },
+      "attributes": {
+        "bsi::ifc::prop::Name": "View: cost"
+      }
+    },
+    {
+      "path": "d865fb7c-2f28-5243-b4e4-e38dce6c5f5a",
+      "inherits": {
+        "place": "3de3f167-ded9-5d58-a746-bea12098d9c8",
+        "type": "9be709e9-821e-5da5-bc83-3c73698b47e9"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "cost",
+          "state": "proposed"
+        },
+        "dokwood::cost::line": {
+          "unitPrice": 175.0,
+          "currency": "CHF"
+        }
+      }
+    },
+    {
+      "path": "bcb4946e-a018-5e69-929e-8c59810a5e07",
+      "inherits": {
+        "place": "d5fc1958-9c80-5cf6-8572-59cbbee4498c",
+        "type": "9be709e9-821e-5da5-bc83-3c73698b47e9"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "cost",
+          "state": "proposed"
+        },
+        "dokwood::cost::line": {
+          "unitPrice": 175.0,
+          "currency": "CHF"
+        }
+      }
+    },
+    {
+      "path": "e3577aa9-3efd-5a1c-98c4-240bca274081",
+      "inherits": {
+        "place": "c186e4d2-29e5-5d6f-adac-639450400670",
+        "type": "9be709e9-821e-5da5-bc83-3c73698b47e9"
+      },
+      "attributes": {
+        "dokwood::assignment": {
+          "view": "cost",
+          "state": "proposed"
+        },
+        "dokwood::cost::line": {
+          "unitPrice": 175.0,
+          "currency": "CHF"
+        }
+      }
+    }
+  ]
+}

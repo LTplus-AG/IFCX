@@ -12,7 +12,7 @@ It also writes IFC STEP twins of the models to ifc-lite/, because ifc-lite
 reads STEP and not IFCX. The lineage layers are translated from what ifc-lite
 wrote when diffing those twins (ifc-lite/lineage-*.json, see lineage_cmd).
 """
-import hashlib, itertools, json, sys, uuid
+import base64, hashlib, itertools, json, sys, uuid
 from collections import namedtuple
 from pathlib import Path
 
@@ -585,7 +585,7 @@ def manual_split():
 steps = {v: write_step(v) for v in MODELS}
 sidecars = {h: ifc_lite_lineage(h, steps["v1"], steps[h]) for h in ("v2", "v2-samename")}
 m = {v: stage(model(v)) for v in MODELS}
-stage(catalog())
+cat = stage(catalog())
 d1, d2 = derivation("v1", m["v1"]), derivation("v2", m["v2"])
 shas_v1, shas_v2 = derivation_shas(d1), derivation_shas(d2)
 stage(d1)
@@ -596,5 +596,166 @@ for h, (side, entries) in sidecars.items():
     stage(lineage(h, m["v1"], m[h], side, entries))
 stage(assignment_v2("v2", sidecars["v2"][1], shas_v1, shas_v2))
 stage(manual_lineage("v2-samename", m["v1"], m["v2-samename"]))
+
+
+# ---- views and phases -------------------------------------------------------
+# A second discipline (one duct through Wand 2), a federation manifest over both models, and a
+# place across them. A place holds derivation data only. Each view types a place on its own node
+# uuid5(ns, "view|<view>|<place>"), which inherits exactly "place" and "type", so views never
+# write on a shared path. The phases VP and BP have separate stacks, linked by a lineage entry.
+DUCT = Element("Z1", "3ZuluftKanalWand2HLK01", "Zuluft 1", "IfcDuctSegment", (1.4, 4.6, 2.2, 1.6, 5.64, 2.4), None)
+MEP_ROOT = u("mep", "storey")
+
+
+def mep_model():
+    # Its own root: on the architect's storey path its attributes would replace the architect's.
+    p, body = path_of(DUCT.gid), u("body", DUCT.gid)
+    data = [{"path": MEP_ROOT, "children": {slug(DUCT.name): p},
+             "attributes": {"bsi::ifc::class": ifc_class("IfcBuildingStorey"), "bsi::ifc::prop::Name": "EG HLKS"}},
+            {"path": p, "children": {"Body": body},
+             "attributes": {"bsi::ifc::class": ifc_class(DUCT.cls), "bsi::ifc::prop::Name": DUCT.name}},
+            {"path": body, "attributes": {"usd::usdgeom::mesh": box_mesh(*DUCT.box),
+                                          "bsi::ifc::presentation::diffuseColor": [0.35, 0.55, 0.8]}}]
+    return ifcx_file("1-model-mep.ifcx", "MEP engineer (authoring tool export)", data, {}, MODEL_IMPORTS)
+
+
+def federation(refs):
+    # integrity in the Subresource Integrity form "sha256-<base64>". IFCX does not check it.
+    imports = [{"uri": r["layer"], "integrity": "sha256-" + base64.b64encode(bytes.fromhex(r["sha256"])).decode()}
+               for r in refs]
+    return ifcx_file("0-federation-bp.ifcx", "BIM coordinator", [], {}, imports)
+
+
+def federated_derivation(source, schemas):
+    wall = ELEMENTS["W2neu"]
+    w, d = path_of(wall.gid), path_of(DUCT.gid)
+    # Where the duct axis crosses the wall's middle plane.
+    point = [round((DUCT.box[0] + DUCT.box[3]) / 2, 4), round((wall.box[1] + wall.box[4]) / 2, 4),
+             round((DUCT.box[2] + DUCT.box[5]) / 2, 4)]
+    place = occ_path("penetration", w, d)
+    data = [{"path": u("detail-occurrences", "federated"), "children": {f"{slug(wall.name)}__{slug(DUCT.name)}": place},
+             "attributes": {"bsi::ifc::prop::Name": "Detail occurrences across disciplines (derived)"}},
+            {"path": place, "attributes": {
+                "dokwood::detail::members": [{"ref": w, "role": "penetrated"}, {"ref": d, "role": "penetrating"}],
+                "dokwood::detail::topology": {"junction": "penetration", "extent": {"kind": "point", "start": point}},
+                "dokwood::derivation": dict(ENGINE, operation="junction-detection", sources=sorted([w, d]),
+                                            sourceLayer=source["layer"], sourceSha256=source["sha256"])}}]
+    return ifcx_file("3-derivation-federated.ifcx", "detail-finder 1.4.0 (derived, do not edit)", data, schemas,
+                     [PROP_IMPORT])
+
+
+# Type chain, generic -> D012/v3 -> fabrication variant F2, each level with its own attribute id.
+GENERIC = u("generic-type", "slab-bearing-exterior")
+F2 = u("fab-type", "D012", "v3", "F2")
+
+
+def catalog_generic():
+    data = [{"path": u("generic-catalog"), "children": {"Deckenauflager_aussen": GENERIC}},
+            {"path": GENERIC, "attributes": {"dokwood::type::generic": {
+                "code": "G-SB-EXT", "name": "Deckenauflager Aussenwand", "junction": "slab-on-wall", "unit": "m"}}}]
+    # D012 is a generic exterior slab bearing. A new inherits key on the catalog's nodes; 2-catalog stays as it is.
+    data += [{"path": u("type", "D012", v), "inherits": {"refines": GENERIC}} for v in DETAIL_TYPES["D012"][0]]
+    schemas = {"dokwood::type::generic": {"value": obj({"code": S_STR, "name": S_STR, "junction": S_STR, "unit": S_STR})}}
+    return ifcx_file("2-catalog-generic.ifcx", "classification (generic types)", data, schemas)
+
+
+def catalog_fab():
+    data = [{"path": u("fab-catalog"), "children": {"D012_v3_F2": F2}},
+            {"path": F2, "inherits": {"refines": type_ref("D012", "v3")}, "attributes": {"dokwood::fab::variant": {
+                "code": "D012-v3-F2", "fastener": "VG 8x300, a = 250 mm", "cnc": "BTLx"}}}]
+    schemas = {"dokwood::fab::variant": {"value": obj({"code": S_STR, "fastener": S_STR, "cnc": S_STR})}}
+    return ifcx_file("2-catalog-fab.ifcx", "timber fabricator (variant catalog)", data, schemas)
+
+
+VIEW_SCHEMA = {"dokwood::assignment": {"value": obj({
+    "view": enum("detail", "cost", "physics", "structure", "fabrication"),
+    "state": enum("proposed", "in-review", "approved", "to-confirm")})}}
+COST_SCHEMA = {"dokwood::cost::line": {"value": obj({"unitPrice": S_REAL, "currency": S_STR})}}
+SCOPE_SCHEMA = {"dokwood::scope": {"value": obj({
+    "junction": S_STR, "roles": arr(obj({"role": S_STR, "where": S_STR})),
+    "quantity": obj({"length": S_REAL}), "basis": S_STR})}}
+EXTERIOR = [j for j in junctions("v2") if j.kind == "slab-on-wall" and ELEMENTS[j.key].external]
+SCOPE_ITEM = u("view", "cost", "scope", "slab-bearing-exterior")
+SCOPE_LENGTH = 12.5
+
+
+def view_occurrence(view, j, type_path, state, attrs=None):
+    # (child name, path, inherits, attributes) of one view's statement about one place.
+    return (j.name, u("view", view, OCC[j.key]), {"place": OCC[j.key], "type": type_path},
+            {"dokwood::assignment": {"view": view, "state": state}, **(attrs or {})})
+
+
+def view_layer(name, author, view, occurrences, schemas):
+    data = [{"path": u("view-group", view), "children": {n: p for n, p, _, _ in occurrences},
+             "attributes": {"bsi::ifc::prop::Name": f"View: {view}"}}]
+    data += [{"path": p, "inherits": i, "attributes": a} for _, p, i, a in occurrences]
+    return ifcx_file(name, author, data, {**VIEW_SCHEMA, **schemas}, [PROP_IMPORT])
+
+
+def detail_view_bp():
+    def detail_type(j):
+        return ("D012", "v3") if j in EXTERIOR else ("D031", "v1") if j.kind == "slab-to-slab" else ("D021", "v1")
+    occs = [view_occurrence("detail", j, type_ref(*detail_type(j)), "proposed") for j in junctions("v2")]
+    return view_layer("5-view-detail-bp.ifcx", "detail editor (phase BP)", "detail", occs, {})
+
+
+def cost_view_bp():
+    line_item = {"dokwood::cost::line": {"unitPrice": 175.0, "currency": "CHF"}}
+    occs = [view_occurrence("cost", j, GENERIC, "proposed", line_item) for j in EXTERIOR]
+    return view_layer("5-view-cost-bp.ifcx", "cost planner (phase BP)", "cost", occs, COST_SCHEMA)
+
+
+def cost_view_vp():
+    # A scope item: one coarse cost line for places nobody has derived yet, so no "place".
+    scope = {"dokwood::assignment": {"view": "cost", "state": "approved"},
+             "dokwood::scope": {"junction": "slab-on-wall",
+                                "roles": [{"role": "bearing", "where": "IfcWall, IsExternal = true"},
+                                          {"role": "supported", "where": "IfcSlab"}],
+                                "quantity": {"length": SCOPE_LENGTH}, "basis": "estimate from VP floor plan"},
+             "dokwood::cost::line": {"unitPrice": 180.0, "currency": "CHF"}}
+    occs = [("Deckenauflager_aussen", SCOPE_ITEM, {"type": GENERIC}, scope)]
+    return view_layer("5-view-cost-vp.ifcx", "cost planner (phase VP)", "cost", occs, {**COST_SCHEMA, **SCOPE_SCHEMA})
+
+
+# dokwood::lineage plus "axis" and a phase on each end. A schema id is declared once per stack (the
+# last declaration applies to every layer), so "axis" is optional: absent means "version", and the
+# v1 to v2 lineage layers still validate when they meet this declaration.
+LINEAGE_END = obj({"layer": S_STR, "sha256": S_STR, "phase": enum("VP", "BP", "AP")}, optional=("phase",))
+AXIS_LINEAGE_SCHEMA = {"dokwood::lineage": {"value": obj({
+    "axis": enum("version", "phase", "type"),
+    **LINEAGE_SCHEMA["dokwood::lineage"]["value"]["objectRestrictions"]["values"],
+    "base": LINEAGE_END, "head": LINEAGE_END}, optional=("axis",))}}
+
+
+def phase_lineage(vp, bp):
+    lengths = [j.extent["length"] for j in EXTERIOR]
+    entry = {"predecessors": [SCOPE_ITEM], "successors": [u("view", "cost", OCC[j.key]) for j in EXTERIOR],
+             "relation": "split", "evidence": f"{SCOPE_LENGTH} m estimated, {sum(lengths)} m derived",
+             "shares": [x / sum(lengths) for x in lengths], "source": "manual"}
+    return ifcx_file("6-lineage-vp-bp.ifcx", "cost planner (phase VP to BP)", [
+        {"path": u("lineage", "phase", "VP", "BP", "cost"), "attributes": {"dokwood::lineage": {
+            "axis": "phase", "producer": "cost planner, checked against 3-derivation-v2",
+            "base": dict(vp, phase="VP"), "head": dict(bp, phase="BP"), "entries": [entry], "deleted": []}}}],
+        AXIS_LINEAGE_SCHEMA)
+
+
+def type_lineage(cat):
+    # A revision replaces, it is no is-a: v3 does not inherit v2. Specialization is never a lineage entry.
+    entry = {"predecessors": [type_ref("D012", "v2")], "successors": [type_ref("D012", "v3")],
+             "relation": "replaced", "evidence": "v3 replaces v2", "source": "manual"}
+    return ifcx_file("6-lineage-type-d012.ifcx", "DOKwood platform (detail catalog)", [
+        {"path": u("lineage", "type", "D012", "v2", "v3"), "attributes": {"dokwood::lineage": {
+            "axis": "type", "producer": "DOKwood platform (detail catalog)",
+            "base": cat, "head": cat, "entries": [entry], "deleted": []}}}],
+        AXIS_LINEAGE_SCHEMA)
+
+
+fed = stage(federation([m["v2"], stage(mep_model())]))
+stage(federated_derivation(fed, d2["schemas"]))
+stage(catalog_generic())
+stage(catalog_fab())
+stage(detail_view_bp())
+stage(phase_lineage(stage(cost_view_vp()), stage(cost_view_bp())))
+stage(type_lineage(cat))
 for p, data in PENDING:
     p.write_bytes(data)
