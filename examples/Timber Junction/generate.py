@@ -143,7 +143,7 @@ def model(walls, version):
 STEP_DIR = "ifc-lite"
 SIDECAR = Path(__file__).resolve().parent / STEP_DIR / "lineage-v1-v2.json"
 IFC_LITE, DIFF_FLAGS = "@ifc-lite/cli@0.45.1", "--geometry --split-merge"
-LINEAGE_CMD = (f"cd {STEP_DIR} && npx -y {IFC_LITE} diff model-v1.ifc model-v2.ifc {DIFF_FLAGS}"
+LINEAGE_CMD = (f'cd "{SIDECAR.parent}" && npx -y {IFC_LITE} diff model-v1.ifc model-v2.ifc {DIFF_FLAGS}'
                f" --lineage-out {SIDECAR.name}")
 B64 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$"
 
@@ -354,11 +354,18 @@ def ifc_lite_lineage(step_v1, step_v2):
         sys.exit(f"{SIDECAR} is missing. Create it with: {LINEAGE_CMD}")
     raw = SIDECAR.read_bytes()
     side = json.loads(raw)
+    if (side.get("format"), side.get("version")) != ("ifc-lite/lineage", 1):
+        sys.exit(f"{SIDECAR.name} is not an ifc-lite/lineage v1 sidecar")
     for end, sha in (("base", step_v1), ("head", step_v2)):
-        if side[end]["hash"] != "sha256:" + sha:
-            sys.exit(f"{SIDECAR.name} {end} is not bound to the STEP twin written now. Rerun: {LINEAGE_CMD}")
+        if side[end].get("hash") != "sha256:" + sha:
+            sys.exit(f"{SIDECAR.name} {end} is not bound to the STEP twin written now."
+                     f" Run generate.py without an output folder, then: {LINEAGE_CMD}")
     if side["deleted"]:
         sys.exit(f"{SIDECAR.name} lists deleted elements, which this example does not model")
+    for e in side["entries"]:
+        if e["relation"] not in RELATIONS or any(g not in KEY for g in e["base"] + e["head"]):
+            sys.exit(f"{SIDECAR.name} has an entry this example does not model: {e}")
+    write_bytes(OUT / STEP_DIR / SIDECAR.name, raw)  # so an output folder holds what the lineage points at
     ref = {"file": f"{STEP_DIR}/{SIDECAR.name}", "sha256": hashlib.sha256(raw).hexdigest()}
     return ref, [([KEY[g] for g in e["base"]], [KEY[g] for g in e["head"]], e["relation"], e["reason"], e.get("shares"))
             for e in side["entries"]]
